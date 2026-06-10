@@ -84,7 +84,7 @@ function LivePulse({ version }: { version: number }) {
  * in the ?range query param, so any view is shareable as a plain link.
  */
 export function TimelinePage() {
-  const { user, devices, liveVersion, setError } = useOutletContext<DashboardContext>()
+  const { user, mode, devices, liveVersion, setError } = useOutletContext<DashboardContext>()
   const { metric: metricParam } = useParams()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -219,6 +219,11 @@ export function TimelinePage() {
                 liveVersion={liveVersion}
                 hasDevices={activeDevices.length > 0}
                 providerNames={activeDevices.map((d) => providerDisplayName(d.provider))}
+                providerSlugs={activeDevices.map((d) => d.provider)}
+                demoMode={mode === 'sandbox'}
+                onShowMetric={(m) =>
+                  navigate({ pathname: `/metrics/${m}`, search: searchParams.toString() })
+                }
                 rangeLabel={RANGES[range].label}
                 onConnectDevice={() => navigate('/devices')}
                 onShowRange={(label) => {

@@ -53,6 +53,9 @@ class StubJunction:
     async def create_user(self, client_user_id: str) -> dict:
         return {"user_id": f"jnc-{client_user_id}"}
 
+    async def connect_demo_provider(self, junction_user_id: str, provider: str) -> dict:
+        return {"success": True, "provider": provider}
+
     async def deregister_provider(self, junction_user_id: str, provider: str) -> dict:
         self.deregistered.append((junction_user_id, provider))
         if self.gone_upstream:
