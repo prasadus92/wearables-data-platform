@@ -409,7 +409,7 @@ export default function App() {
                     setDevices([])
                   }}
                 >
-                  switch
+                  start fresh
                 </Button>
               )}
             </span>
