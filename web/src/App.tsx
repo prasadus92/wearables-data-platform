@@ -1,7 +1,7 @@
 import { SignInButton, UserButton, useUser } from '@clerk/react'
 import { AlertCircle } from 'lucide-react'
 import { motion, MotionConfig } from 'motion/react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   Link,
   Navigate,
@@ -158,12 +158,19 @@ function AppShell() {
   const wasSignedIn = useRef(false)
 
   // Keep the API client's guest credential in step with the active session.
-  // Declared before the data-fetching effects below so the token registers
-  // before their first request goes out. Clerk sessions and the sample
-  // account carry no guest_token, which correctly clears it.
-  useEffect(() => {
+  // A layout effect, deliberately: passive effects run children first, so a
+  // plain useEffect here fires AFTER the chart's first fetch and that
+  // request goes out with no credential (a 401 on keyless builds). Layout
+  // effects all run before any passive effect, closing the race.
+  useLayoutEffect(() => {
     setGuestToken(user?.guest_token ?? null)
   }, [user])
+
+  // When Clerk finishes resolving (sign-in, or the handshake on a hard page
+  // load), refetch everything: requests issued mid-handshake failed or hung.
+  useEffect(() => {
+    if (clerkLoaded) setLiveVersion((v) => v + 1)
+  }, [clerkLoaded, signedIn])
 
   // Signed-in identities bootstrap through POST /v1/me per environment. The
   // result lands in the same per-mode slot, replacing any stored anonymous
@@ -243,6 +250,7 @@ function AppShell() {
         healedGuest.current = user.id
         await api.connectDemo(user.id, 'oura')
         await refreshDevices()
+        setLiveVersion((v) => v + 1)
       })
       .catch(() => {
         // Next load retries; healing is best effort.
@@ -380,7 +388,10 @@ function AppShell() {
       <div className="mx-auto flex max-w-[880px] flex-col gap-4 px-5 pt-6 pb-16">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-semibold tracking-tight">YOU(th) Wearables</h1>
+            <h1 className="flex items-baseline gap-2">
+              <img src="/youth-logo.svg" alt="YOU(th)" className="h-4 w-auto" />
+              <span className="text-xl leading-none font-semibold tracking-tight">Wearables</span>
+            </h1>
             <span
               className="rounded-full border bg-card px-2.5 py-0.5 font-mono text-xs tracking-wide text-muted-foreground uppercase"
               title={
