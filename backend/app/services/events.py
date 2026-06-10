@@ -55,6 +55,12 @@ async def sse_stream(user_id: uuid.UUID) -> AsyncIterator[str]:
             except TimeoutError:
                 yield ": heartbeat\n\n"
                 continue
+            except StopAsyncIteration:
+                # The pubsub listener ended (connection closed or
+                # unsubscribed). PEP 479 turns this into a RuntimeError if it
+                # escapes the generator, which uvicorn logs as a 500; ending
+                # the stream is the correct quiet exit.
+                break
             if message["type"] == "message":
                 yield f"event: update\ndata: {message['data']}\n\n"
     except asyncio.CancelledError:

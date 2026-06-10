@@ -16,10 +16,11 @@ from sqlalchemy import select
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.db.session import db_session
-from app.models import User, WebhookEvent, WebhookEventStatus
+from app.models import Metric, User, WebhookEvent, WebhookEventStatus
 from app.services.events import publish_samples_written
 from app.services.ingestion import (
     RESOURCE_TO_METRIC,
+    SLEEP_RESOURCE,
     IngestPlan,
     apply_plan,
     parse_event,
@@ -125,13 +126,17 @@ async def process_backfill(
     start_date: str,
     end_date: str,
 ) -> str:
-    """Pull historical timeseries from Junction's REST API and upsert it.
+    """Pull historical data from Junction's REST API and upsert it.
 
     Triggered by ``historical.data.{resource}.created`` events, which are
     data-less notifications. Pages through the cursor until exhausted.
+    Timeseries resources come from the timeseries endpoint; ``sleep`` comes
+    from the sleep summary endpoint and fans out into HR, HRV and breathing
+    rate samples per session.
     """
     total = 0
     cursor: str | None = None
+    metrics_written: set[Metric] = set()
 
     async with db_session() as session:
         user = (
@@ -143,38 +148,65 @@ async def process_backfill(
         # Pull from the Junction environment this user lives in.
         junction: JunctionClient = ctx["junction_clients"][user.junction_environment]
 
-        while True:
-            page = await junction.get_timeseries(
-                user.junction_user_id,
-                resource,
-                start_date,
-                end_date,
-                provider=provider,
-                next_cursor=cursor,
-            )
-            # Grouped response: {"groups": {provider: [{"data": [...], "source": {...}}]}}
-            groups = page.get("groups", {}) if isinstance(page, dict) else {}
-            for provider_slug, series_list in groups.items():
-                for series in series_list:
-                    plan = parse_event(
-                        {
-                            "event_type": f"daily.data.{resource}.created",
-                            "user_id": user.junction_user_id,
-                            "data": {
-                                "data": series.get("data", []),
-                                "source": {"slug": provider_slug},
-                            },
-                        }
-                    )
-                    total += await apply_plan(session, user.id, plan)
-            await session.commit()
+        if resource == SLEEP_RESOURCE:
+            while True:
+                page = await junction.get_sleep_summary(
+                    user.junction_user_id,
+                    start_date,
+                    end_date,
+                    provider=provider,
+                    next_cursor=cursor,
+                )
+                sessions = page.get("sleep", []) if isinstance(page, dict) else []
+                plan = parse_event(
+                    {
+                        "event_type": "daily.data.sleep.created",
+                        "user_id": user.junction_user_id,
+                        "data": {"data": sessions},
+                    }
+                )
+                total += await apply_plan(session, user.id, plan)
+                metrics_written |= {s.metric for s in plan.samples}
+                await session.commit()
 
-            cursor = page.get("next_cursor") if isinstance(page, dict) else None
-            if not cursor:
-                break
+                cursor = page.get("next_cursor") if isinstance(page, dict) else None
+                if not cursor:
+                    break
+        else:
+            while True:
+                page = await junction.get_timeseries(
+                    user.junction_user_id,
+                    resource,
+                    start_date,
+                    end_date,
+                    provider=provider,
+                    next_cursor=cursor,
+                )
+                # Grouped response: {"groups": {provider: [{"data": [...], "source": {...}}]}}
+                groups = page.get("groups", {}) if isinstance(page, dict) else {}
+                for provider_slug, series_list in groups.items():
+                    for series in series_list:
+                        plan = parse_event(
+                            {
+                                "event_type": f"daily.data.{resource}.created",
+                                "user_id": user.junction_user_id,
+                                "data": {
+                                    "data": series.get("data", []),
+                                    "source": {"slug": provider_slug},
+                                },
+                            }
+                        )
+                        total += await apply_plan(session, user.id, plan)
+                await session.commit()
 
-    if total and resource in RESOURCE_TO_METRIC:
-        await publish_samples_written(ctx["redis"], user_id, {RESOURCE_TO_METRIC[resource]}, total)
+                cursor = page.get("next_cursor") if isinstance(page, dict) else None
+                if not cursor:
+                    break
+            if resource in RESOURCE_TO_METRIC:
+                metrics_written = {RESOURCE_TO_METRIC[resource]}
+
+    if total and metrics_written:
+        await publish_samples_written(ctx["redis"], user_id, metrics_written, total)
 
     logger.info("backfill_done", resource=resource, provider=provider, samples=total)
     return f"backfilled:{total}"

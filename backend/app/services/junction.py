@@ -150,3 +150,25 @@ class JunctionClient:
         return await self._request(
             "GET", f"/v2/timeseries/{junction_user_id}/{resource}/grouped", params=params
         )
+
+    async def get_sleep_summary(
+        self,
+        junction_user_id: str,
+        start_date: str,
+        end_date: str,
+        provider: str | None = None,
+        next_cursor: str | None = None,
+    ) -> dict[str, Any]:
+        """Pull sleep summaries for a date range (response key ``sleep``).
+
+        Real rings and straps deliver sleeping HR, HRV and breathing rate
+        inside the sleep summary rather than as standalone timeseries
+        resources, so sleep backfills come through here. ``next_cursor`` is
+        forwarded when Junction paginates the range.
+        """
+        params: dict[str, str] = {"start_date": start_date, "end_date": end_date}
+        if provider:
+            params["provider"] = provider
+        if next_cursor:
+            params["next_cursor"] = next_cursor
+        return await self._request("GET", f"/v2/summary/sleep/{junction_user_id}", params=params)
