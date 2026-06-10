@@ -38,6 +38,26 @@ export function dayLabel(ts: number): string {
   return `${MONTHS[d.getMonth()]} ${d.getDate()}`;
 }
 
+/** Plain relative age for the out-of-range empty state: "16 days ago". */
+export function relativeAge(iso: string): string {
+  const plural = (n: number, unit: string) =>
+    `${n} ${unit}${n === 1 ? '' : 's'} ago`;
+  const minutes = Math.max(
+    1,
+    Math.round((Date.now() - new Date(iso).getTime()) / 60000),
+  );
+  if (minutes < 60) return plural(minutes, 'minute');
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return plural(hours, 'hour');
+  return plural(Math.round(hours / 24), 'day');
+}
+
+/** Joins names for prose: "Oura", "Oura and Fitbit", "Oura, Fitbit and WHOOP". */
+export function formatNameList(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
 export function isOlderThan(iso: string | null, hours: number): boolean {
   if (!iso) return true;
   const then = new Date(iso).getTime();

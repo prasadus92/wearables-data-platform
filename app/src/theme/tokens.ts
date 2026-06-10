@@ -26,6 +26,14 @@ export const colors = {
   danger: '#EC4444',
   disabledChip: '#DEDEDE',
   scrim: '#111111',
+  // Figma dark home: warm backdrop tones and the teal biomarkers card.
+  pink: '#F54EF0',
+  night: '#121111',
+  emberDeep: '#2B1410',
+  emberMid: '#1A100D',
+  emberGlow: '#8A4A22',
+  tealTop: '#176058',
+  tealBottom: '#0B3534',
 } as const;
 
 // Brand faces, for places Tailwind classes cannot reach (native props,
