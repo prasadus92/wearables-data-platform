@@ -1,6 +1,18 @@
 // Thin typed client for the backend API.
 // In dev, Vite proxies /v1 to localhost:8000; in production builds the base
 // URL comes from VITE_API_URL.
+// Response and request contract types live in @examplehealth/health-core, shared
+// with the mobile app; only the request plumbing is web-specific.
+
+import type {
+  ActivityEvent,
+  Device,
+  AggregatorEnv,
+  Metric,
+  Resolution,
+  Timeseries,
+  User,
+} from '@examplehealth/health-core'
 
 const BASE = import.meta.env.VITE_API_URL ?? ''
 const API_KEY = import.meta.env.VITE_API_KEY ?? ''
@@ -30,48 +42,6 @@ export async function streamUrl(userId: string): Promise<string> {
   const credential = (await authToken()) ?? API_KEY
   const suffix = credential ? `?api_key=${encodeURIComponent(credential)}` : ''
   return `${BASE}/v1/users/${userId}/stream${suffix}`
-}
-
-export type Metric = 'heartrate' | 'hrv' | 'spo2' | 'respiratory_rate' | 'blood_pressure'
-export type Resolution = 'raw' | 'hour' | 'day' | 'week'
-
-export type AggregatorEnv = 'sandbox' | 'production'
-
-export interface User {
-  id: string
-  client_user_id: string
-  aggregator_user_id: string | null
-  aggregator_environment: AggregatorEnv
-}
-
-export interface Device {
-  id: string
-  provider: string
-  status: 'connected' | 'expired' | 'disconnected'
-  connected_at: string
-  last_data_at: string | null
-}
-
-export interface ActivityEvent {
-  id: string
-  event_type: string
-  status: 'received' | 'processed' | 'failed' | 'skipped'
-  received_at: string
-  processed_at: string | null
-  summary: string
-}
-
-export interface TimeseriesPoint {
-  ts: string
-  value: number
-  value_secondary: number | null
-}
-
-export interface Timeseries {
-  metric: Metric
-  unit: string
-  resolution: Resolution
-  points: TimeseriesPoint[]
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

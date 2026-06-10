@@ -1,6 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-import type { AggregatorEnv } from '../api/types';
+import type { AggregatorEnv } from '@examplehealth/health-core';
 
 export interface Session {
   userId: string;

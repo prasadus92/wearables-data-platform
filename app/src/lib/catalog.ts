@@ -1,6 +1,8 @@
-import type { MetricKey, Resolution } from '../api/types';
-
-import { METRIC_META } from './metrics';
+import {
+  METRIC_META,
+  type Metric,
+  type Resolution,
+} from '@examplehealth/health-core';
 
 export interface ProviderInfo {
   slug: string;
@@ -42,7 +44,7 @@ export function providerName(slug: string): string {
 }
 
 export interface MetricInfo {
-  key: MetricKey;
+  key: Metric;
   label: string;
   /** Blood pressure plots systolic and diastolic as two lines. */
   dual: boolean;

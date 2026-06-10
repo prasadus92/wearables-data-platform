@@ -1,6 +1,6 @@
+import type { AggregatorEnv } from '@examplehealth/health-core';
 import { createContext, useContext } from 'react';
 
-import type { AggregatorEnv } from '../api/types';
 import type { ProviderInfo } from './catalog';
 import type { Session } from './storage';
 

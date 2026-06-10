@@ -3,8 +3,9 @@ import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 
+import type { Device } from '@examplehealth/health-core';
+
 import { api } from '../api/client';
-import type { Device } from '../api/types';
 import { AnimatedPressable } from '../components/AnimatedPressable';
 import { Header } from '../components/Header';
 import { useApp } from '../lib/appContext';

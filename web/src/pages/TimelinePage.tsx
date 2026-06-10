@@ -8,10 +8,10 @@ import {
   useSearchParams,
 } from 'react-router-dom'
 import type { DashboardContext } from '../App'
-import { api, type Metric, type Resolution } from '../api'
+import { METRIC_META, type Metric, type Resolution } from '@examplehealth/health-core'
+import { api } from '../api'
 import { springTransition } from '../components/motion'
 import { TimelineChart } from '../components/TimelineChart'
-import { METRIC_META } from '../lib/metrics'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
