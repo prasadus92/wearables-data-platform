@@ -29,7 +29,7 @@ export function Header({ title, onBack }: Props) {
           </Svg>
         </Pressable>
       ) : null}
-      <Text className="text-[22px] font-bold text-ink">{title}</Text>
+      <Text className="text-[22px] font-sans-medium text-ink">{title}</Text>
     </View>
   );
 }
