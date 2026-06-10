@@ -38,3 +38,17 @@ data "aws_subnets" "default" {
     values = [data.aws_vpc.default.id]
   }
 }
+
+# CloudFront certificates must live in us-east-1 regardless of the stack region.
+provider "aws" {
+  alias   = "us_east_1"
+  region  = "us-east-1"
+  profile = var.aws_profile
+
+  default_tags {
+    tags = {
+      Project   = "wearables-data-platform"
+      ManagedBy = "terraform"
+    }
+  }
+}
