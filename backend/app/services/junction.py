@@ -1,6 +1,6 @@
 """HTTP client for the Junction (formerly Vital) API.
 
-Thin, typed wrapper around the endpoints we use. Kept deliberately small —
+Thin, typed wrapper around the endpoints we use. Kept deliberately small:
 provider quirks live in Junction, not here; normalization of inbound data
 lives in :mod:`app.services.ingestion`.
 
@@ -102,7 +102,7 @@ class JunctionClient:
         """Sandbox only: create a demo connection (oura/fitbit/apple_health_kit)
         with 30 days of synthetic backfill and a simulated webhook lifecycle.
 
-        WHOOP and Garmin have no demo data — they require real devices (and
+        WHOOP and Garmin have no demo data: they require real devices (and
         WHOOP additionally requires BYOO OAuth credentials).
         """
         return await self._request(

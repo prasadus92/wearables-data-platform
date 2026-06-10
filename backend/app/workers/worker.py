@@ -2,7 +2,7 @@
 
 Run with: ``arq app.workers.worker.WorkerSettings``
 
-Horizontal scaling story: workers are stateless consumers — under load you
+Horizontal scaling story: workers are stateless consumers. Under load you
 add worker replicas, not API replicas. Idempotent sample upserts make ARQ's
 at-least-once delivery safe.
 """
@@ -17,6 +17,7 @@ from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.db.session import db_session
 from app.models import User, WebhookEvent, WebhookEventStatus
+from app.services.events import publish_samples_written
 from app.services.ingestion import (
     RESOURCE_TO_METRIC,
     IngestPlan,
@@ -71,7 +72,7 @@ async def process_webhook_event(ctx: dict[str, Any], webhook_event_id: str) -> s
             if user is None:
                 # Data for a user we don't know (e.g. created directly in the
                 # Junction dashboard). Park it as failed for replay once the
-                # user exists — never drop silently.
+                # user exists. Never drop silently.
                 event.status = WebhookEventStatus.failed
                 event.error = (
                     f"unknown user junction={plan.junction_user_id} client={plan.client_user_id}"
@@ -94,6 +95,12 @@ async def process_webhook_event(ctx: dict[str, Any], webhook_event_id: str) -> s
             event.status = WebhookEventStatus.processed
             event.processed_at = datetime.now(UTC)
             await session.commit()
+
+            if written:
+                await publish_samples_written(
+                    ctx["redis"], user.id, {s.metric for s in plan.samples}, written
+                )
+
             logger.info(
                 "event_processed",
                 event_type=plan.event_type,
@@ -163,6 +170,9 @@ async def process_backfill(
             cursor = page.get("next_cursor") if isinstance(page, dict) else None
             if not cursor:
                 break
+
+    if total and resource in RESOURCE_TO_METRIC:
+        await publish_samples_written(ctx["redis"], user_id, {RESOURCE_TO_METRIC[resource]}, total)
 
     logger.info("backfill_done", resource=resource, provider=provider, samples=total)
     return f"backfilled:{total}"

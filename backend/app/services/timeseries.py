@@ -1,6 +1,6 @@
 """Timeseries read path: range queries with optional time bucketing.
 
-Charts never need 10,000 raw heart-rate points — the API buckets server-side
+Charts never need 10,000 raw heart-rate points, so the API buckets server-side
 (``date_trunc`` on vanilla Postgres; swaps 1:1 for TimescaleDB
 ``time_bucket`` + continuous aggregates at scale). Blood pressure averages
 systolic and diastolic independently.

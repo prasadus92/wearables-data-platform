@@ -32,7 +32,7 @@ async def create_user(body: UserCreate, db: DbSession, junction: Junction) -> Us
         junction_user = await junction.create_user(body.client_user_id)
         user.junction_user_id = junction_user.get("user_id")
     except JunctionError as exc:
-        # 400 on duplicate client_user_id includes the existing user_id —
+        # 400 on duplicate client_user_id includes the existing user_id, so
         # recover the mapping instead of failing registration.
         if exc.status_code == 400 and "user_id" in exc.detail:
             resolved = await junction.resolve_user(body.client_user_id)

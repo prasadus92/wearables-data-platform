@@ -2,7 +2,7 @@
 
 All runtime configuration comes from environment variables (12-factor), with
 `.env` support for local development. Secrets (Junction API key, webhook
-secret) must never be committed — see `.env.example` at the repo root.
+secret) must never be committed (see `.env.example` at the repo root).
 """
 
 from enum import StrEnum
@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     junction_environment: JunctionEnvironment = JunctionEnvironment.sandbox
     junction_region: JunctionRegion = JunctionRegion.eu
     # Svix signing secret for inbound webhooks (per webhook endpoint, from the
-    # Junction dashboard). Empty disables verification — allowed only in tests.
+    # Junction dashboard). Empty disables verification, allowed only in tests.
     junction_webhook_secret: str = ""
 
     # --- Storage ---

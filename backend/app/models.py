@@ -2,13 +2,13 @@
 
 Four tables, designed for write-heavy ingestion and range-scan reads:
 
-- ``users``            — app users mapped 1:1 to a Junction user.
-- ``connections``      — a user's link to one wearable provider (whoop, oura…).
-- ``webhook_events``   — raw inbound Junction events. Source of truth for
-                         idempotency (unique event id) and replay/debugging.
-- ``samples``          — normalized biometric time series. One row per
-                         (user, metric, timestamp, provider); webhook retries
-                         and overlapping backfills upsert harmlessly.
+- ``users``: app users mapped 1:1 to a Junction user.
+- ``connections``: a user's link to one wearable provider (whoop, oura…).
+- ``webhook_events``: raw inbound Junction events. Source of truth for
+  idempotency (unique event id) and replay/debugging.
+- ``samples``: normalized biometric time series. One row per
+  (user, metric, timestamp, provider); webhook retries and overlapping
+  backfills upsert harmlessly.
 
 ``samples`` is the hot table. It is partition-friendly (composite PK leads
 with ``user_id``; time-range queries hit the ``ix_samples_query`` index) and
@@ -112,7 +112,7 @@ class WebhookEvent(Base):
     __tablename__ = "webhook_events"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    # Svix message id (or provider event id) — webhook retries dedupe on this.
+    # Svix message id (or provider event id): webhook retries dedupe on this.
     event_id: Mapped[str] = mapped_column(String(255), unique=True)
     event_type: Mapped[str] = mapped_column(String(128), index=True)
     payload: Mapped[dict] = mapped_column(JSONB)
@@ -131,8 +131,8 @@ class WebhookEvent(Base):
 class Sample(Base):
     """One normalized biometric reading.
 
-    The natural key (user, metric, ts, provider) is the primary key — there is
-    no surrogate id to keep the hot table narrow. All writes are
+    The natural key (user, metric, ts, provider) is the primary key. There is
+    no surrogate id, which keeps the hot table narrow. All writes are
     ``INSERT … ON CONFLICT DO UPDATE`` so retried webhooks and overlapping
     backfills are idempotent.
     """
@@ -156,5 +156,5 @@ class Sample(Base):
     # Second component for compound metrics (blood pressure diastolic).
     value_secondary: Mapped[float | None] = mapped_column(Float)
     unit: Mapped[str] = mapped_column(String(32))
-    # wearable | smartphone | lab — chart filter labels from the product spec.
+    # wearable | smartphone | lab: chart filter labels from the product spec.
     source_type: Mapped[str] = mapped_column(String(32), default="wearable")

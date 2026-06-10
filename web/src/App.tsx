@@ -30,6 +30,8 @@ export default function App() {
   const [range, setRange] = useState(1)
   const [error, setError] = useState<string | null>(null)
   const [nameInput, setNameInput] = useState('')
+  // Bumped by SSE updates; charts refetch when it changes.
+  const [liveVersion, setLiveVersion] = useState(0)
 
   const refreshDevices = useCallback(async () => {
     if (!user) return
@@ -47,6 +49,18 @@ export default function App() {
     const interval = setInterval(refreshDevices, 15_000)
     return () => clearInterval(interval)
   }, [refreshDevices])
+
+  // Live updates: the backend streams an SSE event whenever new samples are
+  // ingested, so charts refresh the moment a Junction webhook is processed.
+  useEffect(() => {
+    if (!user) return
+    const source = new EventSource(`${import.meta.env.VITE_API_URL ?? ''}/v1/users/${user.id}/stream`)
+    source.addEventListener('update', () => {
+      setLiveVersion((v) => v + 1)
+      refreshDevices()
+    })
+    return () => source.close()
+  }, [user, refreshDevices])
 
   async function handleCreateUser(event: React.FormEvent) {
     event.preventDefault()
@@ -165,6 +179,7 @@ export default function App() {
           metric={metric}
           days={RANGES[range].days}
           resolution={RANGES[range].resolution}
+          liveVersion={liveVersion}
         />
       </section>
     </div>
