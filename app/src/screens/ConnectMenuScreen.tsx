@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated, {
   ReduceMotion,
@@ -134,14 +134,25 @@ export function ConnectMenuScreen() {
   const { session, devices, refreshDevices, nav } = useApp();
 
   // The shared cache usually knows the list already; revalidate quietly so
-  // a provider connected elsewhere does not get offered again.
+  // a provider connected elsewhere does not get offered again. When every
+  // fetch attempt fails and no cache exists, the menu offers the full
+  // provider list rather than pulsing skeletons forever; the connect flow
+  // re-checks connected providers before linking, so the worst case is an
+  // honest "already connected" result.
+  const [fetchSettled, setFetchSettled] = useState(false);
   useEffect(() => {
-    refreshDevices();
+    let stale = false;
+    refreshDevices().then(() => {
+      if (!stale) setFetchSettled(true);
+    });
+    return () => {
+      stale = true;
+    };
   }, [refreshDevices]);
 
   // Without a session there is nothing connected; with one, null means the
   // list is still unknown and the skeleton rows hold the menu.
-  const list = session ? devices : [];
+  const list = session ? (devices ?? (fetchSettled ? [] : null)) : [];
 
   const statusFor = (slug: string): 'connected' | 'expired' | 'none' => {
     const device = list?.find(
