@@ -50,3 +50,26 @@ at this route). Replays are deduplicated on the Svix message id.
   user data; both are middleware-level additions.
 - The anonymous "Get started" demo path is challenge scope; production onboarding
   would always pass through sign-in, making every client request user-scoped.
+
+## Known limitations and hardening queue
+
+Honest edges of the current setup, in priority order:
+
+1. **The mobile bundle ships the service key.** The guest "Get started" path needs a
+   credential to call user-creation, so published mobile bundles embed the service
+   key. Acceptable while the audience is the team and the founders; before wide
+   distribution, guest creation moves behind a constrained route (rate-limited,
+   guest-scoped token in the response, no service key on the client). The public web
+   build already ships keyless by design.
+2. **Keyless web cannot start guest sessions.** On the public site the guest button
+   calls an endpoint it has no credential for; sign-in is the working path. Either
+   hide the guest entry on keyless builds or ship the constrained guest route above.
+3. **Clerk runs as a development instance.** Fine for the challenge (the dev watermark
+   is the only visible artifact); production means a Clerk production instance on an
+   owned domain and a key swap.
+4. **Signing in after a guest session does not adopt the guest's devices.** The
+   service-side remap endpoint is the wired migration path and writes the ledger;
+   auto-adoption on sign-in is a product decision with consent implications, made
+   deliberately rather than implicitly.
+5. **Single service key.** Production splits it per consumer with rotation, plus rate
+   limiting and audit logging of service-key access to user data.
