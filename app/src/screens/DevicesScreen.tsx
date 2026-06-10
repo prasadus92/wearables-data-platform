@@ -212,13 +212,23 @@ export function DevicesScreen() {
   // Revalidate on focus (this screen mounts per navigation). The shared
   // cache renders the last known list instantly while the refresh runs, and
   // a failed refresh keeps it rather than pretending the list is empty.
+  // When there is no cache to fall back on, a fetch that fails every
+  // attempt swaps the spinner for retryable copy instead of hanging.
+  const [loadFailed, setLoadFailed] = useState(false);
   useEffect(() => {
-    refreshDevices();
+    let stale = false;
+    refreshDevices().then((list) => {
+      if (!stale) setLoadFailed(list === null);
+    });
+    return () => {
+      stale = true;
+    };
   }, [refreshDevices]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refreshDevices();
+    const list = await refreshDevices();
+    setLoadFailed(list === null);
     setRefreshing(false);
   }, [refreshDevices]);
 
@@ -322,9 +332,19 @@ export function DevicesScreen() {
             <Button label="Get started" onPress={signOut} />
           </View>
         ) : devices === null ? (
-          <View className="items-center py-16">
-            <ActivityIndicator color={colors.sub} />
-          </View>
+          loadFailed ? (
+            <View className="items-center rounded-2xl bg-card px-6 py-12">
+              <Text className="mb-5 text-center text-[14px] font-sans leading-[20px] text-sub">
+                Could not load your devices. Check your connection and try
+                again.
+              </Text>
+              <Button label="Try again" onPress={onRefresh} />
+            </View>
+          ) : (
+            <View className="items-center py-16">
+              <ActivityIndicator color={colors.sub} />
+            </View>
+          )
         ) : active.length === 0 ? (
           <Animated.View entering={enter(2)} layout={reflow}>
             <View className="items-center rounded-2xl bg-card px-6 py-12">
