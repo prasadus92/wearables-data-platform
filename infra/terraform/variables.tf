@@ -53,6 +53,12 @@ variable "junction_prod_webhook_secret" {
   default     = ""
 }
 
+variable "clerk_issuer" {
+  description = "Clerk instance issuer URL for JWT verification (empty disables Clerk auth)"
+  type        = string
+  default     = ""
+}
+
 variable "api_auth_token" {
   description = "Static token required by the /v1 API (X-API-Key / Bearer)"
   type        = string

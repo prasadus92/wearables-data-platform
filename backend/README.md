@@ -31,6 +31,8 @@ flowchart LR
 
 **Read path.** `GET /v1/users/{id}/timeseries/{metric}` buckets server-side (`raw|hour|day|week`) so charts never receive 10k points. Buckets use `date_trunc` today and swap 1:1 for TimescaleDB `time_bucket` + continuous aggregates at scale.
 
+**Auth.** All `/v1` routes accept either the static service API key (`API_AUTH_TOKEN`, full access) or a Clerk session JWT verified against the `CLERK_ISSUER` JWKS, sent as `X-API-Key`, `Authorization: Bearer`, or an `api_key` query parameter. Clerk-authenticated callers bootstrap their identity with `POST /v1/me` and are scoped to their own `clerk:{sub}` users; anyone else's data reads as 404.
+
 ## Layout
 
 ```

@@ -35,6 +35,14 @@ class UserCreate(BaseModel):
     )
 
 
+class MeCreate(BaseModel):
+    environment: JunctionEnv | None = Field(
+        default=None,
+        description="Junction environment for this identity (default: the service's primary "
+        "one). sandbox = demo data, production = real devices.",
+    )
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
