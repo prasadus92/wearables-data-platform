@@ -1,4 +1,7 @@
 import type { Device } from '../api'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 // Providers offered in the YOU(th) connect menu (product spec) plus the
 // sandbox demo shortcut. WHOOP/Garmin require real accounts (no sandbox
@@ -27,6 +30,28 @@ function lastSynced(device: Device): string {
   return `synced ${Math.round(hours / 24)}d ago`
 }
 
+function StatusBadge({ status }: { status: Device['status'] }) {
+  if (status === 'connected') {
+    return (
+      <Badge className="border-emerald-200 bg-emerald-50 tracking-wide text-emerald-700 uppercase">
+        connected
+      </Badge>
+    )
+  }
+  if (status === 'expired') {
+    return (
+      <Badge className="border-amber-200 bg-amber-50 tracking-wide text-amber-700 uppercase">
+        connection expired
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant="outline" className="tracking-wide uppercase">
+      {status}
+    </Badge>
+  )
+}
+
 export function DevicePanel({ devices, onConnect, onConnectDemo, onDisconnect }: Props) {
   const active = devices.filter((d) => d.status !== 'disconnected')
   const connectedSlugs = new Set(active.map((d) => d.provider))
@@ -34,47 +59,71 @@ export function DevicePanel({ devices, onConnect, onConnectDemo, onDisconnect }:
   const available = PROVIDERS.filter((p) => !connectedSlugs.has(p.slug))
 
   return (
-    <section className="devices">
-      <h2>Devices</h2>
-      {active.length === 0 && <p className="muted">No devices connected. Pick one below.</p>}
+    <Card>
+      <CardHeader>
+        <CardTitle className="font-mono text-xs font-medium tracking-widest text-muted-foreground uppercase">
+          Devices
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3.5">
+        {active.length === 0 && (
+          <p className="text-sm text-muted-foreground">No devices connected. Pick one below.</p>
+        )}
 
-      <ul className="device-list">
-        {active.map((device) => (
-          <li key={device.id} className="device">
-            <div>
-              <strong>{device.provider}</strong>
-              <span className={`status ${device.status}`}>
-                {device.status === 'expired' ? 'connection expired' : device.status}
-              </span>
-              <span className="muted">{lastSynced(device)}</span>
-            </div>
-            <div className="device-actions">
-              {device.status === 'expired' && (
-                <button onClick={() => onConnect(device.provider)}>Reconnect</button>
-              )}
-              <button className="secondary" onClick={() => onDisconnect(device.provider)}>
-                Disconnect
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
+        {active.length > 0 && (
+          <ul className="m-0 list-none divide-y p-0">
+            {active.map((device) => (
+              <li key={device.id} className="flex items-center justify-between gap-3 py-2.5">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <span className="text-sm font-medium capitalize">{device.provider}</span>
+                  <StatusBadge status={device.status} />
+                  <span className="text-xs text-muted-foreground">{lastSynced(device)}</span>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  {device.status === 'expired' && (
+                    <Button size="sm" onClick={() => onConnect(device.provider)}>
+                      Reconnect
+                    </Button>
+                  )}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => onDisconnect(device.provider)}
+                  >
+                    Disconnect
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
 
-      {available.length > 0 && (
-        <div className="connect-row">
-          {available.map((provider) => (
-            <div key={provider.slug} className="connect-card">
-              <span>{provider.name}</span>
-              <button onClick={() => onConnect(provider.slug)}>Connect</button>
-              {provider.demo && (
-                <button className="secondary" onClick={() => onConnectDemo(provider.slug)}>
-                  Demo data
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
+        {available.length > 0 && (
+          <div className="flex flex-wrap gap-3">
+            {available.map((provider) => (
+              <div
+                key={provider.slug}
+                className="flex min-w-[120px] flex-col items-center gap-2 rounded-xl border border-dashed border-input px-4 py-3.5"
+              >
+                <span className="text-sm font-medium">{provider.name}</span>
+                <Button size="sm" onClick={() => onConnect(provider.slug)}>
+                  Connect
+                </Button>
+                {provider.demo && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground"
+                    onClick={() => onConnectDemo(provider.slug)}
+                  >
+                    Demo data
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }

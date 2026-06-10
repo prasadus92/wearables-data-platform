@@ -1,7 +1,14 @@
+import { AlertCircle } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { api, streamUrl, type Device, type Metric, type Resolution, type User } from './api'
 import { DevicePanel } from './components/DevicePanel'
 import { TimelineChart } from './components/TimelineChart'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 const METRICS: { key: Metric; label: string }[] = [
   { key: 'heartrate', label: 'Heart Rate' },
@@ -76,30 +83,40 @@ export default function App() {
 
   if (!user) {
     return (
-      <div className="onboarding">
-        <h1>YOU(th) Wearables</h1>
-        <p>Connect your wearable and see your biometrics on a timeline.</p>
-        <form onSubmit={handleCreateUser}>
-          <input
+      <div className="mx-auto mt-[18vh] flex max-w-md flex-col gap-4 px-5 text-center">
+        <h1 className="text-2xl font-semibold tracking-tight">YOU(th) Wearables</h1>
+        <p className="text-sm text-muted-foreground">
+          Connect your wearable and see your biometrics on a timeline.
+        </p>
+        <form onSubmit={handleCreateUser} className="flex gap-2">
+          <Input
             value={nameInput}
             onChange={(e) => setNameInput(e.target.value)}
             placeholder="Choose a user id, e.g. prasad-demo"
             required
+            className="bg-card"
           />
-          <button type="submit">Get started</button>
+          <Button type="submit">Get started</Button>
         </form>
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <Alert variant="destructive" className="text-left">
+            <AlertCircle />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
       </div>
     )
   }
 
   return (
-    <div className="layout">
-      <header>
-        <h1>YOU(th) Wearables</h1>
-        <span className="user-chip">
-          <button
-            className="link-button"
+    <div className="mx-auto flex max-w-[880px] flex-col gap-4 px-5 pt-6 pb-16">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold tracking-tight">YOU(th) Wearables</h1>
+        <span className="flex items-center gap-1 rounded-full border bg-card py-1 pr-1.5 pl-3 text-xs">
+          <Button
+            variant="ghost"
+            size="xs"
+            className="text-brand hover:text-brand"
             onClick={async () => {
               setError(null)
               try {
@@ -110,10 +127,12 @@ export default function App() {
             }}
           >
             sync now
-          </button>
-          {user.client_user_id}
-          <button
-            className="link-button"
+          </Button>
+          <span className="font-mono text-foreground">{user.client_user_id}</span>
+          <Button
+            variant="ghost"
+            size="xs"
+            className="text-muted-foreground"
             onClick={() => {
               localStorage.removeItem(STORAGE_KEY)
               setUser(null)
@@ -121,14 +140,19 @@ export default function App() {
             }}
           >
             switch
-          </button>
+          </Button>
         </span>
       </header>
 
       {error && (
-        <p className="error" onClick={() => setError(null)}>
-          {error} (click to dismiss)
-        </p>
+        <Alert
+          variant="destructive"
+          className="cursor-pointer border-destructive/30"
+          onClick={() => setError(null)}
+        >
+          <AlertCircle />
+          <AlertDescription>{error} (click to dismiss)</AlertDescription>
+        </Alert>
       )}
 
       <DevicePanel
@@ -162,39 +186,52 @@ export default function App() {
         }}
       />
 
-      <section className="chart-section">
-        <div className="chart-controls">
-          <nav className="tabs">
-            {METRICS.map((m) => (
-              <button
-                key={m.key}
-                className={m.key === metric ? 'tab active' : 'tab'}
-                onClick={() => setMetric(m.key)}
-              >
-                {m.label}
-              </button>
-            ))}
-          </nav>
-          <nav className="ranges">
-            {RANGES.map((r, i) => (
-              <button
-                key={r.label}
-                className={i === range ? 'range active' : 'range'}
-                onClick={() => setRange(i)}
-              >
-                {r.label}
-              </button>
-            ))}
-          </nav>
-        </div>
-        <TimelineChart
-          userId={user.id}
-          metric={metric}
-          days={RANGES[range].days}
-          resolution={RANGES[range].resolution}
-          liveVersion={liveVersion}
-        />
-      </section>
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-mono text-xs font-medium tracking-widest text-muted-foreground uppercase">
+            Timeline
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            <Tabs value={metric} onValueChange={(v) => setMetric(v as Metric)}>
+              <TabsList className="h-auto flex-wrap">
+                {METRICS.map((m) => (
+                  <TabsTrigger key={m.key} value={m.key}>
+                    {m.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              size="sm"
+              value={String(range)}
+              onValueChange={(v) => {
+                if (v) setRange(Number(v))
+              }}
+            >
+              {RANGES.map((r, i) => (
+                <ToggleGroupItem
+                  key={r.label}
+                  value={String(i)}
+                  className="px-3 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                >
+                  {r.label}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </div>
+          <TimelineChart
+            userId={user.id}
+            metric={metric}
+            days={RANGES[range].days}
+            resolution={RANGES[range].resolution}
+            liveVersion={liveVersion}
+          />
+        </CardContent>
+      </Card>
     </div>
   )
 }
