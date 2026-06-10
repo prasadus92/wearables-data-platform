@@ -1,110 +1,89 @@
 import { useEffect } from 'react';
-import { Text, View } from 'react-native';
-import Animated, {
-  Easing,
-  ReduceMotion,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withDelay,
-  withTiming,
-  ZoomIn,
-} from 'react-native-reanimated';
-import Svg, { Circle, Path } from 'react-native-svg';
+import { Pressable, Text, View } from 'react-native';
+import Animated, { ReduceMotion, ZoomIn } from 'react-native-reanimated';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { Button } from '../components/Button';
+import {
+  BetaTag,
+  SheetBody,
+  SheetCaption,
+  SheetHandle,
+  SheetTitle,
+  StorySlides,
+  sheetIn,
+} from '../components/Sheet';
 import { useApp } from '../lib/appContext';
 import type { ProviderInfo } from '../lib/catalog';
 import { successCelebration } from '../lib/haptics';
 import { enter } from '../lib/motion';
-import { colors } from '../theme/tokens';
+import { colors, fonts } from '../theme/tokens';
 
-/** Scale-in with a slight overshoot, so the mark lands with a bounce. */
-const popIn = ZoomIn.springify()
-  .damping(12)
-  .stiffness(180)
-  .reduceMotion(ReduceMotion.System);
-
-/** Overshooting spring for the device card, a beat after the mark lands. */
-const cardIn = ZoomIn.springify()
+/** Overshooting spring for the connected chip, a beat after the sheet. */
+const chipIn = ZoomIn.springify()
   .damping(13)
   .stiffness(190)
-  .delay(160)
+  .delay(220)
   .reduceMotion(ReduceMotion.System);
 
-const MARK_SIZE = 88;
+const HERO_W = 337;
+const HERO_H = 300;
 
 /**
- * One expanding ring behind the success mark: scales up while fading out,
- * once. Two of these staggered read as a gentle radio pulse. Skipped
- * entirely under Reduce Motion. All motion is done within ~1.2s.
+ * The design's green-tinted hero with the floating "connected" chip. The
+ * device render is approximated by a soft gradient; the chip carries the
+ * provider name and a green CONNECTED caption.
  */
-function PulseRing({ delay }: { delay: number }) {
-  const reduced = useReducedMotion();
-  const progress = useSharedValue(0);
-
-  useEffect(() => {
-    if (reduced) return;
-    progress.value = withDelay(
-      delay,
-      withTiming(1, { duration: 840, easing: Easing.out(Easing.cubic) }),
-    );
-  }, [reduced, delay, progress]);
-
-  const style = useAnimatedStyle(() => ({
-    opacity: progress.value === 0 ? 0 : 0.3 * (1 - progress.value),
-    transform: [{ scale: 1 + progress.value * 0.75 }],
-  }));
-
+function ConnectedHero({ name }: { name: string }) {
   return (
-    <Animated.View
-      pointerEvents="none"
-      style={[
-        {
-          position: 'absolute',
-          width: MARK_SIZE,
-          height: MARK_SIZE,
-          borderRadius: MARK_SIZE / 2,
-          borderWidth: 2,
-          borderColor: colors.leaf,
-        },
-        style,
-      ]}
-    />
-  );
-}
-
-function ResultMark({ ok }: { ok: boolean }) {
-  return (
-    <Svg
-      width={MARK_SIZE}
-      height={MARK_SIZE}
-      viewBox="0 0 88 88"
-      fill="none"
+    <View
+      className="w-full items-center justify-center overflow-hidden rounded-3xl"
+      style={{ height: HERO_H }}
     >
-      <Circle
-        cx={44}
-        cy={44}
-        r={42}
-        fill={ok ? colors.leafSoft : colors.coralSoft}
-      />
-      {ok ? (
-        <Path
-          d="M28 45.5L39.5 57L61 33"
-          stroke={colors.leaf}
-          strokeWidth={5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      ) : (
-        <Path
-          d="M31 31L57 57M57 31L31 57"
-          stroke={colors.coral}
-          strokeWidth={5}
-          strokeLinecap="round"
-        />
-      )}
-    </Svg>
+      <Svg
+        width="100%"
+        height="100%"
+        viewBox={`0 0 ${HERO_W} ${HERO_H}`}
+        style={{ position: 'absolute' }}
+      >
+        <Defs>
+          <LinearGradient id="successBg" x1="0" y1="0" x2="0.4" y2="1">
+            <Stop offset="0" stopColor="#D2F2E4" />
+            <Stop offset="1" stopColor="#717C78" />
+          </LinearGradient>
+        </Defs>
+        <Rect width={HERO_W} height={HERO_H} fill="url(#successBg)" />
+      </Svg>
+      <Animated.View
+        entering={chipIn}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 6,
+          borderRadius: 20,
+          paddingHorizontal: 16,
+          paddingVertical: 11,
+          backgroundColor: 'rgba(255, 255, 255, 0.45)',
+        }}
+      >
+        <View className="h-5 w-5 items-center justify-center rounded-full border border-ink">
+          <Text className="text-[10px] font-sans-medium leading-[12px] text-ink">
+            {name[0]}
+          </Text>
+        </View>
+        <View className="gap-0.5">
+          <Text className="text-[16px] font-sans-medium leading-[22px] text-ink">
+            {name}
+          </Text>
+          <Text
+            style={{ fontFamily: fonts.mono, color: colors.good }}
+            className="text-[10px] uppercase leading-[12px] tracking-[0.5px]"
+          >
+            Connected
+          </Text>
+        </View>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -123,72 +102,93 @@ export function ConnectResultScreen({ provider, ok, already, message }: Props) {
   useEffect(() => {
     if (celebrate) {
       // Success notification plus two light afterglow taps, timed to land
-      // while the pulse rings expand.
+      // while the chip springs in.
       successCelebration();
     }
   }, [celebrate]);
 
   return (
-    <View className="flex-1 bg-paper px-6 pt-14">
-      <View className="flex-1 items-center justify-center">
-        <View className="items-center justify-center">
-          {celebrate ? (
-            <>
-              <PulseRing delay={120} />
-              <PulseRing delay={360} />
-            </>
+    <View className="flex-1 bg-scrim">
+      {/* The dimmed area above the sheet skips straight home. */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Skip to home"
+        onPress={() => nav.reset({ name: 'home' })}
+        className="flex-1"
+      />
+      <Animated.View
+        entering={sheetIn}
+        style={{ paddingHorizontal: 8, paddingBottom: 8 }}
+      >
+        {celebrate ? <StorySlides total={4} active={0} /> : <SheetHandle />}
+        <View className="rounded-[29px] bg-grey p-5">
+          <View className="flex-row items-start justify-between">
+            <SheetCaption
+              label={ok ? 'Success' : 'Error'}
+              color={ok ? colors.good : colors.danger}
+            />
+            <BetaTag />
+          </View>
+          <View className="mt-2.5 pr-10">
+            <SheetTitle>
+              {already
+                ? `${provider.name} is already connected`
+                : ok
+                  ? `Your ${provider.name} is connected successfully!`
+                  : 'Connection failed'}
+            </SheetTitle>
+          </View>
+          {ok ? (
+            <Animated.View entering={enter(1)} style={{ marginTop: 16 }}>
+              <ConnectedHero name={provider.name} />
+            </Animated.View>
+          ) : (
+            <View className="mt-4">
+              <SheetBody>
+                {message ??
+                  'Something went wrong while connecting. Please try again.'}
+              </SheetBody>
+            </View>
+          )}
+          {already ? (
+            <View className="mt-4">
+              <SheetBody>
+                This device is already linked to your account and syncing. You
+                can manage it from your profile.
+              </SheetBody>
+            </View>
           ) : null}
-          <Animated.View entering={popIn}>
-            <ResultMark ok={ok} />
+          <Animated.View entering={enter(2)} style={{ marginTop: 24 }}>
+            {ok ? (
+              <Button
+                label={celebrate ? 'Next' : 'Done'}
+                onPress={() =>
+                  celebrate
+                    ? nav.replace({ name: 'connectSync', provider })
+                    : nav.reset({ name: 'home' })
+                }
+              />
+            ) : (
+              <View className="flex-row gap-2">
+                <View className="flex-1">
+                  <Button
+                    label="Go back"
+                    variant="outline"
+                    onPress={nav.pop}
+                  />
+                </View>
+                <View className="flex-1">
+                  <Button
+                    label="Retry"
+                    onPress={() =>
+                      nav.replace({ name: 'connectIntro', provider })
+                    }
+                  />
+                </View>
+              </View>
+            )}
           </Animated.View>
         </View>
-        <Animated.View entering={enter(1)} style={{ alignItems: 'center' }}>
-          <Text className="mt-7 text-center text-[24px] font-sans-medium text-ink">
-            {already
-              ? `${provider.name} is already connected`
-              : ok
-                ? `${provider.name} connected`
-                : 'Connection failed'}
-          </Text>
-          <Text className="mt-2.5 max-w-[300px] text-center text-[14px] font-sans leading-[20px] text-sub">
-            {already
-              ? 'This device is already linked to your account and syncing. You can manage it from your profile.'
-              : ok
-                ? 'Pull down on the home screen any time to sync on demand.'
-                : (message ??
-                  'Something went wrong while connecting. Please try again.')}
-          </Text>
-        </Animated.View>
-        {celebrate ? (
-          <Animated.View entering={cardIn}>
-            <View className="mt-7 items-center rounded-2xl bg-card px-7 py-4">
-              <Text className="text-[15px] font-sans-medium text-ink">
-                {provider.name}
-              </Text>
-              <Text className="mt-1 text-[12px] font-sans text-faint">
-                Readings will start flowing in automatically.
-              </Text>
-            </View>
-          </Animated.View>
-        ) : null}
-      </View>
-      <Animated.View entering={enter(2)} style={{ paddingBottom: 48 }}>
-        {ok ? (
-          <Button label="Done" onPress={() => nav.reset({ name: 'home' })} />
-        ) : (
-          <>
-            <Button
-              label="Try again"
-              onPress={() => nav.replace({ name: 'connectIntro', provider })}
-            />
-            <View className="h-3" />
-            <Button
-              label="Choose another device"
-              variant="outline"
-              onPress={nav.pop}
-            />
-          </>
-        )}
       </Animated.View>
     </View>
   );
