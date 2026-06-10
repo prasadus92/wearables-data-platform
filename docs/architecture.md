@@ -62,6 +62,14 @@ minute today, growing. Bursts (a provider delivering a day of data for thousands
 users at once) land in Redis and workers drain at their own pace. API latency for app
 users is unaffected by ingestion load, and workers scale independently of the API.
 
+**One resource can fan out to many metrics.** Demo wearables emit direct biomarker
+resources (heartrate, hrv, blood_oxygen), and real Oura and WHOOP devices deliver
+heart rate, HRV, and breathing rate inside nightly sleep summaries. The parser treats
+the resource as an input shape, never as the metric itself: a sleep session fans out
+into up to three samples stamped at wake time. A pipeline validated only against
+sandbox demo data would ship zero real readings; this seam is where that class of bug
+dies.
+
 **Raw events are the source of truth.** The `webhook_events` table is an audit trail,
 a dedupe ledger, and a replay buffer in one. Events that reference unknown users are
 parked as failed instead of dropped.
@@ -73,6 +81,7 @@ parked as failed instead of dropped.
 | `users` | App user, mapped 1:1 to a Aggregator user | 1 row per user |
 | `connections` | Wearable link per provider, with status and freshness | ~1-3 per user |
 | `webhook_events` | Raw inbound events (idempotency, audit, replay) | High; pruned/archived on a schedule |
+| `device_events` | Consent and lifecycle ledger (connect, disconnect, identity changes) with actor attribution | Low; append-only |
 | `samples` | Normalized biometric time series | Dominant; heart rate alone is 1k-10k samples/user/day |
 
 `samples` uses a composite primary key starting with `user_id`, so all chart reads are
