@@ -40,7 +40,9 @@ async def create_link(body: LinkRequest, user: CurrentUser, aggregator: Aggregat
 
 
 @router.post("/demo", response_model=dict, tags=["sandbox"])
-async def connect_demo(body: LinkRequest, user: CurrentUser, aggregator: Aggregator) -> dict:
+async def connect_demo(
+    body: LinkRequest, user: CurrentUser, db: DbSession, aggregator: Aggregator
+) -> dict:
     """Sandbox only: attach a demo provider (oura / fitbit / apple_health_kit)
     with 30 days of synthetic data and a simulated webhook lifecycle."""
     aggregator_user_id = _require_aggregator_id(user)
@@ -48,6 +50,26 @@ async def connect_demo(body: LinkRequest, user: CurrentUser, aggregator: Aggrega
         result = await aggregator.connect_demo_provider(aggregator_user_id, body.provider)
     except AggregatorError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=exc.detail) from exc
+
+    # Record the connection immediately. The provider.connection.created
+    # webhook will arrive too (and idempotently upsert the same row), but the
+    # UI should reflect the device without waiting on webhook delivery.
+    from app.models import ConnectionStatus
+    from app.services.ingestion import ConnectionChange, IngestPlan, apply_plan
+
+    await apply_plan(
+        db,
+        user.id,
+        IngestPlan(
+            event_type="local.demo.connected",
+            aggregator_user_id=aggregator_user_id,
+            client_user_id=user.client_user_id,
+            connection_change=ConnectionChange(
+                provider=body.provider, status=ConnectionStatus.connected
+            ),
+        ),
+    )
+    await db.commit()
     logger.info("demo_connected", user_id=str(user.id), provider=body.provider)
     return {"connected": True, "provider": body.provider, "aggregator_response": result}
 
