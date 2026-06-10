@@ -37,6 +37,11 @@ export interface AppState {
   signIn: (session: Session) => void;
   skip: () => void;
   signOut: () => void;
+  /**
+   * Ends the Clerk identity: signs out of Clerk and clears the session in
+   * every mode. Anonymous sessions use signOut (per-mode) instead.
+   */
+  clerkSignOut: () => void;
   dismissConnectCard: () => void;
   nav: Nav;
 }

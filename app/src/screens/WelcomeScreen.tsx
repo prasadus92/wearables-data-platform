@@ -1,3 +1,4 @@
+import { isClerkAPIResponseError, useSignIn } from '@clerk/clerk-expo';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -55,20 +56,43 @@ function randomClientUserId(): string {
   return `wearables-ios-${hex}`;
 }
 
+/** Human-readable message for sign-in failures, without naming vendors. */
+function signInErrorMessage(err: unknown): string {
+  if (isClerkAPIResponseError(err)) {
+    const first = err.errors[0];
+    return (
+      first?.longMessage ??
+      first?.message ??
+      'Could not sign you in. Try again.'
+    );
+  }
+  return 'Could not reach the server. Check your connection and try again.';
+}
+
+/**
+ * Onboarding step. `choice` offers sign-in, guest start, or skip; `existing`
+ * attaches to a known anonymous ID; `email` and `code` carry the two-step
+ * email-code sign-in.
+ */
+type Step = 'choice' | 'existing' | 'email' | 'code';
+
 export function WelcomeScreen() {
   const { mode, signIn, skip } = useApp();
+  const { signIn: clerkSignIn, setActive, isLoaded: clerkReady } = useSignIn();
+  const [step, setStep] = useState<Step>('choice');
   const [existingId, setExistingId] = useState('');
-  const [showExisting, setShowExisting] = useState(false);
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleGetStarted() {
     const trimmed = existingId.trim();
-    if (showExisting && !trimmed) {
+    if (step === 'existing' && !trimmed) {
       setError('Enter your ID, or switch back to starting fresh.');
       return;
     }
-    const clientUserId = showExisting ? trimmed : randomClientUserId();
+    const clientUserId = step === 'existing' ? trimmed : randomClientUserId();
     setBusy(true);
     setError(null);
     try {
@@ -85,9 +109,57 @@ export function WelcomeScreen() {
     }
   }
 
-  function toggleExisting() {
+  async function handleSendCode() {
+    const trimmed = email.trim();
+    if (!trimmed.includes('@')) {
+      setError('Enter your email address.');
+      return;
+    }
+    if (!clerkReady || !clerkSignIn) return;
+    setBusy(true);
     setError(null);
-    setShowExisting((v) => !v);
+    try {
+      // Creating the attempt with the strategy also sends the email code.
+      await clerkSignIn.create({ identifier: trimmed, strategy: 'email_code' });
+      setCode('');
+      setStep('code');
+    } catch (err) {
+      setError(signInErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleVerifyCode() {
+    const trimmed = code.trim();
+    if (!trimmed) {
+      setError('Enter the code from your email.');
+      return;
+    }
+    if (!clerkReady || !clerkSignIn || !setActive) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const attempt = await clerkSignIn.attemptFirstFactor({
+        strategy: 'email_code',
+        code: trimmed,
+      });
+      if (attempt.status === 'complete') {
+        // App watches the session and bootstraps the per-mode user next.
+        await setActive({ session: attempt.createdSessionId });
+      } else {
+        setError('Could not complete sign-in. Try again.');
+      }
+    } catch (err) {
+      setError(signInErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function goTo(next: Step) {
+    setError(null);
+    setStep(next);
   }
 
   return (
@@ -120,15 +192,21 @@ export function WelcomeScreen() {
           <Animated.View entering={enter(2)}>
             <View className="rounded-t-[28px] bg-card px-6 pb-10 pt-7">
               <Text className="text-[22px] font-sans-medium leading-[28px] text-ink">
-                Connect your wearables for an enhanced experience
+                {step === 'email' || step === 'code'
+                  ? 'Sign in to your account'
+                  : 'Connect your wearables for an enhanced experience'}
               </Text>
               <Text className="mt-2 text-[14px] font-sans leading-[20px] text-sub">
-                {mode === 'sandbox'
-                  ? 'Explore with demo wearables and synthetic data. No sign-up forms, no passwords.'
-                  : 'Connect your real wearables. No sign-up forms, no passwords.'}
+                {step === 'email'
+                  ? 'Enter your email and we will send you a one-time code.'
+                  : step === 'code'
+                    ? `Enter the code we emailed to ${email.trim()}.`
+                    : mode === 'sandbox'
+                      ? 'Explore with demo wearables and synthetic data. Sign in to keep your data across devices, or start as a guest.'
+                      : 'Connect your real wearables. Sign in to keep your data across devices, or start as a guest.'}
               </Text>
 
-              {showExisting ? (
+              {step === 'existing' ? (
                 <Animated.View entering={enter(0)}>
                   <TextInput
                     value={existingId}
@@ -144,35 +222,131 @@ export function WelcomeScreen() {
                 </Animated.View>
               ) : null}
 
+              {step === 'email' ? (
+                <Animated.View entering={enter(0)}>
+                  <TextInput
+                    value={email}
+                    onChangeText={setEmail}
+                    placeholder="you@example.com"
+                    placeholderTextColor={colors.faint}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete="email"
+                    keyboardType="email-address"
+                    autoFocus
+                    editable={!busy}
+                    onSubmitEditing={handleSendCode}
+                    className="mt-5 h-14 rounded-2xl border border-line bg-paper px-4 text-[15px] font-sans text-ink"
+                  />
+                </Animated.View>
+              ) : null}
+
+              {step === 'code' ? (
+                <Animated.View entering={enter(0)}>
+                  <TextInput
+                    value={code}
+                    onChangeText={setCode}
+                    placeholder="6-digit code"
+                    placeholderTextColor={colors.faint}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete="one-time-code"
+                    keyboardType="number-pad"
+                    autoFocus
+                    editable={!busy}
+                    onSubmitEditing={handleVerifyCode}
+                    className="mt-5 h-14 rounded-2xl border border-line bg-paper px-4 text-[15px] font-sans text-ink"
+                  />
+                </Animated.View>
+              ) : null}
+
               {error ? (
                 <Text className="mt-3 text-[13px] font-sans text-coral">
                   {error}
                 </Text>
               ) : null}
 
-              <View className="mt-5 flex-row gap-3">
-                <View className="flex-1">
-                  <Button label="Not now" variant="outline" onPress={skip} />
+              {step === 'choice' ? (
+                <>
+                  <View className="mt-5">
+                    <Button
+                      label="Sign in"
+                      onPress={() => goTo('email')}
+                      disabled={busy}
+                    />
+                  </View>
+                  <View className="mt-3 flex-row gap-3">
+                    <View className="flex-1">
+                      <Button label="Not now" variant="outline" onPress={skip} />
+                    </View>
+                    <View className="flex-1">
+                      <Button
+                        label="Get started"
+                        variant="outline"
+                        onPress={handleGetStarted}
+                        busy={busy}
+                      />
+                    </View>
+                  </View>
+                </>
+              ) : step === 'existing' ? (
+                <View className="mt-5 flex-row gap-3">
+                  <View className="flex-1">
+                    <Button label="Not now" variant="outline" onPress={skip} />
+                  </View>
+                  <View className="flex-1">
+                    <Button
+                      label="Continue"
+                      onPress={handleGetStarted}
+                      busy={busy}
+                    />
+                  </View>
                 </View>
-                <View className="flex-1">
-                  <Button
-                    label={showExisting ? 'Continue' : 'Get started'}
-                    onPress={handleGetStarted}
-                    busy={busy}
-                  />
+              ) : (
+                <View className="mt-5 flex-row gap-3">
+                  <View className="flex-1">
+                    <Button
+                      label="Back"
+                      variant="outline"
+                      onPress={() => goTo(step === 'code' ? 'email' : 'choice')}
+                      disabled={busy}
+                    />
+                  </View>
+                  <View className="flex-1">
+                    <Button
+                      label={step === 'code' ? 'Verify' : 'Continue'}
+                      onPress={step === 'code' ? handleVerifyCode : handleSendCode}
+                      busy={busy}
+                    />
+                  </View>
                 </View>
-              </View>
+              )}
 
-              <Pressable
-                accessibilityRole="button"
-                onPress={toggleExisting}
-                disabled={busy}
-                className="mt-4 items-center py-1.5 active:opacity-60"
-              >
-                <Text className="text-[13px] font-sans-medium text-sub underline">
-                  {showExisting ? 'Start fresh instead' : 'I have an existing ID'}
-                </Text>
-              </Pressable>
+              {step === 'choice' || step === 'existing' ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => goTo(step === 'existing' ? 'choice' : 'existing')}
+                  disabled={busy}
+                  className="mt-4 items-center py-1.5 active:opacity-60"
+                >
+                  <Text className="text-[13px] font-sans-medium text-sub underline">
+                    {step === 'existing'
+                      ? 'Start fresh instead'
+                      : 'I have an existing ID'}
+                  </Text>
+                </Pressable>
+              ) : step === 'code' ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={handleSendCode}
+                  disabled={busy}
+                  className="mt-4 items-center py-1.5 active:opacity-60"
+                >
+                  <Text className="text-[13px] font-sans-medium text-sub underline">
+                    Send a new code
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
           </Animated.View>
         </ScrollView>
