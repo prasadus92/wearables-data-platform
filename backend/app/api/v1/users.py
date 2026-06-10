@@ -5,7 +5,7 @@ import secrets as pysecrets
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Request, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser, DbSession, Junction, junction_client_for
@@ -162,6 +162,83 @@ async def create_guest(db: DbSession, body: GuestCreate | None = None) -> GuestO
 @router.get("/{user_id}", response_model=UserOut)
 async def get_user(user: CurrentUser) -> User:
     return user
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def erase_user(request: Request, user: CurrentUser, db: DbSession) -> None:
+    """Right to erasure (GDPR Article 17). Service credential only.
+
+    Order of operations: deregister every non-disconnected provider at
+    Junction (revoking the upstream data flow first), delete the Junction
+    user, then delete the local row. ``connections``, ``samples`` and
+    ``device_events`` go with it via FK cascade. 404s from Junction are
+    tolerated at both steps: already gone upstream is the desired end state.
+
+    ``webhook_events`` rows are deliberately retained. They are the raw
+    ingestion audit log, matched to users by payload rather than FK, and the
+    GDPR position is that raw inbound events carrying provider identifiers
+    are kept for N days under the retention policy before deletion (see the
+    hardening queue in docs/authentication.md).
+
+    Clerk and guest callers get a 403: in this version account deletion is
+    performed via support, which verifies the request out of band and calls
+    this endpoint with the service credential.
+    """
+    auth = getattr(request.state, "auth", None)
+    if auth is None or auth.get("kind") != "service":
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="Account deletion is performed via support in this version.",
+        )
+
+    user_id = user.id
+    providers = (
+        (
+            await db.execute(
+                select(Connection.provider).where(
+                    Connection.user_id == user_id,
+                    Connection.status != ConnectionStatus.disconnected,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    deregistered = 0
+    junction_deleted = False
+    if user.junction_user_id:
+        junction = junction_client_for(user.junction_environment)
+        for provider in providers:
+            try:
+                await junction.deregister_provider(user.junction_user_id, provider)
+            except JunctionError as exc:
+                if exc.status_code != 404:  # already gone at Junction is fine
+                    raise HTTPException(
+                        status.HTTP_502_BAD_GATEWAY,
+                        detail=f"Junction provider deregistration failed: {exc.detail}",
+                    ) from exc
+            deregistered += 1
+        try:
+            await junction.delete_user(user.junction_user_id)
+            junction_deleted = True
+        except JunctionError as exc:
+            if exc.status_code != 404:  # already gone at Junction is fine
+                raise HTTPException(
+                    status.HTTP_502_BAD_GATEWAY,
+                    detail=f"Junction user deletion failed: {exc.detail}",
+                ) from exc
+
+    # Core delete so the database-level ON DELETE CASCADE handles children;
+    # an ORM session.delete would try to null out connections.user_id first.
+    await db.execute(delete(User).where(User.id == user_id))
+    await db.commit()
+    logger.info(
+        "user_erased",
+        user_id=str(user_id),
+        providers_deregistered=deregistered,
+        junction_deleted=junction_deleted,
+    )
 
 
 @router.post("/{user_id}/sync", status_code=status.HTTP_202_ACCEPTED)
