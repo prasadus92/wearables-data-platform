@@ -5,6 +5,12 @@ import type { JunctionEnv } from '../api/types';
 export interface Session {
   userId: string;
   clientUserId: string;
+  /**
+   * Present when the session was bootstrapped through a signed-in Clerk
+   * identity (POST /v1/me). Anonymous and signed-in sessions never mix:
+   * each is ignored while the other auth state applies. Mirrors web.
+   */
+  auth?: 'clerk';
 }
 
 // One session per environment, mirroring the web app, so Demo and Live
@@ -21,7 +27,13 @@ function parseSession(raw: string | null): Session | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as Session;
-    if (parsed.userId && parsed.clientUserId) return parsed;
+    if (parsed.userId && parsed.clientUserId) {
+      return {
+        userId: parsed.userId,
+        clientUserId: parsed.clientUserId,
+        ...(parsed.auth === 'clerk' ? { auth: 'clerk' as const } : {}),
+      };
+    }
   } catch {
     // corrupt value, treat as signed out
   }
@@ -62,6 +74,15 @@ export const storage = {
 
   clearSession(env: JunctionEnv) {
     return AsyncStorage.multiRemove([sessionKey(env), SKIPPED_KEY]);
+  },
+
+  /** Sign-out from a Clerk identity clears every mode slot at once. */
+  clearAllSessions() {
+    return AsyncStorage.multiRemove([
+      sessionKey('sandbox'),
+      sessionKey('production'),
+      SKIPPED_KEY,
+    ]);
   },
 
   async loadSkipped(): Promise<boolean> {
