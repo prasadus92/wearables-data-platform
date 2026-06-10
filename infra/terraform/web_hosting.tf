@@ -81,8 +81,12 @@ resource "aws_cloudfront_distribution" "web" {
     }
   }
 
+  aliases = ["app.youth.luminik.io"]
+
   viewer_certificate {
-    cloudfront_default_certificate = true
+    acm_certificate_arn      = aws_acm_certificate_validation.web.certificate_arn
+    ssl_support_method       = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
   }
 }
 
@@ -125,4 +129,49 @@ output "web_bucket" {
 output "web_distribution_id" {
   description = "CloudFront distribution id for invalidations (GitHub variable CF_DISTRIBUTION_ID)"
   value       = aws_cloudfront_distribution.web.id
+}
+
+# Stable hostname for the public dashboard.
+resource "aws_acm_certificate" "web" {
+  provider          = aws.us_east_1
+  domain_name       = "app.youth.luminik.io"
+  validation_method = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_route53_record" "web_cert_validation" {
+  for_each = {
+    for dvo in aws_acm_certificate.web.domain_validation_options : dvo.domain_name => {
+      name   = dvo.resource_record_name
+      record = dvo.resource_record_value
+      type   = dvo.resource_record_type
+    }
+  }
+
+  zone_id = data.aws_route53_zone.main.zone_id
+  name    = each.value.name
+  type    = each.value.type
+  records = [each.value.record]
+  ttl     = 60
+}
+
+resource "aws_acm_certificate_validation" "web" {
+  provider                = aws.us_east_1
+  certificate_arn         = aws_acm_certificate.web.arn
+  validation_record_fqdns = [for r in aws_route53_record.web_cert_validation : r.fqdn]
+}
+
+resource "aws_route53_record" "web" {
+  zone_id = data.aws_route53_zone.main.zone_id
+  name    = "app.youth.luminik.io"
+  type    = "A"
+
+  alias {
+    name                   = aws_cloudfront_distribution.web.domain_name
+    zone_id                = aws_cloudfront_distribution.web.hosted_zone_id
+    evaluate_target_health = false
+  }
 }
