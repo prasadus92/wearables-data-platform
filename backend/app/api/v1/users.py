@@ -5,7 +5,8 @@ from datetime import UTC, datetime, timedelta
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
-from app.api.deps import CurrentUser, DbSession, Junction
+from app.api.deps import CurrentUser, DbSession, Junction, junction_client_for
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models import Connection, ConnectionStatus, User
 from app.schemas import UserCreate, UserOut
@@ -30,7 +31,9 @@ async def create_user(body: UserCreate, db: DbSession, junction: Junction) -> Us
     if existing is not None:
         return existing
 
-    user = User(client_user_id=body.client_user_id)
+    environment = body.environment or get_settings().junction_environment
+    junction = junction_client_for(environment)
+    user = User(client_user_id=body.client_user_id, junction_environment=str(environment))
 
     try:
         junction_user = await junction.create_user(body.client_user_id)
@@ -59,7 +62,7 @@ async def get_user(user: CurrentUser) -> User:
 
 
 @router.post("/{user_id}/sync", status_code=status.HTTP_202_ACCEPTED)
-async def sync_user(user: CurrentUser, db: DbSession, junction: Junction) -> dict:
+async def sync_user(user: CurrentUser, db: DbSession, _default: Junction) -> dict:
     """Manual sync (pull-to-refresh): ask Junction for fresh data and enqueue
     a reconciliation backfill for every connected provider and metric.
 
@@ -71,6 +74,7 @@ async def sync_user(user: CurrentUser, db: DbSession, junction: Junction) -> dic
     if not user.junction_user_id:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="User not registered with Junction")
 
+    junction = junction_client_for(user.junction_environment)
     try:
         await junction.refresh_user(user.junction_user_id)
     except JunctionError as exc:

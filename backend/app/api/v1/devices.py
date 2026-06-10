@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
-from app.api.deps import CurrentUser, DbSession, Junction
+from app.api.deps import CurrentUser, DbSession, junction_client_for
 from app.core.logging import get_logger
 from app.models import Connection, ConnectionStatus
 from app.schemas import ConnectionOut, LinkOut, LinkRequest
@@ -20,7 +20,7 @@ def _require_junction_id(user) -> str:
 
 
 @router.post("/link", response_model=LinkOut)
-async def create_link(body: LinkRequest, user: CurrentUser, junction: Junction) -> LinkOut:
+async def create_link(body: LinkRequest, user: CurrentUser) -> LinkOut:
     """Start the connect flow: returns a hosted Junction Link URL.
 
     The app opens it in a browser/webview; the user OAuths into their
@@ -29,6 +29,7 @@ async def create_link(body: LinkRequest, user: CurrentUser, junction: Junction) 
     expires in 60 minutes.
     """
     junction_user_id = _require_junction_id(user)
+    junction = junction_client_for(user.junction_environment)
     try:
         token = await junction.create_link_token(
             junction_user_id, provider=body.provider, redirect_url=body.redirect_url
@@ -40,12 +41,11 @@ async def create_link(body: LinkRequest, user: CurrentUser, junction: Junction) 
 
 
 @router.post("/demo", response_model=dict, tags=["sandbox"])
-async def connect_demo(
-    body: LinkRequest, user: CurrentUser, db: DbSession, junction: Junction
-) -> dict:
+async def connect_demo(body: LinkRequest, user: CurrentUser, db: DbSession) -> dict:
     """Sandbox only: attach a demo provider (oura / fitbit / apple_health_kit)
     with 30 days of synthetic data and a simulated webhook lifecycle."""
     junction_user_id = _require_junction_id(user)
+    junction = junction_client_for(user.junction_environment)
     try:
         result = await junction.connect_demo_provider(junction_user_id, body.provider)
     except JunctionError as exc:
@@ -87,9 +87,7 @@ async def list_devices(user: CurrentUser, db: DbSession) -> list[Connection]:
 
 
 @router.delete("/{provider}", status_code=status.HTTP_204_NO_CONTENT)
-async def disconnect_device(
-    provider: str, user: CurrentUser, db: DbSession, junction: Junction
-) -> None:
+async def disconnect_device(provider: str, user: CurrentUser, db: DbSession) -> None:
     """Disconnect flow: deregister at Junction, mark locally. Historical
     samples are retained (product decision: data belongs to the user)."""
     connection = (
@@ -100,6 +98,7 @@ async def disconnect_device(
     if connection is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Device not connected")
 
+    junction = junction_client_for(user.junction_environment)
     try:
         await junction.deregister_provider(_require_junction_id(user), provider)
     except JunctionError as exc:

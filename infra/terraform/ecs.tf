@@ -62,6 +62,8 @@ locals {
     { name = "DATABASE_URL", valueFrom = aws_ssm_parameter.database_url.arn },
     { name = "JUNCTION_API_KEY", valueFrom = aws_ssm_parameter.junction_api_key.arn },
     { name = "JUNCTION_WEBHOOK_SECRET", valueFrom = aws_ssm_parameter.junction_webhook_secret.arn },
+    { name = "JUNCTION_PROD_API_KEY", valueFrom = aws_ssm_parameter.junction_prod_api_key.arn },
+    { name = "JUNCTION_PROD_WEBHOOK_SECRET", valueFrom = aws_ssm_parameter.junction_prod_webhook_secret.arn },
     { name = "API_AUTH_TOKEN", valueFrom = aws_ssm_parameter.api_auth_token.arn },
   ]
   image = "${aws_ecr_repository.backend.repository_url}:latest"

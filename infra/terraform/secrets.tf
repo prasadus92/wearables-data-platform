@@ -25,3 +25,15 @@ resource "aws_ssm_parameter" "junction_webhook_secret" {
   type  = "SecureString"
   value = var.junction_webhook_secret == "" ? "unset" : var.junction_webhook_secret
 }
+
+resource "aws_ssm_parameter" "junction_prod_api_key" {
+  name  = "/${var.app_name}/junction-prod-api-key"
+  type  = "SecureString"
+  value = var.junction_prod_api_key == "" ? "unset" : var.junction_prod_api_key
+}
+
+resource "aws_ssm_parameter" "junction_prod_webhook_secret" {
+  name  = "/${var.app_name}/junction-prod-webhook-secret"
+  type  = "SecureString"
+  value = var.junction_prod_webhook_secret == "" ? "unset" : var.junction_prod_webhook_secret
+}

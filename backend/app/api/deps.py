@@ -8,7 +8,7 @@ from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
+from app.core.config import JunctionEnvironment, get_settings
 from app.db.session import get_db
 from app.models import User
 from app.services.junction import JunctionClient
@@ -44,15 +44,26 @@ async def require_api_key(request: Request) -> None:
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
-_junction_client: JunctionClient | None = None
+_junction_clients: dict[str, JunctionClient] = {}
+
+
+def junction_client_for(environment: str | JunctionEnvironment) -> JunctionClient:
+    """Process-wide Junction client per environment (shared connection pools)."""
+    env = JunctionEnvironment(environment)
+    if env not in _junction_clients:
+        _junction_clients[env] = JunctionClient(environment=env)
+    return _junction_clients[env]
 
 
 def get_junction_client() -> JunctionClient:
-    """Process-wide Junction client (shared connection pool)."""
-    global _junction_client
-    if _junction_client is None:
-        _junction_client = JunctionClient()
-    return _junction_client
+    """Client for the default environment (used at user creation)."""
+    return junction_client_for(get_settings().junction_environment)
+
+
+async def close_junction_clients() -> None:
+    for client in _junction_clients.values():
+        await client.aclose()
+    _junction_clients.clear()
 
 
 Junction = Annotated[JunctionClient, Depends(get_junction_client)]

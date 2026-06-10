@@ -130,7 +130,6 @@ async def process_backfill(
     Triggered by ``historical.data.{resource}.created`` events, which are
     data-less notifications. Pages through the cursor until exhausted.
     """
-    junction: JunctionClient = ctx["junction"]
     total = 0
     cursor: str | None = None
 
@@ -140,6 +139,9 @@ async def process_backfill(
         ).scalar_one_or_none()
         if user is None or not user.junction_user_id:
             return "missing-user"
+
+        # Pull from the Junction environment this user lives in.
+        junction: JunctionClient = ctx["junction_clients"][user.junction_environment]
 
         while True:
             page = await junction.get_timeseries(
@@ -180,12 +182,17 @@ async def process_backfill(
 
 async def startup(ctx: dict[str, Any]) -> None:
     configure_logging()
-    ctx["junction"] = JunctionClient()
+    from app.core.config import JunctionEnvironment
+
+    ctx["junction_clients"] = {
+        str(env): JunctionClient(environment=env) for env in JunctionEnvironment
+    }
     logger.info("worker_started", environment=get_settings().environment)
 
 
 async def shutdown(ctx: dict[str, Any]) -> None:
-    await ctx["junction"].aclose()
+    for client in ctx["junction_clients"].values():
+        await client.aclose()
 
 
 class WorkerSettings:

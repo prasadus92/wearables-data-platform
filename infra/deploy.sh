@@ -14,6 +14,8 @@ JUNCTION_WEBHOOK_SECRET=$(grep '^JUNCTION_WEBHOOK_SECRET=' .env | cut -d= -f2 ||
 export TF_VAR_junction_api_key="$JUNCTION_API_KEY"
 export TF_VAR_junction_webhook_secret="$JUNCTION_WEBHOOK_SECRET"
 export TF_VAR_api_auth_token="$(grep '^API_AUTH_TOKEN=' .env | cut -d= -f2)"
+export TF_VAR_junction_prod_api_key="$(grep '^JUNCTION_PROD_API_KEY=' .env | cut -d= -f2)"
+export TF_VAR_junction_prod_webhook_secret="$(grep '^JUNCTION_PROD_WEBHOOK_SECRET=' .env | cut -d= -f2)"
 
 if [[ "${APPLY:-0}" == "1" ]]; then
   terraform -chdir=infra/terraform init -upgrade -input=false
