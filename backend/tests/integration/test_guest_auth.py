@@ -34,6 +34,9 @@ class StubJunction:
     async def create_user(self, client_user_id: str) -> dict:
         return {"user_id": f"jnc-{client_user_id}"}
 
+    async def connect_demo_provider(self, junction_user_id: str, provider: str) -> dict:
+        return {"success": True, "provider": provider}
+
 
 @pytest.fixture
 def stub_junction(monkeypatch):
@@ -67,7 +70,8 @@ async def test_guest_token_issued_once_and_grants_own_access(
 
     devices = await client.get(f"/v1/users/{user_id}/devices", headers=bearer(token))
     assert devices.status_code == 200
-    assert devices.json() == []
+    # The demo wearable attached at guest creation is visible to its owner.
+    assert [d["provider"] for d in devices.json()] == ["oura"]
 
     series = await client.get(f"/v1/users/{user_id}/timeseries/heartrate", headers=bearer(token))
     assert series.status_code == 200
@@ -148,4 +152,9 @@ async def test_guest_creation_still_writes_ledger(with_auth, stub_junction, clie
             .scalars()
             .all()
         )
-    assert [(e.event, e.actor) for e in entries] == [("guest_created", "user")]
+    # Guest creation now auto-attaches a demo wearable, so the ledger carries
+    # the birth entry plus the service-attached demo connection.
+    assert [(e.event, e.actor) for e in entries] == [
+        ("guest_created", "user"),
+        ("connected", "service"),
+    ]

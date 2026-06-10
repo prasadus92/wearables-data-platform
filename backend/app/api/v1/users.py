@@ -94,6 +94,52 @@ async def get_or_create_user(
     return user
 
 
+async def attach_demo_wearable(db: AsyncSession, user: User, provider: str = "oura") -> None:
+    """Attach a demo provider to a fresh sandbox user, best effort.
+
+    Demo mode should show data without a manual connect step, so new sandbox
+    identities (guests and first-time Demo sign-ins) get a demo wearable at
+    creation. Junction then replays ~30 days of synthetic history through the
+    normal webhook pipeline. Failures are logged and swallowed: a missing
+    demo device must never block account creation.
+    """
+    if user.junction_environment != str(JunctionEnvironment.sandbox) or not user.junction_user_id:
+        return
+    junction = junction_client_for(user.junction_environment)
+    try:
+        await junction.connect_demo_provider(user.junction_user_id, provider)
+    except JunctionError as exc:
+        logger.warning(
+            "demo_autoconnect_failed",
+            user_id=str(user.id),
+            provider=provider,
+            detail=exc.detail,
+        )
+        return
+    await apply_plan(
+        db,
+        user.id,
+        IngestPlan(
+            event_type="local.demo.connected",
+            junction_user_id=user.junction_user_id,
+            client_user_id=user.client_user_id,
+            connection_change=ConnectionChange(
+                provider=provider, status=ConnectionStatus.connected
+            ),
+        ),
+    )
+    record_device_event(
+        db,
+        user.id,
+        DeviceEventType.connected,
+        DeviceEventActor.service,
+        provider=provider,
+        junction_user_id=user.junction_user_id,
+    )
+    await db.commit()
+    logger.info("demo_autoconnected", user_id=str(user.id), provider=provider)
+
+
 @router.post("", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def create_user(body: UserCreate, db: DbSession, _junction: Junction) -> User:
     """Create an app user and register them with Junction.
@@ -128,7 +174,14 @@ async def create_me(request: Request, db: DbSession, body: MeCreate | None = Non
     client_user_id = f"clerk:{auth['subject']}"
     if environment == JunctionEnvironment.production:
         client_user_id = f"{client_user_id}:production"
-    return await get_or_create_user(db, client_user_id, environment, actor=DeviceEventActor.user)
+    user = await get_or_create_user(db, client_user_id, environment, actor=DeviceEventActor.user)
+    if environment == JunctionEnvironment.sandbox:
+        has_history = (
+            await db.execute(select(Connection.id).where(Connection.user_id == user.id).limit(1))
+        ).scalar_one_or_none()
+        if has_history is None:
+            await attach_demo_wearable(db, user)
+    return user
 
 
 @guest_router.post("/guests", response_model=GuestOut, status_code=status.HTTP_201_CREATED)
@@ -156,6 +209,7 @@ async def create_guest(db: DbSession, body: GuestCreate | None = None) -> GuestO
         actor=DeviceEventActor.user,
         guest_token_hash=hashlib.sha256(guest_token.encode()).hexdigest(),
     )
+    await attach_demo_wearable(db, user)
     return GuestOut(**UserOut.model_validate(user).model_dump(), guest_token=guest_token)
 
 

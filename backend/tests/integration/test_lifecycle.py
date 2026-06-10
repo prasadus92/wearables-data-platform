@@ -59,7 +59,11 @@ class TestGuests:
         assert body["junction_user_id"] == f"jnc-{body['client_user_id']}"
 
         entries = await _ledger(engine, body["id"])
-        assert [(e.event, e.actor) for e in entries] == [("guest_created", "user")]
+        # Birth entry plus the auto-attached demo wearable.
+        assert [(e.event, e.actor) for e in entries] == [
+            ("guest_created", "user"),
+            ("connected", "service"),
+        ]
         assert entries[0].junction_user_id == body["junction_user_id"]
 
     async def test_each_guest_gets_a_fresh_identity(self, stub_junction, client):

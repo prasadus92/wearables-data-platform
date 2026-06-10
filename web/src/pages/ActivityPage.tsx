@@ -68,7 +68,10 @@ export function ActivityPage() {
     async function load() {
       try {
         const rows = await api.events(user.id)
-        if (!cancelled) setEvents(rows)
+        // Skipped events are readings we deliberately do not chart (steps,
+        // calories, distance); a feed full of them reads as failure, so the
+        // activity view shows only what moved the timeline or the devices.
+        if (!cancelled) setEvents(rows.filter((row) => row.status !== 'skipped'))
       } catch {
         // Keep showing the last good list; the next tick retries.
       }
