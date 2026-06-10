@@ -36,7 +36,7 @@ export function DevicePanel({ devices, onConnect, onConnectDemo, onDisconnect }:
   return (
     <section className="devices">
       <h2>Devices</h2>
-      {active.length === 0 && <p className="muted">No devices connected — pick one below.</p>}
+      {active.length === 0 && <p className="muted">No devices connected. Pick one below.</p>}
 
       <ul className="device-list">
         {active.map((device) => (

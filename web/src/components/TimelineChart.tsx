@@ -15,9 +15,11 @@ interface Props {
   metric: Metric
   days: number
   resolution: Resolution
+  /** Bumped by the SSE stream when new samples land; triggers a refetch. */
+  liveVersion: number
 }
 
-export function TimelineChart({ userId, metric, days, resolution }: Props) {
+export function TimelineChart({ userId, metric, days, resolution, liveVersion }: Props) {
   const [data, setData] = useState<Timeseries | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -35,12 +37,14 @@ export function TimelineChart({ userId, metric, days, resolution }: Props) {
     }
 
     load()
-    const interval = setInterval(load, 30_000) // new webhook data appears live
+    // SSE drives instant refreshes via liveVersion; the slow interval is a
+    // fallback for proxies that buffer event streams.
+    const interval = setInterval(load, 60_000)
     return () => {
       cancelled = true
       clearInterval(interval)
     }
-  }, [userId, metric, days, resolution])
+  }, [userId, metric, days, resolution, liveVersion])
 
   if (loading && !data) return <div className="chart-empty">Loading…</div>
   if (!data || data.points.length === 0)

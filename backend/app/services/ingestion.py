@@ -2,24 +2,24 @@
 
 Split into two halves:
 
-1. **Pure parsing** (`parse_event`) — takes a raw Aggregator event payload and
+1. **Pure parsing** (`parse_event`): takes a raw Aggregator event payload and
    returns an :class:`IngestPlan` describing what should happen (samples to
-   upsert, connection changes, backfills to schedule). No I/O — trivially
-   unit-testable against payload fixtures.
-2. **Persistence** (`apply_plan`) — executes a plan against the database with
+   upsert, connection changes, backfills to schedule). No I/O, so it is
+   trivially unit-testable against payload fixtures.
+2. **Persistence** (`apply_plan`): executes a plan against the database with
    idempotent ``INSERT … ON CONFLICT`` writes, so Aggregator's webhook retries
    (8 attempts) and overlapping backfills never duplicate data.
 
 Aggregator event reference (see docs/aggregator-notes.md):
 
-- ``daily.data.{resource}.created|updated`` — incremental samples, batched at
+- ``daily.data.{resource}.created|updated``: incremental samples, batched at
   ``$.data.data`` as ``{timestamp, timezone_offset, unit, value}``; source at
-  ``$.data.source {name, slug}``. NB: "daily" is a misnomer — this is a
-  stream, multiple events per resource per day.
-- ``historical.data.{resource}.created`` — data-less backfill notification
+  ``$.data.source {name, slug}``. NB: "daily" is a misnomer (this is a
+  stream, multiple events per resource per day).
+- ``historical.data.{resource}.created``: data-less backfill notification
   (``data: {user_id, start_date, end_date, provider}``); data must be pulled
   via the REST timeseries endpoint.
-- ``provider.connection.created`` / ``provider.connection.error`` — connection
+- ``provider.connection.created`` / ``provider.connection.error``: connection
   lifecycle.
 """
 
@@ -143,7 +143,7 @@ def parse_event(payload: dict) -> IngestPlan:
     """Translate one raw Aggregator webhook payload into an :class:`IngestPlan`.
 
     Unknown or irrelevant event types yield a no-op plan (recorded as
-    ``skipped``), never an error — Aggregator adds event types over time and an
+    ``skipped``), never an error. Aggregator adds event types over time and an
     unknown event must not poison the queue.
     """
     event_type: str = payload.get("event_type", "")
@@ -158,7 +158,7 @@ def parse_event(payload: dict) -> IngestPlan:
 
     parts = event_type.split(".")
 
-    # daily.data.{resource}.{created|updated} — incremental samples
+    # daily.data.{resource}.{created|updated}: incremental samples
     if len(parts) == 4 and parts[0] == "daily" and parts[1] == "data":
         resource = parts[2]
         if resource in RESOURCE_TO_METRIC:
@@ -166,7 +166,7 @@ def parse_event(payload: dict) -> IngestPlan:
             plan.samples = _parse_samples(resource, data, provider)
         return plan
 
-    # historical.data.{resource}.created — schedule a REST backfill
+    # historical.data.{resource}.created: schedule a REST backfill
     if len(parts) == 4 and parts[0] == "historical" and parts[1] == "data":
         resource = parts[2]
         if resource in RESOURCE_TO_METRIC and data.get("start_date") and data.get("end_date"):

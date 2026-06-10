@@ -2,7 +2,7 @@
 
 All runtime configuration comes from environment variables (12-factor), with
 `.env` support for local development. Secrets (Aggregator API key, webhook
-secret) must never be committed — see `.env.example` at the repo root.
+secret) must never be committed (see `.env.example` at the repo root).
 """
 
 from enum import StrEnum
@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     aggregator_environment: AggregatorEnvironment = AggregatorEnvironment.sandbox
     aggregator_region: AggregatorRegion = AggregatorRegion.eu
     # Svix signing secret for inbound webhooks (per webhook endpoint, from the
-    # Aggregator dashboard). Empty disables verification — allowed only in tests.
+    # Aggregator dashboard). Empty disables verification, allowed only in tests.
     aggregator_webhook_secret: str = ""
 
     # --- Storage ---

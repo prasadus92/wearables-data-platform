@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import webhooks
 from app.api.deps import get_aggregator_client
-from app.api.v1 import devices, timeseries, users
+from app.api.v1 import devices, stream, timeseries, users
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.schemas import HealthOut
@@ -51,6 +51,7 @@ app.add_middleware(
 app.include_router(users.router, prefix="/v1")
 app.include_router(devices.router, prefix="/v1")
 app.include_router(timeseries.router, prefix="/v1")
+app.include_router(stream.router, prefix="/v1")
 app.include_router(webhooks.router)
 
 

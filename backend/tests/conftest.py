@@ -1,7 +1,7 @@
 """Shared fixtures.
 
 Integration tests run against a real Postgres (``wearables_test`` database on
-the docker-compose ``db`` service) — per the challenge constraint, no sqlite.
+the docker-compose ``db`` service). Per the challenge constraint, no sqlite.
 Each test function gets freshly created tables for isolation.
 """
 

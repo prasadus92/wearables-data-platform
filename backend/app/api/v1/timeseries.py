@@ -1,4 +1,4 @@
-"""Timeseries endpoints — the read path behind the app's timeline charts."""
+"""Timeseries endpoints: the read path behind the app's timeline charts."""
 
 from datetime import UTC, datetime, timedelta
 

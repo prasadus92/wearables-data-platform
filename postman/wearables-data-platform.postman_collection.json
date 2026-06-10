@@ -58,7 +58,7 @@
           "raw": "{\n  \"provider\": \"whoop_v2\",\n  \"redirect_url\": \"https://example.com/connected\"\n}"
         },
         "url": "{{baseUrl}}/v1/users/{{userId}}/devices/link",
-        "description": "Returns a hosted Aggregator Link URL — open it in a browser to OAuth into the wearable account. Token expires in 60 minutes."
+        "description": "Returns a hosted Aggregator Link URL. Open it in a browser to OAuth into the wearable account. Token expires in 60 minutes."
       }
     },
     {

@@ -1,4 +1,4 @@
-# Secrets — never commit credentials
+# Secrets: never commit credentials
 .env
 .env.*
 !.env.example
@@ -32,3 +32,10 @@ out/
 # Local data
 *.sqlite3
 pgdata/
+
+# Terraform: providers, plans, and state (state contains secrets)
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan

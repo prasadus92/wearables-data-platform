@@ -78,7 +78,7 @@ class TestIngestionPipeline:
 
         written_first = await apply_plan(session, user.id, plan)
         await session.commit()
-        # Re-apply the same event (webhook retry) — no duplicates.
+        # Re-apply the same event (webhook retry): no duplicates.
         written_again = await apply_plan(session, user.id, plan)
         await session.commit()
 
@@ -149,7 +149,7 @@ class TestEndToEnd:
         )
         assert response.status_code == 202
 
-        # 2. Worker processes the persisted event (invoked directly — the
+        # 2. Worker processes the persisted event (invoked directly, since the
         #    queue transport is not what's under test here).
         async with factory() as session:
             event = (await session.execute(select(WebhookEvent))).scalar_one()

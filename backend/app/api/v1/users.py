@@ -32,7 +32,7 @@ async def create_user(body: UserCreate, db: DbSession, aggregator: Aggregator) -
         aggregator_user = await aggregator.create_user(body.client_user_id)
         user.aggregator_user_id = aggregator_user.get("user_id")
     except AggregatorError as exc:
-        # 400 on duplicate client_user_id includes the existing user_id —
+        # 400 on duplicate client_user_id includes the existing user_id, so
         # recover the mapping instead of failing registration.
         if exc.status_code == 400 and "user_id" in exc.detail:
             resolved = await aggregator.resolve_user(body.client_user_id)

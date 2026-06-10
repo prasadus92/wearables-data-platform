@@ -63,7 +63,7 @@ class TestTimeseriesEvents:
         assert sample.unit == "mmHg"  # default applied
 
     def test_blood_pressure_simple_value_shape(self):
-        """Tolerate a flat {value} shape too — provider payloads vary."""
+        """Tolerate a flat {value} shape too, since provider payloads vary."""
         plan = parse_event(
             _ts_event("blood_pressure", [{"timestamp": "2026-06-09T08:00:00Z", "value": 120}])
         )
