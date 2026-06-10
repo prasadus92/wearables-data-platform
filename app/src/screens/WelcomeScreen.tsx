@@ -15,7 +15,7 @@ import { api, ApiError } from '../api/client';
 import { Button } from '../components/Button';
 import { useApp } from '../lib/appContext';
 import { enter } from '../lib/motion';
-import { colors } from '../theme/tokens';
+import { colors, fonts } from '../theme/tokens';
 
 function Waveform() {
   return (
@@ -56,10 +56,9 @@ function randomClientUserId(): string {
 }
 
 export function WelcomeScreen() {
-  const { signIn, skip } = useApp();
+  const { mode, signIn, skip } = useApp();
   const [existingId, setExistingId] = useState('');
   const [showExisting, setShowExisting] = useState(false);
-  const [sandbox, setSandbox] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -73,10 +72,7 @@ export function WelcomeScreen() {
     setBusy(true);
     setError(null);
     try {
-      const user = await api.createUser(
-        clientUserId,
-        sandbox ? 'sandbox' : 'production',
-      );
+      const user = await api.createUser(clientUserId, mode);
       signIn({ userId: user.id, clientUserId: user.client_user_id });
     } catch (err) {
       setError(
@@ -106,10 +102,13 @@ export function WelcomeScreen() {
         >
           <View className="flex-1 justify-center px-8 pt-24">
             <Animated.View entering={enter(0)}>
-              <Text className="text-[11px] font-semibold uppercase tracking-[3px] text-[#8E8C88]">
+              <Text
+                style={{ fontFamily: fonts.mono }}
+                className="text-[11px] uppercase tracking-[3px] text-[#8E8C88]"
+              >
                 YOU(th)
               </Text>
-              <Text className="mt-2 text-[34px] font-bold leading-[40px] text-card">
+              <Text className="mt-2 text-[34px] font-sans-medium leading-[40px] text-card">
                 Your body,{'\n'}in real time
               </Text>
             </Animated.View>
@@ -120,12 +119,13 @@ export function WelcomeScreen() {
 
           <Animated.View entering={enter(2)}>
             <View className="rounded-t-[28px] bg-card px-6 pb-10 pt-7">
-              <Text className="text-[22px] font-bold leading-[28px] text-ink">
+              <Text className="text-[22px] font-sans-medium leading-[28px] text-ink">
                 Connect your wearables for an enhanced experience
               </Text>
-              <Text className="mt-2 text-[14px] leading-[20px] text-sub">
-                Sync your devices to unlock deeper health insights and keep
-                your data up to date. No sign-up forms, no passwords.
+              <Text className="mt-2 text-[14px] font-sans leading-[20px] text-sub">
+                {mode === 'sandbox'
+                  ? 'Explore with demo wearables and synthetic data. No sign-up forms, no passwords.'
+                  : 'Connect your real wearables. No sign-up forms, no passwords.'}
               </Text>
 
               {showExisting ? (
@@ -139,13 +139,15 @@ export function WelcomeScreen() {
                     autoCorrect={false}
                     autoFocus
                     editable={!busy}
-                    className="mt-5 h-14 rounded-2xl border border-line bg-paper px-4 text-[15px] text-ink"
+                    className="mt-5 h-14 rounded-2xl border border-line bg-paper px-4 text-[15px] font-sans text-ink"
                   />
                 </Animated.View>
               ) : null}
 
               {error ? (
-                <Text className="mt-3 text-[13px] text-coral">{error}</Text>
+                <Text className="mt-3 text-[13px] font-sans text-coral">
+                  {error}
+                </Text>
               ) : null}
 
               <View className="mt-5 flex-row gap-3">
@@ -167,20 +169,8 @@ export function WelcomeScreen() {
                 disabled={busy}
                 className="mt-4 items-center py-1.5 active:opacity-60"
               >
-                <Text className="text-[13px] font-semibold text-sub underline">
+                <Text className="text-[13px] font-sans-medium text-sub underline">
                   {showExisting ? 'Start fresh instead' : 'I have an existing ID'}
-                </Text>
-              </Pressable>
-
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Toggle environment"
-                onPress={() => setSandbox((v) => !v)}
-                disabled={busy}
-                className="mt-1 items-center py-1 active:opacity-60"
-              >
-                <Text className="text-[11px] uppercase tracking-[1.5px] text-faint">
-                  Environment: {sandbox ? 'Sandbox' : 'Production'}
                 </Text>
               </Pressable>
             </View>

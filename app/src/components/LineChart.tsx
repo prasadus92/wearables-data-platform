@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import {
   ActivityIndicator,
   Platform,
+  Pressable,
   Text,
   TextInput,
   View,
@@ -13,6 +14,8 @@ import {
   LinearGradient,
   Line as SkiaLine,
   matchFont,
+  Rect,
+  Text as SkiaText,
   vec,
 } from '@shopify/react-native-skia';
 import * as Haptics from 'expo-haptics';
@@ -35,8 +38,12 @@ import {
   type ChartPressState,
 } from 'victory-native';
 
+import Svg, { Path } from 'react-native-svg';
+
 import type { TimeseriesPoint } from '../api/types';
 import { dayLabel, hourLabel } from '../lib/format';
+import type { Baseline } from '../lib/insights';
+import type { ClinicalBand } from '../lib/metrics';
 import { colors } from '../theme/tokens';
 
 interface Props {
@@ -49,6 +56,16 @@ interface Props {
   height?: number;
   loading?: boolean;
   emptyMessage?: string;
+  /** Optional call to action rendered under the empty message. */
+  emptyAction?: { label: string; onPress: () => void };
+  /** Neutral sentence placing the latest reading against the baseline. */
+  status?: string | null;
+  /** Mean of the last 7 days vs the prior 7, as a percentage. */
+  weekDeltaPct?: number | null;
+  /** Personal baseline band (mean +/- 1 stddev), drawn behind the line. */
+  baselineBand?: Baseline | null;
+  /** Population reference band from the metric metadata, where defensible. */
+  clinicalBand?: ClinicalBand | null;
 }
 
 interface Row {
@@ -149,6 +166,94 @@ function statText(lo: number, dual: boolean, loSec: number): string {
     : String(Math.round(lo * 10) / 10);
 }
 
+/** Small arrow chip for the 7-day vs prior 7-day change. Neutral styling on
+ * purpose: a rising heart rate is not "bad" and a rising HRV is not "good"
+ * enough to color-code without misleading. */
+function DeltaChip({ delta }: { delta: number }) {
+  const rising = delta >= 0;
+  return (
+    <View className="flex-row items-center rounded-full border border-line bg-paper px-2.5 py-1">
+      <Svg
+        width={10}
+        height={10}
+        viewBox="0 0 12 12"
+        style={rising ? undefined : { transform: [{ rotate: '180deg' }] }}
+      >
+        <Path d="M6 2.5 L10 8 H2 Z" fill={colors.sub} />
+      </Svg>
+      <Text className="ml-1.5 text-[11px] font-sans-medium text-sub">
+        {rising ? '+' : ''}
+        {delta.toFixed(1)}% vs prior week
+      </Text>
+    </View>
+  );
+}
+
+interface BandBounds {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+/**
+ * Horizontal translucent band behind the series, with a tiny right-aligned
+ * label. Open-ended bounds extend to the chart edge, and everything clamps
+ * to the plot area so a band outside the visible domain simply disappears.
+ */
+function BandRect({
+  low,
+  high,
+  color,
+  opacity,
+  label,
+  labelPosition,
+  chartBounds,
+  yScale,
+}: {
+  low?: number;
+  high?: number;
+  color: string;
+  opacity: number;
+  label: string;
+  labelPosition: 'top' | 'bottom';
+  chartBounds: BandBounds;
+  yScale: (value: number) => number;
+}) {
+  const clamp = (v: number) =>
+    Math.min(Math.max(v, chartBounds.top), chartBounds.bottom);
+  const top = clamp(high != null ? yScale(high) : chartBounds.top);
+  const bottom = clamp(low != null ? yScale(low) : chartBounds.bottom);
+  const bandHeight = bottom - top;
+  if (bandHeight < 2) return null;
+
+  const labelWidth = axisFont.measureText(label).width;
+  const showLabel = bandHeight >= 16;
+  const labelY = labelPosition === 'top' ? top + 11 : bottom - 4;
+
+  return (
+    <>
+      <Rect
+        x={chartBounds.left}
+        y={top}
+        width={chartBounds.right - chartBounds.left}
+        height={bandHeight}
+        color={color}
+        opacity={opacity}
+      />
+      {showLabel ? (
+        <SkiaText
+          font={axisFont}
+          text={label}
+          x={chartBounds.right - labelWidth - 6}
+          y={labelY}
+          color={colors.faint}
+        />
+      ) : null}
+    </>
+  );
+}
+
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <View className="ml-5 items-end">
@@ -158,7 +263,7 @@ function Stat({ label, value }: { label: string; value: string }) {
       >
         {label}
       </Text>
-      <Text className="mt-0.5 text-[13px] font-semibold text-ink">{value}</Text>
+      <Text className="mt-0.5 text-[13px] font-sans-medium text-ink">{value}</Text>
     </View>
   );
 }
@@ -285,14 +390,14 @@ function Tooltip({
         underlineColorAndroid="transparent"
         animatedProps={valueProps}
         style={{ padding: 0, margin: 0 }}
-        className="text-[14px] font-bold text-card"
+        className="text-[14px] font-sans-medium text-card"
       />
       <AnimatedTextInput
         editable={false}
         underlineColorAndroid="transparent"
         animatedProps={tsProps}
         style={{ padding: 0, margin: 0 }}
-        className="text-[10px] text-[#B9B7B2]"
+        className="text-[10px] font-sans text-[#B9B7B2]"
       />
     </Animated.View>
   );
@@ -306,6 +411,11 @@ export function LineChart({
   height = 220,
   loading = false,
   emptyMessage = 'No data for this range yet.',
+  emptyAction,
+  status,
+  weekDeltaPct,
+  baselineBand,
+  clinicalBand,
 }: Props) {
   const containerWidth = useSharedValue(0);
   const { state, isActive } = useChartPressState({
@@ -383,10 +493,20 @@ export function LineChart({
     );
   } else if (!hasData) {
     body = (
-      <View className="flex-1 items-center justify-center px-6">
-        <Text className="text-center text-[13px] leading-[19px] text-sub">
+      <View className="flex-1 items-center justify-center gap-4 px-6">
+        <Text className="text-center text-[13px] font-sans leading-[19px] text-sub">
           {emptyMessage}
         </Text>
+        {emptyAction ? (
+          <Pressable
+            onPress={emptyAction.onPress}
+            className="h-10 items-center justify-center rounded-full bg-ink px-5"
+          >
+            <Text className="text-[12px] font-sans-medium uppercase tracking-[2px] text-card">
+              {emptyAction.label}
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
     );
   } else {
@@ -419,8 +539,32 @@ export function LineChart({
           },
         ]}
       >
-        {({ points: pts, chartBounds }) => (
+        {({ points: pts, chartBounds, yScale }) => (
           <>
+            {clinicalBand ? (
+              <BandRect
+                low={clinicalBand.min}
+                high={clinicalBand.max}
+                color={colors.blue}
+                opacity={0.05}
+                label={clinicalBand.label}
+                labelPosition="top"
+                chartBounds={chartBounds}
+                yScale={yScale}
+              />
+            ) : null}
+            {baselineBand ? (
+              <BandRect
+                low={baselineBand.low}
+                high={baselineBand.high}
+                color={colors.ink}
+                opacity={0.06}
+                label="your typical range"
+                labelPosition="bottom"
+                chartBounds={chartBounds}
+                yScale={yScale}
+              />
+            ) : null}
             <Area
               points={pts.value}
               y0={chartBounds.bottom}
@@ -500,31 +644,43 @@ export function LineChart({
   return (
     <View>
       {hasData && !loading && stats ? (
-        <View className="mb-2 mt-3 flex-row items-end justify-between">
-          <View>
-            <Text
-              style={{ fontFamily: MONO }}
-              className="text-[9px] uppercase tracking-[1px] text-faint"
-            >
-              Latest
-            </Text>
-            <View className="flex-row items-baseline">
-              <Text className="text-[28px] font-bold leading-[32px] text-ink">
-                {stats.latest}
+        <>
+          {status ? (
+            <View className="mt-3 flex-row items-center justify-between">
+              <Text className="flex-1 pr-2 text-[13px] font-sans-medium text-ink">
+                {status}
               </Text>
-              {unit ? (
-                <Text className="ml-1.5 text-[13px] font-semibold text-sub">
-                  {unit}
+              {weekDeltaPct != null ? <DeltaChip delta={weekDeltaPct} /> : null}
+            </View>
+          ) : null}
+          <View
+            className={`mb-2 flex-row items-end justify-between ${status ? 'mt-2' : 'mt-3'}`}
+          >
+            <View>
+              <Text
+                style={{ fontFamily: MONO }}
+                className="text-[9px] uppercase tracking-[1px] text-faint"
+              >
+                Latest
+              </Text>
+              <View className="flex-row items-baseline">
+                <Text className="text-[28px] font-sans-medium leading-[32px] text-ink">
+                  {stats.latest}
                 </Text>
-              ) : null}
+                {unit ? (
+                  <Text className="ml-1.5 text-[13px] font-sans-medium text-sub">
+                    {unit}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+            <View className="flex-row pb-1">
+              <Stat label="Min" value={stats.min} />
+              <Stat label="Avg" value={stats.avg} />
+              <Stat label="Max" value={stats.max} />
             </View>
           </View>
-          <View className="flex-row pb-1">
-            <Stat label="Min" value={stats.min} />
-            <Stat label="Avg" value={stats.avg} />
-            <Stat label="Max" value={stats.max} />
-          </View>
-        </View>
+        </>
       ) : null}
       <View
         style={{ height }}

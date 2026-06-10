@@ -1,5 +1,6 @@
 import './global.css';
 
+import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -8,6 +9,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ReducedMotionConfig, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import type { JunctionEnv } from './src/api/types';
 import { AppContext, type AppState, type Nav, type Route } from './src/lib/appContext';
 import { storage, type Session } from './src/lib/storage';
 import { ConnectIntroScreen } from './src/screens/ConnectIntroScreen';
@@ -21,20 +23,36 @@ import { WelcomeScreen } from './src/screens/WelcomeScreen';
 WebBrowser.maybeCompleteAuthSession();
 
 export default function App() {
+  // Brand typography: Book is the body face, Medium carries headings.
+  const [fontsLoaded] = useFonts({
+    PPNeueMontreal: require('./assets/fonts/PPNeueMontreal-Book.otf'),
+    'PPNeueMontreal-Medium': require('./assets/fonts/PPNeueMontreal-Medium.otf'),
+  });
+
   const [ready, setReady] = useState(false);
-  const [session, setSession] = useState<Session | null>(null);
+  const [mode, setMode] = useState<JunctionEnv>('sandbox');
+  // One session per environment, so Demo and Live coexist and switching is
+  // instant. Demo (sandbox) offers synthetic wearables; Live (production)
+  // connects real devices over real provider OAuth.
+  const [sessions, setSessions] = useState<Record<JunctionEnv, Session | null>>({
+    sandbox: null,
+    production: null,
+  });
   const [skipped, setSkipped] = useState(false);
   const [connectCardDismissed, setConnectCardDismissed] = useState(false);
   const [stack, setStack] = useState<Route[]>([{ name: 'home' }]);
 
   useEffect(() => {
     (async () => {
-      const [savedSession, savedSkipped, savedDismissed] = await Promise.all([
-        storage.loadSession(),
-        storage.loadSkipped(),
-        storage.loadConnectCardDismissed(),
-      ]);
-      setSession(savedSession);
+      const [savedMode, savedSessions, savedSkipped, savedDismissed] =
+        await Promise.all([
+          storage.loadMode(),
+          storage.loadSessions(),
+          storage.loadSkipped(),
+          storage.loadConnectCardDismissed(),
+        ]);
+      setMode(savedMode);
+      setSessions(savedSessions);
       setSkipped(savedSkipped);
       setConnectCardDismissed(savedDismissed);
       setReady(true);
@@ -53,12 +71,12 @@ export default function App() {
 
   const signIn = useCallback(
     (next: Session) => {
-      setSession(next);
+      setSessions((s) => ({ ...s, [mode]: next }));
       setSkipped(false);
       setStack([{ name: 'home' }]);
-      storage.saveSession(next);
+      storage.saveSession(mode, next);
     },
-    [],
+    [mode],
   );
 
   const skip = useCallback(() => {
@@ -68,19 +86,39 @@ export default function App() {
   }, []);
 
   const signOut = useCallback(() => {
-    setSession(null);
+    setSessions((s) => ({ ...s, [mode]: null }));
     setSkipped(false);
     setStack([{ name: 'home' }]);
-    storage.clearSession();
-  }, []);
+    storage.clearSession(mode);
+  }, [mode]);
+
+  const switchMode = useCallback(
+    (next: JunctionEnv) => {
+      if (next === mode) return;
+      setMode(next);
+      setStack([{ name: 'home' }]);
+      storage.saveMode(next);
+      // A target environment without a session routes to Welcome in that
+      // mode, so "Get started" creates the session where it belongs.
+      if (!sessions[next]) {
+        setSkipped(false);
+        storage.clearSkipped();
+      }
+    },
+    [mode, sessions],
+  );
 
   const dismissConnectCard = useCallback(() => {
     setConnectCardDismissed(true);
     storage.saveConnectCardDismissed();
   }, []);
 
+  const session = sessions[mode];
+
   const value: AppState = useMemo(
     () => ({
+      mode,
+      switchMode,
       session,
       skipped,
       connectCardDismissed,
@@ -91,6 +129,8 @@ export default function App() {
       nav,
     }),
     [
+      mode,
+      switchMode,
       session,
       skipped,
       connectCardDismissed,
@@ -102,7 +142,9 @@ export default function App() {
     ],
   );
 
-  if (!ready) {
+  // First paint waits for both stored state and the brand fonts, so no
+  // screen ever flashes in the system face.
+  if (!ready || !fontsLoaded) {
     return <View className="flex-1 bg-paper" />;
   }
 

@@ -44,16 +44,16 @@ function ProviderRow({
       className="mb-3 flex-row items-center rounded-2xl bg-card p-4"
     >
       <View className="h-12 w-12 items-center justify-center rounded-full bg-paper">
-        <Text className="text-[17px] font-bold text-ink">
+        <Text className="text-[17px] font-sans-medium text-ink">
           {provider.name[0]}
         </Text>
       </View>
       <View className="ml-3 flex-1">
-        <Text className="text-[16px] font-semibold text-ink">
+        <Text className="text-[16px] font-sans-medium text-ink">
           {provider.name}
         </Text>
         <Text
-          className={`mt-0.5 text-[13px] ${status === 'expired' ? 'font-semibold text-amber' : 'text-sub'}`}
+          className={`mt-0.5 text-[13px] ${status === 'expired' ? 'font-sans-medium text-amber' : 'font-sans text-sub'}`}
         >
           {status === 'expired' ? 'Connection expired' : 'Not connected'}
         </Text>
@@ -99,7 +99,7 @@ export function ConnectMenuScreen() {
       <Header title="Connect a device" onBack={nav.pop} />
       <ScrollView className="flex-1 px-5 pt-2">
         <Animated.View entering={enter(0)}>
-          <Text className="mb-4 text-[14px] leading-[20px] text-sub">
+          <Text className="mb-4 text-[14px] font-sans leading-[20px] text-sub">
             Choose your wearable. You will sign in to the brand's own account
             to authorize data sharing.
           </Text>
@@ -110,7 +110,7 @@ export function ConnectMenuScreen() {
           </View>
         ) : available.length === 0 ? (
           <View className="items-center rounded-2xl bg-card px-6 py-12">
-            <Text className="text-center text-[14px] text-sub">
+            <Text className="text-center text-[14px] font-sans text-sub">
               All supported devices are already connected.
             </Text>
           </View>

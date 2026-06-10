@@ -1,33 +1,67 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import type { JunctionEnv } from '../api/types';
+
 export interface Session {
   userId: string;
   clientUserId: string;
 }
 
-const SESSION_KEY = 'yw.session';
+// One session per environment, mirroring the web app, so Demo and Live
+// coexist and switching between them is instant.
+const MODE_KEY = 'youth-wearables-mode';
+const sessionKey = (env: JunctionEnv) => `youth-wearables-user:${env}`;
+
+// Pre-mode key that held a single session; migrated into the sandbox slot.
+const LEGACY_SESSION_KEY = 'yw.session';
 const SKIPPED_KEY = 'yw.onboardingSkipped';
 const CARD_DISMISSED_KEY = 'yw.connectCardDismissed';
 
+function parseSession(raw: string | null): Session | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Session;
+    if (parsed.userId && parsed.clientUserId) return parsed;
+  } catch {
+    // corrupt value, treat as signed out
+  }
+  return null;
+}
+
 export const storage = {
-  async loadSession(): Promise<Session | null> {
-    const raw = await AsyncStorage.getItem(SESSION_KEY);
-    if (!raw) return null;
-    try {
-      const parsed = JSON.parse(raw) as Session;
-      if (parsed.userId && parsed.clientUserId) return parsed;
-    } catch {
-      // corrupt value, treat as signed out
+  async loadMode(): Promise<JunctionEnv> {
+    const saved = await AsyncStorage.getItem(MODE_KEY);
+    return saved === 'production' ? 'production' : 'sandbox';
+  },
+
+  saveMode(mode: JunctionEnv) {
+    return AsyncStorage.setItem(MODE_KEY, mode);
+  },
+
+  async loadSessions(): Promise<Record<JunctionEnv, Session | null>> {
+    // Migrate the pre-mode single-session key into the sandbox slot.
+    const legacy = await AsyncStorage.getItem(LEGACY_SESSION_KEY);
+    if (legacy) {
+      const existing = await AsyncStorage.getItem(sessionKey('sandbox'));
+      if (!existing) await AsyncStorage.setItem(sessionKey('sandbox'), legacy);
+      await AsyncStorage.removeItem(LEGACY_SESSION_KEY);
     }
-    return null;
+    const [sandbox, production] = await Promise.all([
+      AsyncStorage.getItem(sessionKey('sandbox')),
+      AsyncStorage.getItem(sessionKey('production')),
+    ]);
+    return {
+      sandbox: parseSession(sandbox),
+      production: parseSession(production),
+    };
   },
 
-  saveSession(session: Session) {
-    return AsyncStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  saveSession(env: JunctionEnv, session: Session) {
+    return AsyncStorage.setItem(sessionKey(env), JSON.stringify(session));
   },
 
-  clearSession() {
-    return AsyncStorage.multiRemove([SESSION_KEY, SKIPPED_KEY]);
+  clearSession(env: JunctionEnv) {
+    return AsyncStorage.multiRemove([sessionKey(env), SKIPPED_KEY]);
   },
 
   async loadSkipped(): Promise<boolean> {
@@ -36,6 +70,10 @@ export const storage = {
 
   saveSkipped() {
     return AsyncStorage.setItem(SKIPPED_KEY, '1');
+  },
+
+  clearSkipped() {
+    return AsyncStorage.removeItem(SKIPPED_KEY);
   },
 
   async loadConnectCardDismissed(): Promise<boolean> {

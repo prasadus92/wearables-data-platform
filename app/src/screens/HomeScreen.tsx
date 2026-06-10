@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   type LayoutChangeEvent,
   Pressable,
@@ -17,10 +17,13 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 
+import Svg, { Circle as SvgCircle, Path as SvgPath } from 'react-native-svg';
+
 import { api } from '../api/client';
 import type { Device, TimeseriesOut } from '../api/types';
 import { Banner } from '../components/Banner';
 import { LineChart } from '../components/LineChart';
+import { MetricInfoSheet } from '../components/MetricInfoSheet';
 import { useApp } from '../lib/appContext';
 import {
   METRICS,
@@ -30,8 +33,25 @@ import {
   providerName,
 } from '../lib/catalog';
 import { isOlderThan } from '../lib/format';
+import { baseline, latestStatus, weekDelta } from '../lib/insights';
+import { METRIC_META } from '../lib/metrics';
 import { enter, pressSpring } from '../lib/motion';
-import { colors } from '../theme/tokens';
+import { colors, fonts } from '../theme/tokens';
+
+function InfoIcon() {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 18 18" fill="none">
+      <SvgCircle cx={9} cy={9} r={7.25} stroke={colors.faint} strokeWidth={1.5} />
+      <SvgPath
+        d="M9 8.4V12.4"
+        stroke={colors.faint}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+      />
+      <SvgCircle cx={9} cy={5.7} r={0.95} fill={colors.faint} />
+    </Svg>
+  );
+}
 
 function Chip({
   label,
@@ -67,7 +87,7 @@ function Chip({
         }`}
       >
         <Text
-          className={`text-[13px] font-semibold ${active ? 'text-card' : 'text-sub'}`}
+          className={`text-[13px] font-sans-medium ${active ? 'text-card' : 'text-sub'}`}
         >
           {label}
         </Text>
@@ -194,10 +214,10 @@ function ConnectCard({
       >
         <Text className="text-[16px] text-[#8E8C88]">✕</Text>
       </Pressable>
-      <Text className="pr-8 text-[17px] font-bold text-card">
+      <Text className="pr-8 text-[17px] font-sans-medium text-card">
         Connect your wearables for an enhanced experience
       </Text>
-      <Text className="mt-1.5 text-[13px] leading-[19px] text-[#B9B7B2]">
+      <Text className="mt-1.5 text-[13px] font-sans leading-[19px] text-[#B9B7B2]">
         Sync your devices to unlock deeper health insights and keep your data
         up to date.
       </Text>
@@ -205,7 +225,7 @@ function ConnectCard({
         onPress={onConnect}
         className="mt-4 self-start rounded-full bg-card px-5 py-2.5 active:opacity-80"
       >
-        <Text className="text-[12px] font-semibold uppercase tracking-[2px] text-ink">
+        <Text className="text-[12px] font-sans-medium uppercase tracking-[2px] text-ink">
           {hasSession ? 'Connect a device' : 'Get started'}
         </Text>
       </Pressable>
@@ -223,6 +243,21 @@ export function HomeScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [infoVisible, setInfoVisible] = useState(false);
+
+  const meta = METRIC_META[metric.key];
+
+  // Plain-language insights derived from the full series for this range.
+  const insights = useMemo(() => {
+    const pts = series?.points ?? [];
+    if (pts.length === 0) return null;
+    const base = baseline(pts);
+    return {
+      base,
+      status: latestStatus(pts, base, meta.goodDirection),
+      delta: weekDelta(pts, new Date()),
+    };
+  }, [series, meta]);
 
   const reduced = useReducedMotion();
   const scrollY = useSharedValue(0);
@@ -339,10 +374,13 @@ export function HomeScreen() {
         <Animated.View entering={enter(0)}>
           <View className="mb-5 flex-row items-center justify-between">
             <Animated.View style={headerStyle}>
-              <Text className="text-[11px] font-semibold uppercase tracking-[2px] text-faint">
+              <Text
+                style={{ fontFamily: fonts.mono }}
+                className="text-[11px] uppercase tracking-[2px] text-faint"
+              >
                 Welcome back
               </Text>
-              <Text className="text-[24px] font-bold text-ink">
+              <Text className="text-[24px] font-sans-medium text-ink">
                 {session ? session.clientUserId : 'Guest'}
               </Text>
             </Animated.View>
@@ -351,7 +389,7 @@ export function HomeScreen() {
               onPress={() => nav.push({ name: 'devices' })}
               className="h-11 w-11 items-center justify-center rounded-full bg-ink active:opacity-80"
             >
-              <Text className="text-[15px] font-bold text-card">
+              <Text className="text-[15px] font-sans-medium text-card">
                 {(session?.clientUserId[0] ?? 'G').toUpperCase()}
               </Text>
             </Pressable>
@@ -393,9 +431,20 @@ export function HomeScreen() {
         ) : null}
 
         <Animated.View entering={enter(2)}>
-          <Text className="mb-3 mt-2 text-[18px] font-bold text-ink">
-            Your biomarkers
-          </Text>
+          <View className="mb-3 mt-2 flex-row items-center justify-between">
+            <Text className="text-[18px] font-sans-medium text-ink">
+              Your biomarkers
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`What is ${meta.friendlyName}?`}
+              onPress={() => setInfoVisible(true)}
+              hitSlop={8}
+              className="h-8 w-8 items-center justify-center rounded-full active:opacity-60"
+            >
+              <InfoIcon />
+            </Pressable>
+          </View>
 
           <MetricTabs active={metric} onSelect={setMetric} />
           <RangeTabs active={range} onSelect={setRange} />
@@ -404,28 +453,32 @@ export function HomeScreen() {
         <Animated.View entering={enter(3)}>
           <View className="rounded-2xl bg-card p-4">
             <View className="flex-row items-baseline justify-between">
-              <Text className="text-[15px] font-semibold text-ink">
+              <Text className="text-[15px] font-sans-medium text-ink">
                 {metric.label}
               </Text>
               {metric.dual ? (
                 <View className="flex-row items-center">
                   <View className="mr-1.5 h-2 w-2 rounded-full bg-coral" />
-                  <Text className="mr-4 text-[12px] text-sub">Systolic</Text>
+                  <Text className="mr-4 text-[12px] font-sans text-sub">
+                    Systolic
+                  </Text>
                   <View className="mr-1.5 h-2 w-2 rounded-full bg-blue" />
-                  <Text className="text-[12px] text-sub">Diastolic</Text>
+                  <Text className="text-[12px] font-sans text-sub">
+                    Diastolic
+                  </Text>
                 </View>
               ) : null}
             </View>
 
             {error ? (
               <View className="h-[220px] items-center justify-center px-6">
-                <Text className="text-center text-[13px] text-sub">
+                <Text className="text-center text-[13px] font-sans text-sub">
                   {error}
                 </Text>
               </View>
             ) : !session ? (
               <View className="h-[220px] items-center justify-center px-6">
-                <Text className="text-center text-[13px] leading-[19px] text-sub">
+                <Text className="text-center text-[13px] font-sans leading-[19px] text-sub">
                   Create your profile and connect a wearable to see your data
                   here.
                 </Text>
@@ -437,12 +490,31 @@ export function HomeScreen() {
                 dual={metric.dual}
                 rangeHours={range.hours}
                 loading={loading}
-                emptyMessage={`No ${metric.label.toLowerCase()} data for this range yet. Connect a device or pull down to sync.`}
+                emptyMessage={
+                  active.length === 0
+                    ? `Your ${metric.label.toLowerCase()} will live here. Connect a wearable once and readings flow in automatically.`
+                    : 'Your device is connected. New readings usually arrive within a couple of minutes, or pull them in now.'
+                }
+                emptyAction={
+                  active.length === 0
+                    ? { label: 'Connect a device', onPress: () => nav.push({ name: 'connectMenu' }) }
+                    : { label: 'Sync now', onPress: onRefresh }
+                }
+                status={insights?.status}
+                weekDeltaPct={insights?.delta}
+                baselineBand={insights?.base}
+                clinicalBand={meta.clinicalBand ?? null}
               />
             )}
           </View>
         </Animated.View>
       </View>
+
+      <MetricInfoSheet
+        meta={meta}
+        visible={infoVisible}
+        onClose={() => setInfoVisible(false)}
+      />
     </Animated.ScrollView>
   );
 }

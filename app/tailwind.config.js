@@ -4,6 +4,12 @@ module.exports = {
   presets: [require('nativewind/preset')],
   theme: {
     extend: {
+      fontFamily: {
+        // Brand faces loaded via expo-font in App.tsx. `font-sans` is the
+        // body face (Book); `font-sans-medium` carries headings and emphasis.
+        sans: ['PPNeueMontreal'],
+        'sans-medium': ['PPNeueMontreal-Medium'],
+      },
       colors: {
         paper: '#F7F6F3',
         ink: '#1C1C1E',
