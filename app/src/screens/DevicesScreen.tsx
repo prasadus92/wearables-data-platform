@@ -22,6 +22,7 @@ import { Header } from '../components/Header';
 import { useApp } from '../lib/appContext';
 import { PROVIDERS, providerName } from '../lib/catalog';
 import { timeAgo } from '../lib/format';
+import { tapLight } from '../lib/haptics';
 import { enter } from '../lib/motion';
 import { colors } from '../theme/tokens';
 
@@ -38,9 +39,12 @@ const reflow = LinearTransition.springify(300).reduceMotion(
 function ModeSwitch({
   mode,
   onChange,
+  liveLocked,
 }: {
   mode: AggregatorEnv;
   onChange: (mode: AggregatorEnv) => void;
+  /** Live requires a signed-in account; locked taps acknowledge and stop. */
+  liveLocked?: boolean;
 }) {
   const segments: { value: AggregatorEnv; label: string }[] = [
     { value: 'sandbox', label: 'Demo' },
@@ -53,13 +57,19 @@ function ModeSwitch({
     >
       {segments.map((segment) => {
         const active = segment.value === mode;
+        const locked = liveLocked && segment.value === 'production' && !active;
         return (
           <Pressable
             key={segment.value}
             accessibilityRole="tab"
-            accessibilityState={{ selected: active }}
-            onPress={() => onChange(segment.value)}
-            className={`rounded-full px-4 py-1.5 ${active ? 'bg-ink' : 'active:opacity-60'}`}
+            accessibilityState={{ selected: active, disabled: !!locked }}
+            onPress={() => {
+              if (active) return;
+              tapLight();
+              if (locked) return;
+              onChange(segment.value);
+            }}
+            className={`rounded-full px-4 py-1.5 ${active ? 'bg-ink' : 'active:opacity-60'} ${locked ? 'opacity-40' : ''}`}
           >
             <Text
               className={`text-[12px] font-sans-medium ${active ? 'text-card' : 'text-sub'}`}
@@ -216,7 +226,7 @@ export function DevicesScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={colors.sub}
+            tintColor={colors.coral}
           />
         }
       >
@@ -249,18 +259,29 @@ export function DevicesScreen() {
         ) : null}
 
         <Animated.View entering={enter(session ? 1 : 0)}>
-          <View className="mb-5 flex-row items-center rounded-2xl bg-card p-4">
-            <View className="flex-1 pr-3">
-              <Text className="text-[14px] font-sans-medium text-ink">
-                Data mode
-              </Text>
-              <Text className="mt-0.5 text-[12px] font-sans leading-[17px] text-faint">
-                {mode === 'sandbox'
-                  ? 'Demo wearables with synthetic data'
-                  : 'Real wearables over provider sign-in'}
-              </Text>
+          <View className="mb-5 rounded-2xl bg-card p-4">
+            <View className="flex-row items-center">
+              <View className="flex-1 pr-3">
+                <Text className="text-[14px] font-sans-medium text-ink">
+                  Data mode
+                </Text>
+                <Text className="mt-0.5 text-[12px] font-sans leading-[17px] text-faint">
+                  {mode === 'sandbox'
+                    ? 'Demo wearables with synthetic data'
+                    : 'Real wearables over provider sign-in'}
+                </Text>
+              </View>
+              <ModeSwitch
+                mode={mode}
+                onChange={switchMode}
+                liveLocked={!clerkAuthed}
+              />
             </View>
-            <ModeSwitch mode={mode} onChange={switchMode} />
+            {!clerkAuthed && mode === 'sandbox' ? (
+              <Text className="mt-2 text-[11px] font-sans text-faint">
+                Sign in to connect real devices
+              </Text>
+            ) : null}
           </View>
         </Animated.View>
 

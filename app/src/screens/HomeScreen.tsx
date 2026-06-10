@@ -41,6 +41,7 @@ import {
   providerName,
 } from '../lib/catalog';
 import { isOlderThan } from '../lib/format';
+import { heartbeat, tapLight } from '../lib/haptics';
 import { enter, pressSpring } from '../lib/motion';
 import { colors, fonts } from '../theme/tokens';
 
@@ -81,7 +82,10 @@ function Chip({
   return (
     <Animated.View onLayout={onLayout} style={[{ marginRight: 8 }, pressStyle]}>
       <Pressable
-        onPress={onPress}
+        onPress={() => {
+          if (!active) tapLight();
+          onPress();
+        }}
         onPressIn={() => {
           scale.value = withSpring(0.95, pressSpring);
         }}
@@ -305,26 +309,27 @@ export function HomeScreen() {
     }
   }, [session]);
 
-  const loadSeries = useCallback(async () => {
+  const loadSeries = useCallback(async (): Promise<Timeseries | null> => {
     if (!session) {
       setSeries(null);
-      return;
+      return null;
     }
     setLoading(true);
     setError(null);
     try {
       const end = new Date();
       const start = new Date(end.getTime() - range.hours * 3600 * 1000);
-      setSeries(
-        await api.getTimeseries(session.userId, metric.key, {
-          start,
-          end,
-          resolution: range.resolution,
-        }),
-      );
+      const next = await api.getTimeseries(session.userId, metric.key, {
+        start,
+        end,
+        resolution: range.resolution,
+      });
+      setSeries(next);
+      return next;
     } catch {
       setError('Could not load data. Pull to refresh to retry.');
       setSeries(null);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -338,18 +343,36 @@ export function HomeScreen() {
     loadSeries();
   }, [loadSeries]);
 
+  // Metrics that already played their first-data heartbeat this session.
+  const heartbeatPlayed = useRef(new Set<string>());
+  useEffect(() => {
+    if (loading || (series?.points.length ?? 0) === 0) return;
+    if (heartbeatPlayed.current.has(metric.key)) return;
+    heartbeatPlayed.current.add(metric.key);
+    // The chart is drawing its first points for this metric: lub-dub.
+    heartbeat();
+  }, [series, loading, metric.key]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    const prevLatest = series?.points.at(-1)?.ts ?? null;
+    const firstDataPending = !heartbeatPlayed.current.has(metric.key);
     try {
       if (session) {
         // Pull-to-refresh asks the backend to pull fresh data from Aggregator.
         await api.syncUser(session.userId).catch(() => undefined);
       }
-      await Promise.all([loadDevices(), loadSeries()]);
+      const [, next] = await Promise.all([loadDevices(), loadSeries()]);
+      const nextLatest = next?.points.at(-1)?.ts ?? null;
+      const gotNewData =
+        nextLatest !== null && (prevLatest === null || nextLatest > prevLatest);
+      // First data is the heartbeat's moment; otherwise a light tap confirms
+      // that the pull actually brought something new in.
+      if (gotNewData && !firstDataPending) tapLight();
     } finally {
       setRefreshing(false);
     }
-  }, [session, loadDevices, loadSeries]);
+  }, [session, series, metric.key, loadDevices, loadSeries]);
 
   const active = devices.filter((d) => d.status !== 'disconnected');
   const expired = active.filter((d) => d.status === 'expired');
@@ -372,7 +395,7 @@ export function HomeScreen() {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
-          tintColor={colors.sub}
+          tintColor={colors.coral}
         />
       }
     >

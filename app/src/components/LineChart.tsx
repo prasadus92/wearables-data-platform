@@ -18,7 +18,6 @@ import {
   Text as SkiaText,
   vec,
 } from '@shopify/react-native-skia';
-import * as Haptics from 'expo-haptics';
 import Animated, {
   runOnJS,
   type SharedValue,
@@ -47,6 +46,8 @@ import type {
 } from '@examplehealth/health-core';
 
 import { dayLabel, hourLabel } from '../lib/format';
+import { tapLight } from '../lib/haptics';
+import { enter } from '../lib/motion';
 import { colors } from '../theme/tokens';
 
 interface Props {
@@ -471,16 +472,10 @@ export function LineChart({
     return [rows[0].x - 30 * 60 * 1000, rows[0].x + 30 * 60 * 1000];
   }, [rows]);
 
-  const haptic = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
-      () => undefined,
-    );
-  };
-
   useAnimatedReaction(
     () => state.isActive.value,
     (active, prev) => {
-      if (active && prev === false) runOnJS(haptic)();
+      if (active && prev === false) runOnJS(tapLight)();
     },
   );
 
@@ -691,7 +686,16 @@ export function LineChart({
           containerWidth.value = e.nativeEvent.layout.width;
         }}
       >
-        {body}
+        {hasData && !loading ? (
+          // This wrapper mounts exactly when the chart gains its first
+          // points (or fresh ones after a reload), so the entering spring
+          // doubles as the empty-to-data draw-in for the whole plot.
+          <Animated.View style={{ flex: 1 }} entering={enter(0)}>
+            {body}
+          </Animated.View>
+        ) : (
+          body
+        )}
         {hasData && !loading ? (
           <Tooltip
             state={state}
