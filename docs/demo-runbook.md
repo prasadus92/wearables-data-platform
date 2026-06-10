@@ -89,7 +89,73 @@ AWS_PROFILE=luminik aws logs tail /ecs/youth-wearables-worker --region eu-centra
 curl -N "https://api.youth.luminik.io/v1/users/<id>/stream?api_key=$TOKEN"
 ```
 
-## 5. Teardown (after the challenge)
+## 5. Founder session script (2026-06-11, arrive 08:00-09:30, demo 10:45)
+
+The goal of the morning block: Filippo runs the WHOOP and Oura flow end to end on his
+own, Johannes pairs his Apple Watch, and by 10:45 the dashboard shows real readings.
+
+### 08:00 warm-up (solo, before founders arrive)
+
+```bash
+curl -s https://api.youth.luminik.io/health        # API up
+./scripts/seed-sample.sh API=https://api.youth.luminik.io   # fresh sample account
+```
+
+Open app.youth.luminik.io in a private window: landing shows Sign in and Try the demo.
+Click Try the demo once; the guest path must land on Devices with working connect
+buttons. Open Expo Go on the phone, force quit and reopen to pull the latest update.
+
+### 08:30 reset for Filippo (he runs the WHOLE flow himself)
+
+My real devices are currently connected under my Google sign-in. Disconnect them in
+the UI (Devices, Disconnect on each) so Filippo starts from zero. If a stray test
+user needs to go away entirely, erase it server-side:
+
+```bash
+curl -s -X DELETE "https://api.youth.luminik.io/v1/users/<id>" -H "X-API-Key: $TOKEN" -i
+# 204: providers deregistered at Junction, local data gone, audit log retained
+```
+
+Then hand Filippo the laptop or phone and stay hands-off:
+
+1. He signs in (or uses my session if accounts are a distraction).
+2. Devices, Connect, picks WHOOP. Junction Link opens; he signs in with his WHOOP
+   account and accepts the consent screen.
+3. Repeat for Oura.
+4. **Data unlock, the one step software cannot do:** he opens the WHOOP app and the
+   Oura app on HIS phone so the devices sync to the vendor cloud. Junction only sees
+   what the vendor cloud has. Until this happens, charts honestly say they are waiting.
+5. Back in our app: Sync now, then watch the timeline fill. SSE pushes new points
+   without a refresh.
+
+### 09:00 Apple Watch with Johannes
+
+```bash
+./scripts/make-apple-code.sh     # mints a single-use pairing code, mint it fresh
+```
+
+1. Johannes installs **Vital Connect** from the App Store on his iPhone.
+2. He enters the pairing code in the app, then grants HealthKit access (read).
+3. Apple Watch data flows through HealthKit; first readings usually arrive within
+   minutes of granting access while the app is foregrounded.
+
+### 10:45 the demo itself (15 to 20 minutes)
+
+1. **Open with the live dashboard**, real WHOOP and Oura data from the morning. The
+   story: this morning Filippo connected his own devices in under two minutes.
+2. **Guest demo path**: private window, Try the demo, connect a demo wearable, watch
+   the backfill stream in over SSE. This shows the product works with zero setup.
+3. **Mobile**: same account on Expo Go, haptics and charts. Hand the phone over.
+4. **Engine room** (for the technical thread): one terminal tailing the API logs
+   while a webhook lands, then the architecture walkthrough from docs/architecture.md
+   and the scaling story from docs/presentation.md.
+5. **Close with the ledger**: device_events shows every consent transition with actor
+   attribution, and erasure is one service call. Health data demands this on day one.
+
+If WiFi or AWS fails: `docker compose up -d`, `cd web && npm run dev`, and replay
+webhooks from the Postman collection. The demo survives offline.
+
+## 6. Teardown (after the challenge)
 
 ```bash
 cd infra/terraform
