@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   CartesianGrid,
   Line,
@@ -150,31 +150,37 @@ export function TimelineChart({
 
   const inRangeEmpty = !loading && data != null && data.points.length === 0
 
+  // The probe must not depend on its own state or have a cancelling cleanup:
+  // setting `pending` inside the effect would re-run it, fire the previous
+  // run's cleanup, and discard the fetch result, leaving the skeleton up
+  // forever. An in-flight ref guards instead; the component remounts per
+  // metric/range, so each chart instance probes at most once.
+  const probeInFlight = useRef(false)
   useEffect(() => {
-    if (!inRangeEmpty || !hasDevices || probe.state !== 'idle') return
+    if (!inRangeEmpty || !hasDevices || probe.state !== 'idle' || probeInFlight.current) return
     if (!metricSupported(metric, providerSlugs, { demo: demoMode })) {
       // Nothing connected can produce this metric; skip the wide probe so
       // the capability empty state renders without a wasted round trip.
       setProbe({ state: 'empty' })
       return
     }
-    let cancelled = false
+    probeInFlight.current = true
     setProbe({ state: 'pending' })
     api
       .timeseries(userId, metric, 'day', 90)
       .then((wide) => {
-        if (cancelled) return
         const last = wide.points[wide.points.length - 1]
         setProbe(last ? { state: 'found', latestTs: last.ts } : { state: 'empty' })
       })
       .catch(() => {
         // On probe failure fall back to the connected-but-waiting copy.
-        if (!cancelled) setProbe({ state: 'empty' })
+        setProbe({ state: 'empty' })
       })
-    return () => {
-      cancelled = true
-    }
-  }, [inRangeEmpty, hasDevices, probe.state, userId, metric, providerSlugs, demoMode])
+      .finally(() => {
+        probeInFlight.current = false
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inRangeEmpty, hasDevices, userId, metric])
 
   const meta = METRIC_META[metric]
 
