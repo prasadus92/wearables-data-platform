@@ -1,0 +1,154 @@
+{
+  "info": {
+    "name": "ExampleHealth Wearables API",
+    "description": "Wearable integration API: connect devices via Aggregator, ingest biometrics, query timeline data.\n\nSet the `baseUrl` variable (local: http://localhost:8000, or the deployed URL). Run requests top-to-bottom: Create User stores `userId` automatically.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000" },
+    { "key": "userId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/health"
+      }
+    },
+    {
+      "name": "Create User",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 201 || pm.response.code === 200) {",
+              "    pm.collectionVariables.set('userId', pm.response.json().id);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"client_user_id\": \"postman-demo-user\"\n}"
+        },
+        "url": "{{baseUrl}}/v1/users"
+      }
+    },
+    {
+      "name": "Get User",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/v1/users/{{userId}}"
+      }
+    },
+    {
+      "name": "Create Link (WHOOP OAuth URL)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"provider\": \"whoop_v2\",\n  \"redirect_url\": \"https://example.com/connected\"\n}"
+        },
+        "url": "{{baseUrl}}/v1/users/{{userId}}/devices/link",
+        "description": "Returns a hosted Aggregator Link URL — open it in a browser to OAuth into the wearable account. Token expires in 60 minutes."
+      }
+    },
+    {
+      "name": "Connect Demo Device (sandbox)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"provider\": \"oura\"\n}"
+        },
+        "url": "{{baseUrl}}/v1/users/{{userId}}/devices/demo",
+        "description": "Sandbox only: attaches a demo provider (oura / fitbit / apple_health_kit) with 30 days of synthetic data and a simulated webhook lifecycle. WHOOP/Garmin have no demo data."
+      }
+    },
+    {
+      "name": "List Devices",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/v1/users/{{userId}}/devices"
+      }
+    },
+    {
+      "name": "Get Heart Rate (hourly)",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/v1/users/{{userId}}/timeseries/heartrate?resolution=hour",
+          "host": ["{{baseUrl}}"],
+          "path": ["v1", "users", "{{userId}}", "timeseries", "heartrate"],
+          "query": [
+            { "key": "resolution", "value": "hour", "description": "raw | hour | day | week" },
+            { "key": "start", "value": "", "description": "ISO 8601, default end-7d", "disabled": true },
+            { "key": "end", "value": "", "description": "ISO 8601, default now", "disabled": true },
+            { "key": "provider", "value": "", "description": "filter by provider slug", "disabled": true }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get HRV (daily)",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/v1/users/{{userId}}/timeseries/hrv?resolution=day"
+      }
+    },
+    {
+      "name": "Get SpO2 (daily)",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/v1/users/{{userId}}/timeseries/spo2?resolution=day"
+      }
+    },
+    {
+      "name": "Get Respiratory Rate (daily)",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/v1/users/{{userId}}/timeseries/respiratory_rate?resolution=day"
+      }
+    },
+    {
+      "name": "Get Blood Pressure (raw)",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/v1/users/{{userId}}/timeseries/blood_pressure?resolution=raw",
+        "description": "value = systolic, value_secondary = diastolic"
+      }
+    },
+    {
+      "name": "Simulate Aggregator Webhook (local testing)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "svix-id", "value": "msg_postman_{{$randomUUID}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_type\": \"daily.data.heartrate.created\",\n  \"user_id\": \"REPLACE_WITH_AGGREGATOR_USER_ID\",\n  \"client_user_id\": \"postman-demo-user\",\n  \"data\": {\n    \"data\": [\n      {\"timestamp\": \"2026-06-10T09:00:00Z\", \"value\": 61, \"unit\": \"bpm\"},\n      {\"timestamp\": \"2026-06-10T09:05:00Z\", \"value\": 64, \"unit\": \"bpm\"},\n      {\"timestamp\": \"2026-06-10T09:10:00Z\", \"value\": 67, \"unit\": \"bpm\"}\n    ],\n    \"source\": {\"name\": \"Oura\", \"slug\": \"oura\"}\n  }\n}"
+        },
+        "url": "{{baseUrl}}/webhooks/aggregator",
+        "description": "Only works when AGGREGATOR_WEBHOOK_SECRET is unset (signature verification off). Replace user_id with the aggregator_user_id returned by Create User."
+      }
+    },
+    {
+      "name": "Disconnect Device",
+      "request": {
+        "method": "DELETE",
+        "url": "{{baseUrl}}/v1/users/{{userId}}/devices/oura"
+      }
+    }
+  ]
+}
