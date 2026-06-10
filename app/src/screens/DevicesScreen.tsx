@@ -8,6 +8,11 @@ import {
   Text,
   View,
 } from 'react-native';
+import Animated, {
+  FadeOut,
+  LinearTransition,
+  ReduceMotion,
+} from 'react-native-reanimated';
 
 import { api, ApiError } from '../api/client';
 import type { Device } from '../api/types';
@@ -16,7 +21,13 @@ import { Header } from '../components/Header';
 import { useApp } from '../lib/appContext';
 import { PROVIDERS, providerName } from '../lib/catalog';
 import { timeAgo } from '../lib/format';
+import { enter } from '../lib/motion';
 import { colors } from '../theme/tokens';
+
+/** Springy reflow when device cards connect, disconnect or reorder. */
+const reflow = LinearTransition.springify(300).reduceMotion(
+  ReduceMotion.System,
+);
 
 function StatusDot({ status }: { status: 'connected' | 'expired' }) {
   return (
@@ -37,7 +48,17 @@ function DeviceCard({
 }) {
   const expired = device.status === 'expired';
   return (
-    <View className="mb-3 rounded-2xl bg-card p-4">
+    <Animated.View
+      entering={enter(0)}
+      exiting={FadeOut.duration(180).reduceMotion(ReduceMotion.System)}
+      layout={reflow}
+      style={{
+        marginBottom: 12,
+        borderRadius: 16,
+        backgroundColor: colors.card,
+        padding: 16,
+      }}
+    >
       <View className="flex-row items-center">
         <View className="h-12 w-12 items-center justify-center rounded-full bg-paper">
           <Text className="text-[17px] font-bold text-ink">
@@ -75,7 +96,7 @@ function DeviceCard({
           </Text>
         </Pressable>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -153,31 +174,35 @@ export function DevicesScreen() {
         }
       >
         {session ? (
-          <View className="mb-5 flex-row items-center rounded-2xl bg-card p-4">
-            <View className="h-12 w-12 items-center justify-center rounded-full bg-ink">
-              <Text className="text-[16px] font-bold text-card">
-                {session.clientUserId[0]?.toUpperCase()}
-              </Text>
+          <Animated.View entering={enter(0)}>
+            <View className="mb-5 flex-row items-center rounded-2xl bg-card p-4">
+              <View className="h-12 w-12 items-center justify-center rounded-full bg-ink">
+                <Text className="text-[16px] font-bold text-card">
+                  {session.clientUserId[0]?.toUpperCase()}
+                </Text>
+              </View>
+              <View className="ml-3 flex-1">
+                <Text className="text-[16px] font-semibold text-ink">
+                  {session.clientUserId}
+                </Text>
+                <Text className="mt-0.5 text-[12px] text-faint">
+                  User id {session.userId.slice(0, 8)}
+                </Text>
+              </View>
+              <Pressable onPress={signOut} className="active:opacity-60">
+                <Text className="text-[13px] font-semibold text-sub">
+                  Switch user
+                </Text>
+              </Pressable>
             </View>
-            <View className="ml-3 flex-1">
-              <Text className="text-[16px] font-semibold text-ink">
-                {session.clientUserId}
-              </Text>
-              <Text className="mt-0.5 text-[12px] text-faint">
-                User id {session.userId.slice(0, 8)}
-              </Text>
-            </View>
-            <Pressable onPress={signOut} className="active:opacity-60">
-              <Text className="text-[13px] font-semibold text-sub">
-                Switch user
-              </Text>
-            </Pressable>
-          </View>
+          </Animated.View>
         ) : null}
 
-        <Text className="mb-3 text-[18px] font-bold text-ink">
-          Your devices
-        </Text>
+        <Animated.View entering={enter(1)}>
+          <Text className="mb-3 text-[18px] font-bold text-ink">
+            Your devices
+          </Text>
+        </Animated.View>
 
         {!session ? (
           <View className="items-center rounded-2xl bg-card px-6 py-12">
@@ -192,12 +217,14 @@ export function DevicesScreen() {
             <ActivityIndicator color={colors.sub} />
           </View>
         ) : active.length === 0 ? (
-          <View className="items-center rounded-2xl bg-card px-6 py-12">
-            <Text className="mb-5 text-center text-[14px] leading-[20px] text-sub">
-              No devices connected yet. Connect a wearable to start syncing
-              your health data.
-            </Text>
-          </View>
+          <Animated.View entering={enter(2)} layout={reflow}>
+            <View className="items-center rounded-2xl bg-card px-6 py-12">
+              <Text className="mb-5 text-center text-[14px] leading-[20px] text-sub">
+                No devices connected yet. Connect a wearable to start syncing
+                your health data.
+              </Text>
+            </View>
+          </Animated.View>
         ) : (
           active.map((d) => (
             <DeviceCard
@@ -210,12 +237,16 @@ export function DevicesScreen() {
         )}
 
         {session ? (
-          <View className="mb-12 mt-2">
+          <Animated.View
+            entering={enter(2)}
+            layout={reflow}
+            style={{ marginBottom: 48, marginTop: 8 }}
+          >
             <Button
               label="Connect a device"
               onPress={() => nav.push({ name: 'connectMenu' })}
             />
-          </View>
+          </Animated.View>
         ) : null}
       </ScrollView>
     </View>

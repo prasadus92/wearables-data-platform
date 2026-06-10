@@ -1,10 +1,20 @@
+import * as Haptics from 'expo-haptics';
+import { useEffect } from 'react';
 import { Text, View } from 'react-native';
+import Animated, { ReduceMotion, ZoomIn } from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { Button } from '../components/Button';
 import { useApp } from '../lib/appContext';
 import type { ProviderInfo } from '../lib/catalog';
+import { enter } from '../lib/motion';
 import { colors } from '../theme/tokens';
+
+/** Scale-in with a slight overshoot, so the mark lands with a bounce. */
+const popIn = ZoomIn.springify()
+  .damping(12)
+  .stiffness(180)
+  .reduceMotion(ReduceMotion.System);
 
 function ResultMark({ ok }: { ok: boolean }) {
   return (
@@ -44,21 +54,33 @@ interface Props {
 export function ConnectResultScreen({ provider, ok, message }: Props) {
   const { nav } = useApp();
 
+  useEffect(() => {
+    if (ok) {
+      Haptics.notificationAsync(
+        Haptics.NotificationFeedbackType.Success,
+      ).catch(() => undefined);
+    }
+  }, [ok]);
+
   return (
     <View className="flex-1 bg-paper px-6 pt-14">
       <View className="flex-1 items-center justify-center">
-        <ResultMark ok={ok} />
-        <Text className="mt-7 text-center text-[24px] font-bold text-ink">
-          {ok ? `${provider.name} connected` : 'Connection failed'}
-        </Text>
-        <Text className="mt-2.5 max-w-[300px] text-center text-[14px] leading-[20px] text-sub">
-          {ok
-            ? 'Your data will start appearing on the timeline shortly. Pull down on the home screen to sync.'
-            : (message ??
-              'Something went wrong while connecting. Please try again.')}
-        </Text>
+        <Animated.View entering={popIn}>
+          <ResultMark ok={ok} />
+        </Animated.View>
+        <Animated.View entering={enter(1)} style={{ alignItems: 'center' }}>
+          <Text className="mt-7 text-center text-[24px] font-bold text-ink">
+            {ok ? `${provider.name} connected` : 'Connection failed'}
+          </Text>
+          <Text className="mt-2.5 max-w-[300px] text-center text-[14px] leading-[20px] text-sub">
+            {ok
+              ? 'Your data will start appearing on the timeline shortly. Pull down on the home screen to sync.'
+              : (message ??
+                'Something went wrong while connecting. Please try again.')}
+          </Text>
+        </Animated.View>
       </View>
-      <View className="pb-12">
+      <Animated.View entering={enter(2)} style={{ paddingBottom: 48 }}>
         {ok ? (
           <Button label="Done" onPress={() => nav.reset({ name: 'home' })} />
         ) : (
@@ -75,7 +97,7 @@ export function ConnectResultScreen({ provider, ok, message }: Props) {
             />
           </>
         )}
-      </View>
+      </Animated.View>
     </View>
   );
 }

@@ -2,6 +2,7 @@ import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 
 import { api, ApiError } from '../api/client';
@@ -9,6 +10,7 @@ import { Button } from '../components/Button';
 import { Header } from '../components/Header';
 import { useApp } from '../lib/appContext';
 import { DATA_WE_READ, type ProviderInfo } from '../lib/catalog';
+import { enter } from '../lib/motion';
 import { colors } from '../theme/tokens';
 
 function CheckIcon() {
@@ -137,37 +139,42 @@ export function ConnectIntroScreen({ provider }: Props) {
     <View className="flex-1 bg-paper pt-14">
       <Header title={provider.name} onBack={nav.pop} />
       <ScrollView className="flex-1 px-5 pt-2">
-        <View className="rounded-2xl bg-card p-5">
-          <View className="h-14 w-14 items-center justify-center rounded-full bg-paper">
-            <Text className="text-[20px] font-bold text-ink">
-              {provider.name[0]}
+        <Animated.View entering={enter(0)}>
+          <View className="rounded-2xl bg-card p-5">
+            <View className="h-14 w-14 items-center justify-center rounded-full bg-paper">
+              <Text className="text-[20px] font-bold text-ink">
+                {provider.name[0]}
+              </Text>
+            </View>
+            <Text className="mt-4 text-[20px] font-bold text-ink">
+              Connect your {provider.name}
+            </Text>
+            <Text className="mt-1.5 text-[14px] leading-[20px] text-sub">
+              {provider.blurb}
+            </Text>
+
+            <Text className="mb-2 mt-5 text-[13px] font-semibold uppercase tracking-[1.5px] text-faint">
+              Data we read
+            </Text>
+            {DATA_WE_READ.map((item) => (
+              <View key={item} className="mb-2 flex-row items-center">
+                <CheckIcon />
+                <Text className="ml-2.5 text-[14px] text-ink">{item}</Text>
+              </View>
+            ))}
+
+            <Text className="mt-3 text-[12px] leading-[17px] text-faint">
+              We never see your {provider.name} password. You can disconnect at
+              any time and your historical data stays yours.
             </Text>
           </View>
-          <Text className="mt-4 text-[20px] font-bold text-ink">
-            Connect your {provider.name}
-          </Text>
-          <Text className="mt-1.5 text-[14px] leading-[20px] text-sub">
-            {provider.blurb}
-          </Text>
-
-          <Text className="mb-2 mt-5 text-[13px] font-semibold uppercase tracking-[1.5px] text-faint">
-            Data we read
-          </Text>
-          {DATA_WE_READ.map((item) => (
-            <View key={item} className="mb-2 flex-row items-center">
-              <CheckIcon />
-              <Text className="ml-2.5 text-[14px] text-ink">{item}</Text>
-            </View>
-          ))}
-
-          <Text className="mt-3 text-[12px] leading-[17px] text-faint">
-            We never see your {provider.name} password. You can disconnect at
-            any time and your historical data stays yours.
-          </Text>
-        </View>
+        </Animated.View>
       </ScrollView>
 
-      <View className="px-5 pb-10 pt-3">
+      <Animated.View
+        entering={enter(1)}
+        style={{ paddingHorizontal: 20, paddingBottom: 40, paddingTop: 12 }}
+      >
         <Button
           label="Continue"
           onPress={handleContinue}
@@ -185,7 +192,7 @@ export function ConnectIntroScreen({ provider }: Props) {
             </Text>
           </Pressable>
         ) : null}
-      </View>
+      </Animated.View>
     </View>
   );
 }
