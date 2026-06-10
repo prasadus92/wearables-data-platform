@@ -1,0 +1,89 @@
+"""Pydantic schemas for the public API (request/response contracts)."""
+
+import uuid
+from datetime import datetime
+from enum import StrEnum
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.models import ConnectionStatus, Metric
+
+
+class Resolution(StrEnum):
+    """Timeline chart bucket sizes."""
+
+    raw = "raw"
+    hour = "hour"
+    day = "day"
+    week = "week"
+
+
+# --- Users ---
+
+
+class UserCreate(BaseModel):
+    client_user_id: str = Field(min_length=1, max_length=255, examples=["wearables-app-user-42"])
+
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    client_user_id: str
+    aggregator_user_id: str | None
+    created_at: datetime
+
+
+# --- Devices / connections ---
+
+
+class LinkRequest(BaseModel):
+    provider: str = Field(examples=["whoop_v2", "oura", "garmin"])
+    redirect_url: str | None = Field(
+        default=None,
+        description="Where Aggregator Link sends the user after connecting (deep link for mobile).",
+    )
+
+
+class LinkOut(BaseModel):
+    link_token: str
+    link_url: str = Field(description="Hosted Aggregator Link URL to open in a browser/webview.")
+
+
+class ConnectionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    provider: str
+    status: ConnectionStatus
+    device_meta: dict | None
+    connected_at: datetime
+    last_data_at: datetime | None
+
+
+# --- Timeseries ---
+
+
+class TimeseriesPoint(BaseModel):
+    ts: datetime
+    value: float
+    value_secondary: float | None = Field(
+        default=None, description="Diastolic for blood_pressure; null otherwise."
+    )
+
+
+class TimeseriesOut(BaseModel):
+    metric: Metric
+    unit: str
+    resolution: Resolution
+    start: datetime
+    end: datetime
+    points: list[TimeseriesPoint]
+
+
+# --- Health ---
+
+
+class HealthOut(BaseModel):
+    status: str = "ok"
+    environment: str
