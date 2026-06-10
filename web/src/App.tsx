@@ -177,7 +177,9 @@ function AppShell() {
   // Signed-in identities bootstrap through POST /v1/me per environment. The
   // result lands in the same per-mode slot, replacing any stored anonymous
   // session, so the rest of the app is identity-agnostic. Re-runs on mode
-  // switch so Demo and Live each resolve their own user.
+  // switch so Demo and Live each resolve their own user, and on meRetry so
+  // a failed bootstrap has a way forward besides reloading the page.
+  const [meRetry, setMeRetry] = useState(0)
   useEffect(() => {
     if (!signedIn) return
     let cancelled = false
@@ -202,7 +204,7 @@ function AppShell() {
     return () => {
       cancelled = true
     }
-  }, [signedIn, mode])
+  }, [signedIn, mode, meRetry])
 
   // Signing out (via Clerk's UserButton) clears both mode slots and returns
   // to onboarding, so signed-in sessions never linger as anonymous ones.
@@ -220,12 +222,17 @@ function AppShell() {
     setError(null)
   }, [signedIn])
 
+  // Which user's device list has loaded at least once. Before that, a fetch
+  // failure surfaces (an empty list would read as "no devices", a lie); after
+  // it, background poll blips stay quiet and the next tick retries.
+  const devicesLoadedFor = useRef<string | null>(null)
   const refreshDevices = useCallback(async () => {
     if (!user) return
     try {
       setDevices(await api.listDevices(user.id))
+      devicesLoadedFor.current = user.id
     } catch (e) {
-      setError(String(e))
+      if (devicesLoadedFor.current !== user.id) setError(String(e))
     }
   }, [user])
 
@@ -268,16 +275,29 @@ function AppShell() {
     if (!user) return
     let source: EventSource | null = null
     let cancelled = false
-    streamUrl(user.id).then((url) => {
-      if (cancelled) return
-      source = new EventSource(url)
-      source.addEventListener('update', () => {
-        setLiveVersion((v) => v + 1)
-        refreshDevices()
+    let retry: ReturnType<typeof setTimeout> | null = null
+    const connect = () => {
+      streamUrl(user.id).then((url) => {
+        if (cancelled) return
+        source = new EventSource(url)
+        source.addEventListener('update', () => {
+          setLiveVersion((v) => v + 1)
+          refreshDevices()
+        })
+        source.onerror = () => {
+          // EventSource retries transient drops on its own. A CLOSED stream
+          // (expired credential, proxy gone) never recovers by itself, so
+          // rebuild it with a fresh URL or live updates silently stop.
+          if (cancelled || source?.readyState !== EventSource.CLOSED) return
+          source?.close()
+          retry = setTimeout(connect, 5000)
+        }
       })
-    })
+    }
+    connect()
     return () => {
       cancelled = true
+      if (retry) clearTimeout(retry)
       source?.close()
     }
   }, [user, refreshDevices])
@@ -353,7 +373,12 @@ function AppShell() {
                   Sign in
                 </Button>
               </SignInButton>
-              <TapButton size="lg" variant="outline" disabled={busy} onClick={startAsGuest}>
+              <TapButton
+                size="lg"
+                variant="outline"
+                disabled={busy || signedIn}
+                onClick={startAsGuest}
+              >
                 Try the demo
               </TapButton>
             </div>
@@ -361,7 +386,7 @@ function AppShell() {
               <button
                 type="button"
                 className="text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-                disabled={busy}
+                disabled={busy || signedIn}
                 onClick={exploreSample}
               >
                 Explore a sample account
@@ -374,7 +399,22 @@ function AppShell() {
           {error && (
             <Alert variant="destructive" className="text-left">
               <AlertCircle />
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription className="flex flex-col items-start gap-2">
+                <span>{error}</span>
+                {signedIn && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => {
+                      setError(null)
+                      setMeRetry((n) => n + 1)
+                    }}
+                  >
+                    Try again
+                  </Button>
+                )}
+              </AlertDescription>
             </Alert>
           )}
         </motion.div>
