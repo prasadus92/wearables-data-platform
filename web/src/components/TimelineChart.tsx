@@ -9,6 +9,7 @@ import {
   YAxis,
 } from 'recharts'
 import { api, type Metric, type Resolution, type Timeseries } from '../api'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface Props {
   userId: string
@@ -46,10 +47,10 @@ export function TimelineChart({ userId, metric, days, resolution, liveVersion }:
     }
   }, [userId, metric, days, resolution, liveVersion])
 
-  if (loading && !data) return <div className="chart-empty">Loading…</div>
+  if (loading && !data) return <Skeleton className="h-[320px] w-full rounded-xl" />
   if (!data || data.points.length === 0)
     return (
-      <div className="chart-empty">
+      <div className="flex h-[320px] items-center justify-center px-10 text-center text-sm text-muted-foreground">
         No {metric.replace('_', ' ')} data in this range yet. Connect a device and data will
         appear as Aggregator delivers it.
       </div>
@@ -70,19 +71,25 @@ export function TimelineChart({ userId, metric, days, resolution, liveVersion }:
   return (
     <ResponsiveContainer width="100%" height={320}>
       <LineChart data={points} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
         <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={32} />
         <YAxis
           tick={{ fontSize: 11 }}
           domain={['auto', 'auto']}
           label={{ value: data.unit, angle: -90, position: 'insideLeft', fontSize: 11 }}
         />
-        <Tooltip />
+        <Tooltip
+          contentStyle={{
+            borderRadius: 'var(--radius)',
+            border: '1px solid var(--border)',
+            fontSize: 12,
+          }}
+        />
         <Line
           type="monotone"
           dataKey="value"
           name={isBloodPressure ? 'systolic' : metric}
-          stroke="#e8554d"
+          stroke="var(--chart-1)"
           strokeWidth={2}
           dot={points.length < 60}
         />
@@ -91,7 +98,7 @@ export function TimelineChart({ userId, metric, days, resolution, liveVersion }:
             type="monotone"
             dataKey="value_secondary"
             name="diastolic"
-            stroke="#4d7ce8"
+            stroke="var(--chart-2)"
             strokeWidth={2}
             dot={points.length < 60}
           />

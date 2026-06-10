@@ -1,154 +1,76 @@
+@import 'tailwindcss';
+
+/* Dark mode is class-gated so system dark scheme never flips the app. */
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design tokens from the product Figma:
+ * background #F7F6F3, ink #1C1C1E, accent #E8554D, borders #E8E7E3,
+ * secondary text #8F8F8F, white cards, 16px card radius.
+ */
 :root {
-  font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  color: #1c1c1e;
-  background: #f7f6f3;
+  --background: #f7f6f3;
+  --foreground: #1c1c1e;
+  --card: #ffffff;
+  --card-foreground: #1c1c1e;
+  --popover: #ffffff;
+  --popover-foreground: #1c1c1e;
+  --primary: #1c1c1e;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f0ec;
+  --secondary-foreground: #1c1c1e;
+  --muted: #f1f0ec;
+  --muted-foreground: #8f8f8f;
+  --accent: #f1f0ec;
+  --accent-foreground: #1c1c1e;
+  --destructive: #e8554d;
+  --destructive-foreground: #ffffff;
+  --border: #e8e7e3;
+  --input: #d8d7d3;
+  --ring: #1c1c1e;
+  --brand: #e8554d;
+  --chart-1: #e8554d;
+  --chart-2: #4d7ce8;
+  --radius: 0.75rem;
 }
 
-* { box-sizing: border-box; }
-body { margin: 0; }
-
-.layout {
-  max-width: 880px;
-  margin: 0 auto;
-  padding: 24px 20px 64px;
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-brand: var(--brand);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans:
+    'PP Neue Montreal', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-h1 { font-size: 22px; letter-spacing: -0.3px; }
-h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px; color: #6b6b6f; }
-
-.user-chip {
-  font-size: 13px;
-  background: #fff;
-  border: 1px solid #e3e2de;
-  border-radius: 999px;
-  padding: 4px 12px;
-}
-
-.link-button {
-  background: none;
-  border: none;
-  color: #e8554d;
-  cursor: pointer;
-  font-size: 12px;
-  margin-left: 8px;
-}
-
-.onboarding {
-  max-width: 420px;
-  margin: 18vh auto 0;
-  text-align: center;
-}
-
-.onboarding form { display: flex; gap: 8px; justify-content: center; }
-.onboarding input {
-  flex: 1;
-  padding: 10px 14px;
-  border: 1px solid #d8d7d3;
-  border-radius: 10px;
-  font-size: 14px;
-}
-
-button {
-  background: #1c1c1e;
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  padding: 9px 16px;
-  font-size: 13px;
-  cursor: pointer;
-}
-button:hover { opacity: 0.85; }
-button.secondary {
-  background: #fff;
-  color: #1c1c1e;
-  border: 1px solid #d8d7d3;
-}
-
-.error {
-  background: #fdecea;
-  color: #b3261e;
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.muted { color: #8e8e93; font-size: 13px; }
-
-.devices, .chart-section {
-  background: #fff;
-  border: 1px solid #e8e7e3;
-  border-radius: 16px;
-  padding: 18px 20px;
-  margin-top: 16px;
-}
-
-.device-list { list-style: none; margin: 0; padding: 0; }
-.device {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 0;
-  border-bottom: 1px solid #f0efeb;
-}
-.device:last-child { border-bottom: none; }
-.device strong { text-transform: capitalize; margin-right: 10px; }
-.device-actions { display: flex; gap: 8px; }
-
-.status {
-  font-size: 11px;
-  border-radius: 999px;
-  padding: 2px 10px;
-  margin-right: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-}
-.status.connected { background: #e7f6ec; color: #1e7e3e; }
-.status.expired { background: #fff4e5; color: #b25e09; }
-
-.connect-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
-.connect-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: center;
-  border: 1px dashed #d8d7d3;
-  border-radius: 12px;
-  padding: 14px 18px;
-  min-width: 120px;
-}
-
-.chart-controls {
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 14px;
-}
-
-.tabs, .ranges { display: flex; gap: 6px; flex-wrap: wrap; }
-.tab, .range {
-  background: #f1f0ec;
-  color: #1c1c1e;
-  border-radius: 999px;
-  padding: 6px 14px;
-}
-.tab.active, .range.active { background: #1c1c1e; color: #fff; }
-
-.chart-empty {
-  height: 320px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #8e8e93;
-  font-size: 14px;
-  text-align: center;
-  padding: 0 40px;
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply m-0 bg-background font-sans text-foreground antialiased;
+  }
 }
