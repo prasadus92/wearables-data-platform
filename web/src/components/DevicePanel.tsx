@@ -1,4 +1,6 @@
+import { AnimatePresence, motion } from 'motion/react'
 import type { Device } from '../api'
+import { springTransition, TapButton } from './motion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -72,55 +74,72 @@ export function DevicePanel({ devices, onConnect, onConnectDemo, onDisconnect }:
 
         {active.length > 0 && (
           <ul className="m-0 list-none divide-y p-0">
-            {active.map((device) => (
-              <li key={device.id} className="flex items-center justify-between gap-3 py-2.5">
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <span className="text-sm font-medium capitalize">{device.provider}</span>
-                  <StatusBadge status={device.status} />
-                  <span className="text-xs text-muted-foreground">{lastSynced(device)}</span>
-                </div>
-                <div className="flex shrink-0 gap-2">
-                  {device.status === 'expired' && (
-                    <Button size="sm" onClick={() => onConnect(device.provider)}>
-                      Reconnect
+            <AnimatePresence mode="popLayout" initial={false}>
+              {active.map((device) => (
+                <motion.li
+                  key={device.id}
+                  layout
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={springTransition}
+                  className="flex items-center justify-between gap-3 py-2.5"
+                >
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <span className="text-sm font-medium capitalize">{device.provider}</span>
+                    <StatusBadge status={device.status} />
+                    <span className="text-xs text-muted-foreground">{lastSynced(device)}</span>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    {device.status === 'expired' && (
+                      <TapButton size="sm" onClick={() => onConnect(device.provider)}>
+                        Reconnect
+                      </TapButton>
+                    )}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => onDisconnect(device.provider)}
+                    >
+                      Disconnect
                     </Button>
-                  )}
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => onDisconnect(device.provider)}
-                  >
-                    Disconnect
-                  </Button>
-                </div>
-              </li>
-            ))}
+                  </div>
+                </motion.li>
+              ))}
+            </AnimatePresence>
           </ul>
         )}
 
         {available.length > 0 && (
           <div className="flex flex-wrap gap-3">
-            {available.map((provider) => (
-              <div
-                key={provider.slug}
-                className="flex min-w-[120px] flex-col items-center gap-2 rounded-xl border border-dashed border-input px-4 py-3.5"
-              >
-                <span className="text-sm font-medium">{provider.name}</span>
-                <Button size="sm" onClick={() => onConnect(provider.slug)}>
-                  Connect
-                </Button>
-                {provider.demo && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground"
-                    onClick={() => onConnectDemo(provider.slug)}
-                  >
-                    Demo data
-                  </Button>
-                )}
-              </div>
-            ))}
+            <AnimatePresence mode="popLayout" initial={false}>
+              {available.map((provider) => (
+                <motion.div
+                  key={provider.slug}
+                  layout
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={springTransition}
+                  className="flex min-w-[120px] flex-col items-center gap-2 rounded-xl border border-dashed border-input px-4 py-3.5"
+                >
+                  <span className="text-sm font-medium">{provider.name}</span>
+                  <TapButton size="sm" onClick={() => onConnect(provider.slug)}>
+                    Connect
+                  </TapButton>
+                  {provider.demo && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground"
+                      onClick={() => onConnectDemo(provider.slug)}
+                    >
+                      Demo data
+                    </Button>
+                  )}
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         )}
       </CardContent>
