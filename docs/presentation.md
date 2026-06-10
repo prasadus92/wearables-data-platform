@@ -30,10 +30,10 @@ End-to-end wearable platform on Aggregator, live at `api.examplehealth.example.c
    fill live (SSE). Zero accounts, zero setup.
 2. Terminal split-screen: `aws logs tail /ecs/wearables-data-platform-api --follow` showing
    Aggregator webhooks arriving while the chart updates. This is the central moment of the demo.
-3. Real device: Filippo's morning connection of his own WHOOP and Oura; same
-   charts, real data, connected live hours earlier.
+3. Real device: the WHOOP strap and Oura ring connected through the product's
+   own flow; same charts, real data.
 4. Expo app on the phone: connect flow per the Figma, haptics, timeline chart.
-   Johannes' Apple Watch via the pairing code if it landed in the morning.
+   Apple Watch via the Aggregator Connect pairing code if it landed beforehand.
 5. Postman: the API contract their backend would consume.
 
 Fallback if WiFi/AWS misbehaves: identical local compose stack + simulated webhooks

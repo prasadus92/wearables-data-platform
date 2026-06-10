@@ -26,7 +26,7 @@ through Aggregator's hosted Link page:
 1. The script prints a `https://link.tryvital.io/?token=...` URL. **It expires in 60
    minutes**; regenerate freely, old ones simply stop working.
 2. Open it in a browser. Aggregator forwards to the provider's OAuth consent screen.
-3. Sign in with the device account (e.g. `nigrofilippo95@gmail.com`) if not already
+3. Sign in with the provider account that owns the device if not already
    logged in, then click **Accept / Authorize** on the consent screen.
 4. Success screen appears; the connection now exists in the Aggregator team.
 5. Verify data server-side:
@@ -89,62 +89,65 @@ AWS_PROFILE=default aws logs tail /ecs/wearables-data-platform-worker --region e
 curl -N "https://api.examplehealth.example.com/v1/users/<id>/stream?api_key=$TOKEN"
 ```
 
-## 5. Founder session script (2026-06-11, arrive 08:00-09:30, demo 10:45)
+## 5. Live demo preparation
 
-The goal of the morning block: Filippo runs the WHOOP and Oura flow end to end on his
-own, Johannes pairs his Apple Watch, and by 10:45 the dashboard shows real readings.
+The checklist that takes a fresh audience from zero to real readings on the
+dashboard. Everything here is device-centric; any account with provider sign-ins
+and the physical wearables can run it.
 
-### 08:00 warm-up (solo, before founders arrive)
+### Warm-up checks
 
 ```bash
 curl -s https://api.examplehealth.example.com/health        # API up
 ./scripts/seed-sample.sh API=https://api.examplehealth.example.com   # fresh sample account
 ```
 
-Open app.examplehealth.example.com in a private window: landing shows Sign in and Try the demo.
-Click Try the demo once; the guest path must land on Devices with working connect
-buttons. Open Expo Go on the phone, force quit and reopen to pull the latest update.
+Open app.examplehealth.example.com in a private window: the landing shows Sign in and Try
+the demo. Try the demo must land on a timeline that fills with demo data within a
+couple of minutes. On the phone, force quit and reopen Expo Go to pull the latest
+update.
 
-### 08:30 reset for Filippo (he runs the WHOLE flow himself)
+### Resetting for a clean run
 
-My real devices are currently connected under my Google sign-in. Disconnect them in
-the UI (Devices, Disconnect on each) so Filippo starts from zero. If a stray test
-user needs to go away entirely, erase it server-side:
+If wearables are already connected to an account, disconnect them in the UI
+(Devices, Disconnect on each) so the connect flow can be shown from zero. To
+remove a test user entirely, erase it server-side:
 
 ```bash
 curl -s -X DELETE "https://api.examplehealth.example.com/v1/users/<id>" -H "X-API-Key: $TOKEN" -i
 # 204: providers deregistered at Aggregator, local data gone, audit log retained
 ```
 
-Then hand Filippo the laptop or phone and stay hands-off:
+### Connecting real wearables (WHOOP, Oura)
 
-1. He signs in (or uses my session if accounts are a distraction).
-2. Devices, Connect, picks WHOOP. Aggregator Link opens; he signs in with his WHOOP
-   account and accepts the consent screen.
-3. Repeat for Oura.
-4. **Data unlock, the one step software cannot do:** he opens the WHOOP app and the
-   Oura app on HIS phone so the devices sync to the vendor cloud. Aggregator only sees
-   what the vendor cloud has. Until this happens, charts honestly say they are waiting.
-5. Back in our app: Sync now, then watch the timeline fill. SSE pushes new points
+1. Sign in to the app, open Devices, pick a provider. Aggregator Link opens; sign in
+   with the provider account that owns the device and accept the consent screen.
+2. Repeat per provider.
+3. **Data unlock, the one step software cannot do:** open the provider's own phone
+   app (WHOOP app, Oura app) near the physical device so it syncs to the vendor
+   cloud. Aggregator only sees what the vendor cloud has. A web sign-in to the vendor
+   dashboard is NOT enough; the device syncs over Bluetooth to the vendor's mobile
+   app. Until this happens, charts honestly say they are waiting.
+4. Back in our app: Sync now, then watch the timeline fill. SSE pushes new points
    without a refresh.
 
-### 09:00 Apple Watch with Johannes
+### Apple Watch
 
 ```bash
 ./scripts/make-apple-code.sh     # mints a single-use pairing code, mint it fresh
 ```
 
-1. Johannes installs **Aggregator Connect** from the App Store on his iPhone.
-2. He enters the pairing code in the app, then grants HealthKit access (read).
+1. Install **Aggregator Connect** from the App Store on the iPhone paired with the watch.
+2. Enter the pairing code in the app, then grant HealthKit read access.
 3. Apple Watch data flows through HealthKit; first readings usually arrive within
    minutes of granting access while the app is foregrounded.
 
-### 10:45 the demo itself (15 to 20 minutes)
+### Suggested demo arc (15 to 20 minutes)
 
-1. **Open with the live dashboard**, real WHOOP and Oura data from the morning. The
-   story: this morning Filippo connected his own devices in under two minutes.
-2. **Guest demo path**: private window, Try the demo, connect a demo wearable, watch
-   the backfill stream in over SSE. This shows the product works with zero setup.
+1. **Open with the live dashboard**: real WHOOP and Oura data, connected through
+   the product's own flow in under two minutes per device.
+2. **Guest demo path**: private window, Try the demo, watch the timeline fill over
+   SSE with zero setup.
 3. **Mobile**: same account on Expo Go, haptics and charts. Hand the phone over.
 4. **Engine room** (for the technical thread): one terminal tailing the API logs
    while a webhook lands, then the architecture walkthrough from docs/architecture.md
