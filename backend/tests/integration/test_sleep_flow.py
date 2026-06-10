@@ -1,0 +1,334 @@
+"""Integration: sleep summary ingestion against Postgres.
+
+Real rings and straps (Oura, WHOOP) deliver sleeping HR, HRV and breathing
+rate inside Aggregator's sleep summaries, never as standalone timeseries
+resources. These tests cover the full recovery surface: the daily webhook
+path, the historical notification that schedules a backfill, the backfill
+worker pulling summaries over REST, and the manual sync that enqueues
+sleep backfills.
+
+Sleep objects mirror a production GET /v2/summary/sleep response verbatim.
+"""
+
+import uuid
+from datetime import UTC, datetime, timedelta
+
+import pytest
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import async_sessionmaker
+
+from app.api.v1 import users as users_module
+from app.models import Metric, Sample, User, WebhookEvent, WebhookEventStatus
+from app.services.ingestion import apply_plan, parse_event
+from app.workers import worker as worker_module
+
+pytestmark = pytest.mark.integration
+
+AGGREGATOR_USER = "8e837b56-26ab-4347-9d4a-be9b2f5a78c4"
+
+WHOOP_SLEEP = {
+    "id": "fb49aac3-4574-5716-bb8e-1e70cc50bbe7",
+    "user_id": AGGREGATOR_USER,
+    "date": "2026-05-10T00:00:00+00:00",
+    "calendar_date": "2026-05-10",
+    "bedtime_start": "2026-05-09T23:21:43+00:00",
+    "bedtime_stop": "2026-05-10T06:56:35+00:00",
+    "type": "long_sleep",
+    "timezone_offset": 7200,
+    "duration": 27291,
+    "total": 24892,
+    "awake": 2400,
+    "light": 8781,
+    "rem": 7710,
+    "deep": 8401,
+    "score": 85,
+    "recovery_readiness_score": 63,
+    "hr_lowest": None,
+    "hr_average": None,
+    "hr_resting": 53,
+    "efficiency": 91.20556,
+    "latency": None,
+    "temperature_delta": None,
+    "skin_temperature": None,
+    "hr_dip": None,
+    "state": None,
+    "average_hrv": 39.68,
+    "respiratory_rate": 15.04,
+    "source": {
+        "provider": "whoop_v2",
+        "type": "unknown",
+        "app_id": None,
+        "device_id": None,
+        "sport": None,
+        "workout_id": None,
+        "name": "Whoop V2",
+        "slug": "whoop_v2",
+        "logo": "https://storage.googleapis.com/vital-assets/whoop.png",
+    },
+    "sleep_stream": None,
+    "created_at": "2026-06-10T13:05:06+00:00",
+    "updated_at": "2026-06-10T13:05:06+00:00",
+}
+
+OURA_SLEEP = {
+    "id": "c38dad60-dc8f-51c3-93cd-415d766456da",
+    "user_id": AGGREGATOR_USER,
+    "date": "2026-05-08T00:00:00+00:00",
+    "calendar_date": "2026-05-08",
+    "bedtime_start": "2026-05-07T23:09:00+00:00",
+    "bedtime_stop": "2026-05-08T06:12:43+00:00",
+    "type": "long_sleep",
+    "timezone_offset": 7200,
+    "duration": 25423,
+    "total": 22050,
+    "awake": 3373,
+    "light": 11190,
+    "rem": 4350,
+    "deep": 6510,
+    "score": 73,
+    "recovery_readiness_score": 83,
+    "hr_lowest": 43,
+    "hr_average": 49,
+    "hr_resting": None,
+    "efficiency": 87.0,
+    "latency": 690,
+    "temperature_delta": -0.22,
+    "skin_temperature": None,
+    "hr_dip": None,
+    "state": None,
+    "average_hrv": 43.0,
+    "respiratory_rate": 14.62,
+    "source": {
+        "provider": "oura",
+        "type": "ring",
+        "app_id": None,
+        "device_id": "36b44550-37e5-5aee-a006-626e304f5e4b",
+        "sport": None,
+        "workout_id": None,
+        "name": "Oura",
+        "slug": "oura",
+        "logo": "https://storage.googleapis.com/vital-assets/oura.png",
+    },
+    "sleep_stream": None,
+    "created_at": "2026-06-10T10:37:05+00:00",
+    "updated_at": "2026-06-10T10:37:05+00:00",
+}
+
+
+async def _make_user(session) -> User:
+    user = User(client_user_id="wearables-user-1", aggregator_user_id=AGGREGATOR_USER)
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+class StubRedis:
+    def __init__(self) -> None:
+        self.published: list[tuple[str, str]] = []
+
+    async def publish(self, channel: str, payload: str) -> None:
+        self.published.append((channel, payload))
+
+
+@pytest.fixture
+async def worker_db(engine):
+    """Reset the worker's process-global engine around each test.
+
+    Worker entrypoints open sessions via ``app.db.session.db_session``; the
+    test ``engine`` fixture drops and recreates tables, so a pooled global
+    connection from an earlier test would carry stale prepared statements.
+    """
+    from app.db import session as db
+
+    async def _reset() -> None:
+        if db._engine is not None:
+            await db._engine.dispose()
+        db._engine = None
+        db._session_factory = None
+
+    await _reset()
+    yield
+    await _reset()
+
+
+class TestDailySleepWebhook:
+    async def test_webhook_to_samples(self, client, engine):
+        """daily.data.sleep.created lands via the webhook endpoint, the worker
+        logic normalizes it, and nightly samples are queryable."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session:
+            user = await _make_user(session)
+            user_id = user.id
+
+        response = await client.post(
+            "/webhooks/aggregator",
+            json={
+                "event_type": "daily.data.sleep.created",
+                "user_id": AGGREGATOR_USER,
+                "client_user_id": "wearables-user-1",
+                "data": WHOOP_SLEEP,
+            },
+            headers={"svix-id": "msg_sleep_e2e"},
+        )
+        assert response.status_code == 202
+        assert len(client.enqueued) == 1
+
+        async with factory() as session:
+            event = (await session.execute(select(WebhookEvent))).scalar_one()
+            plan = parse_event(event.payload)
+            written = await apply_plan(session, user_id, plan)
+            event.status = WebhookEventStatus.processed
+            await session.commit()
+        assert written == 3
+
+        async with factory() as session:
+            rows = list((await session.execute(select(Sample))).scalars().all())
+        by_metric = {row.metric: row for row in rows}
+        assert set(by_metric) == {Metric.heartrate, Metric.hrv, Metric.respiratory_rate}
+        assert by_metric[Metric.heartrate].value == 53.0  # hr_resting fallback
+        assert by_metric[Metric.hrv].value == 39.68
+        assert by_metric[Metric.respiratory_rate].value == 15.04
+        assert all(row.provider == "whoop_v2" for row in rows)
+        assert all(row.ts == datetime(2026, 5, 10, 6, 56, 35, tzinfo=UTC) for row in rows)
+
+
+class TestHistoricalSleepEvent:
+    async def test_enqueues_sleep_backfill(self, engine, worker_db, monkeypatch):
+        """historical.data.sleep.created is data-less; the worker must
+        schedule a sleep backfill instead of skipping the event."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session:
+            await _make_user(session)
+            event = WebhookEvent(
+                event_id="msg_hist_sleep",
+                event_type="historical.data.sleep.created",
+                payload={
+                    "event_type": "historical.data.sleep.created",
+                    "user_id": AGGREGATOR_USER,
+                    "data": {
+                        "user_id": AGGREGATOR_USER,
+                        "provider": "whoop_v2",
+                        "start_date": "2025-12-13",
+                        "end_date": "2026-05-10",
+                    },
+                },
+            )
+            session.add(event)
+            await session.commit()
+            event_id = str(event.id)
+
+        enqueued: list[tuple] = []
+
+        async def _record(*args) -> None:
+            enqueued.append(args)
+
+        monkeypatch.setattr(worker_module, "enqueue_backfill", _record)
+
+        result = await worker_module.process_webhook_event({"redis": StubRedis()}, event_id)
+        assert result == "processed:0"
+        assert len(enqueued) == 1
+        _user_id, resource, provider, start, end = enqueued[0]
+        assert resource == "sleep"
+        assert provider == "whoop_v2"
+        assert (start, end) == ("2025-12-13", "2026-05-10")
+
+        async with factory() as session:
+            stored = (await session.execute(select(WebhookEvent))).scalar_one()
+        assert stored.status is WebhookEventStatus.processed
+
+
+class TestSleepBackfillWorker:
+    async def test_backfill_parses_summary_and_is_idempotent(self, engine, worker_db):
+        """process_backfill pulls GET /v2/summary/sleep and upserts samples;
+        a second run changes nothing."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session:
+            user = await _make_user(session)
+            user_id = str(user.id)
+            environment = user.aggregator_environment
+
+        calls: list[dict] = []
+
+        class StubAggregator:
+            async def get_sleep_summary(
+                self, aggregator_user_id, start_date, end_date, provider=None, next_cursor=None
+            ):
+                calls.append(
+                    {
+                        "aggregator_user_id": aggregator_user_id,
+                        "start_date": start_date,
+                        "end_date": end_date,
+                        "provider": provider,
+                        "next_cursor": next_cursor,
+                    }
+                )
+                return {"sleep": [WHOOP_SLEEP, OURA_SLEEP]}
+
+        redis = StubRedis()
+        ctx = {"aggregator_clients": {environment: StubAggregator()}, "redis": redis}
+
+        first = await worker_module.process_backfill(
+            ctx, user_id, "sleep", "whoop_v2", "2025-12-13", "2026-05-10"
+        )
+        second = await worker_module.process_backfill(
+            ctx, user_id, "sleep", "whoop_v2", "2025-12-13", "2026-05-10"
+        )
+        # 2 sessions x 3 metrics, upserted both times.
+        assert first == second == "backfilled:6"
+
+        async with factory() as session:
+            count = (await session.execute(select(func.count()).select_from(Sample))).scalar_one()
+        assert count == 6  # second run upserted, never duplicated
+
+        assert calls[0]["aggregator_user_id"] == AGGREGATOR_USER
+        assert calls[0]["provider"] == "whoop_v2"
+        assert len(redis.published) == 2  # fresh-samples notification per run
+
+
+class TestSyncEnqueuesSleepBackfill:
+    async def test_sync_covers_last_180_days_of_sleep(self, client, engine, monkeypatch):
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session:
+            user = await _make_user(session)
+            user_id = user.id
+
+        class StubAggregator:
+            async def refresh_user(self, aggregator_user_id: str) -> dict:
+                return {"success": True}
+
+            async def get_user_connections(self, aggregator_user_id: str) -> dict:
+                return {"providers": [{"slug": "whoop_v2", "status": "connected"}]}
+
+        enqueued: list[tuple] = []
+
+        async def _record(*args) -> None:
+            enqueued.append(args)
+
+        monkeypatch.setattr(users_module, "aggregator_client_for", lambda env: StubAggregator())
+        monkeypatch.setattr(users_module, "enqueue_backfill", _record)
+
+        response = await client.post(f"/v1/users/{user_id}/sync")
+        assert response.status_code == 202
+        body = response.json()
+        assert body["providers"] == ["whoop_v2"]
+
+        sleep_jobs = [job for job in enqueued if job[1] == "sleep"]
+        assert len(sleep_jobs) == 1
+        assert body["jobs"] == len(enqueued)
+        _uid, _resource, provider, start, end = sleep_jobs[0]
+        assert provider == "whoop_v2"
+        end_date = datetime.now(UTC).date() + timedelta(days=1)
+        assert end == str(end_date)
+        assert start == str(end_date - timedelta(days=180))
+
+    async def test_sync_unregistered_user_conflicts(self, client, engine):
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session:
+            user = User(client_user_id=f"wearables-{uuid.uuid4().hex[:8]}", aggregator_user_id=None)
+            session.add(user)
+            await session.commit()
+            await session.refresh(user)
+
+        response = await client.post(f"/v1/users/{user.id}/sync")
+        assert response.status_code == 409

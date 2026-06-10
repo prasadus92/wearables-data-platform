@@ -19,6 +19,10 @@ Aggregator event reference (see docs/aggregator-notes.md):
 - ``historical.data.{resource}.created``: data-less backfill notification
   (``data: {user_id, start_date, end_date, provider}``); data must be pulled
   via the REST timeseries endpoint.
+- ``daily.data.sleep.created|updated``: sleep summary objects. Real rings and
+  straps (Oura, WHOOP) deliver sleeping HR, HRV and breathing rate inside the
+  sleep summary, never as standalone timeseries resources, so each session is
+  flattened into up to three nightly samples stamped at wake time.
 - ``provider.connection.created`` / ``provider.connection.error``: connection
   lifecycle.
 """
@@ -59,6 +63,10 @@ DEFAULT_UNITS: dict[Metric, str] = {
     Metric.respiratory_rate: "breaths/min",
     Metric.blood_pressure: "mmHg",
 }
+
+# Sleep summaries are a resource of their own: not in RESOURCE_TO_METRIC
+# because one session fans out into several metrics.
+SLEEP_RESOURCE = "sleep"
 
 
 @dataclass(frozen=True)
@@ -147,6 +155,77 @@ def _parse_samples(resource: str, data: dict, provider: str) -> list[NormalizedS
     return out
 
 
+def _sleep_payload_sessions(data: object) -> list[dict]:
+    """Extract sleep summary objects from a webhook ``data`` payload.
+
+    Aggregator has shipped both a bare sleep object and a wrapped
+    ``{"data": [...]}`` batch for summary resources, so accept a single
+    object, a list, or a wrapped list/object.
+    """
+    if isinstance(data, list):
+        return [item for item in data if isinstance(item, dict)]
+    if isinstance(data, dict):
+        inner = data.get("data")
+        if isinstance(inner, list):
+            return [item for item in inner if isinstance(item, dict)]
+        if isinstance(inner, dict):
+            return [inner]
+        return [data]
+    return []
+
+
+def _sleep_session_samples(sleep: dict) -> list[NormalizedSample]:
+    """Flatten one sleep summary into up to three nightly samples.
+
+    Timestamped at ``bedtime_stop`` (wake time), falling back to ``date``.
+    Heart rate prefers ``hr_average`` and falls back to ``hr_resting``
+    because WHOOP reports only the resting figure for sleep sessions.
+    Every field can be None per provider; missing values simply yield no
+    sample for that metric.
+    """
+    raw_ts = sleep.get("bedtime_stop") or sleep.get("date")
+    if not raw_ts:
+        return []
+    try:
+        ts = _parse_timestamp(raw_ts)
+    except (TypeError, ValueError):
+        return []
+
+    source = sleep.get("source") or {}
+    provider = source.get("provider") or _extract_provider(sleep)
+
+    heartrate = sleep.get("hr_average")
+    if heartrate is None:
+        heartrate = sleep.get("hr_resting")
+
+    candidates: list[tuple[Metric, object, str]] = [
+        (Metric.heartrate, heartrate, "bpm"),
+        (Metric.hrv, sleep.get("average_hrv"), "ms"),
+        (Metric.respiratory_rate, sleep.get("respiratory_rate"), "breaths/min"),
+    ]
+    return [
+        NormalizedSample(
+            metric=metric,
+            ts=ts,
+            value=float(value),  # type: ignore[arg-type]
+            value_secondary=None,
+            unit=unit,
+            provider=provider,
+        )
+        for metric, value, unit in candidates
+        if value is not None
+    ]
+
+
+def parse_sleep_sessions(data: object) -> list[NormalizedSample]:
+    """Normalize one or many sleep summary objects into samples."""
+    return [
+        sample
+        for sleep in _sleep_payload_sessions(data)
+        for sample in _sleep_session_samples(sleep)
+    ]
+
+
 def parse_event(payload: dict) -> IngestPlan:
     """Translate one raw Aggregator webhook payload into an :class:`IngestPlan`.
 
@@ -169,7 +248,18 @@ def parse_event(payload: dict) -> IngestPlan:
     # daily.data.{resource}.{created|updated}: incremental samples
     if len(parts) == 4 and parts[0] == "daily" and parts[1] == "data":
         resource = parts[2]
-        if resource in RESOURCE_TO_METRIC:
+        if resource == SLEEP_RESOURCE:
+            sessions = _sleep_payload_sessions(data)
+            plan.samples = [
+                sample for sleep in sessions for sample in _sleep_session_samples(sleep)
+            ]
+            logger.info(
+                "sleep_sessions_parsed",
+                event_type=event_type,
+                sessions=len(sessions),
+                samples=len(plan.samples),
+            )
+        elif resource in RESOURCE_TO_METRIC:
             provider = _extract_provider(data)
             plan.samples = _parse_samples(resource, data, provider)
         return plan
@@ -177,7 +267,11 @@ def parse_event(payload: dict) -> IngestPlan:
     # historical.data.{resource}.created: schedule a REST backfill
     if len(parts) == 4 and parts[0] == "historical" and parts[1] == "data":
         resource = parts[2]
-        if resource in RESOURCE_TO_METRIC and data.get("start_date") and data.get("end_date"):
+        if (
+            (resource in RESOURCE_TO_METRIC or resource == SLEEP_RESOURCE)
+            and data.get("start_date")
+            and data.get("end_date")
+        ):
             plan.backfill = BackfillRequest(
                 resource=resource,
                 provider=_extract_provider(data),

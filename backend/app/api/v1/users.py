@@ -15,6 +15,7 @@ from app.models import Connection, ConnectionStatus, DeviceEventActor, DeviceEve
 from app.schemas import GuestCreate, GuestOut, MeCreate, UserCreate, UserOut
 from app.services.ingestion import (
     RESOURCE_TO_METRIC,
+    SLEEP_RESOURCE,
     ConnectionChange,
     IngestPlan,
     apply_plan,
@@ -371,6 +372,14 @@ async def sync_user(user: CurrentUser, db: DbSession, _default: Aggregator) -> d
         for resource in RESOURCE_TO_METRIC:
             await enqueue_backfill(str(user.id), resource, provider, str(start), str(end))
             jobs += 1
+
+    # Sleep summaries carry the real devices' sleeping HR, HRV and breathing
+    # rate. A 180-day window makes missed historical sleep webhooks
+    # recoverable with a single sync call.
+    sleep_start = end - timedelta(days=180)
+    for provider in providers:
+        await enqueue_backfill(str(user.id), SLEEP_RESOURCE, provider, str(sleep_start), str(end))
+        jobs += 1
 
     logger.info("sync_requested", user_id=str(user.id), providers=list(providers), jobs=jobs)
     return {"status": "syncing", "providers": list(providers), "jobs": jobs}

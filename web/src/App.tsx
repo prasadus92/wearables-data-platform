@@ -165,6 +165,20 @@ function AppShell() {
   const stored = sessions[mode]
   const storedIsClerk = stored?.auth === 'clerk'
   const user = clerkLoaded && storedIsClerk !== signedIn ? null : stored
+  // Live is reserved for sign-in. A guest-like session in the production
+  // slot is residue from older builds; drop it so nobody browses Live as
+  // an anonymous identity.
+  useEffect(() => {
+    const prod = sessions.production
+    if (prod && (prod.client_user_id.startsWith('guest:') || prod.guest_token)) {
+      localStorage.removeItem(userKey('production'))
+      setSessions((s) => ({ ...s, production: null }))
+    }
+    if (!signedIn && mode === 'production') {
+      setMode('sandbox')
+      localStorage.setItem(MODE_KEY, 'sandbox')
+    }
+  }, [sessions.production, signedIn, mode])
   // Guests are demo-only identities; Live mode is reserved for sign-in.
   const isGuest = Boolean(
     user && (user.client_user_id.startsWith('guest:') || user.guest_token),
@@ -205,6 +219,9 @@ function AppShell() {
         const session: StoredUser = { ...me, auth: 'clerk' }
         localStorage.setItem(userKey(mode), JSON.stringify(session))
         setSessions((s) => ({ ...s, [mode]: session }))
+        // Arriving from onboarding, the timeline is the first impression;
+        // any deeper route was a deliberate destination, keep it.
+        if (window.location.pathname === '/') navigate('/metrics/heartrate')
       })
       .catch((e) => {
         if (!cancelled) setError(String(e))
@@ -221,6 +238,12 @@ function AppShell() {
   // to onboarding, so signed-in sessions never linger as anonymous ones.
   useEffect(() => {
     if (signedIn) {
+      // Signed-in users live in Live: real devices, real readings. Demo
+      // stays one click away in the header for exploring synthetic data.
+      if (!wasSignedIn.current) {
+        setMode('production')
+        localStorage.setItem(MODE_KEY, 'production')
+      }
       wasSignedIn.current = true
       return
     }
@@ -249,6 +272,30 @@ function AppShell() {
     const interval = setInterval(refreshDevices, 15_000)
     return () => clearInterval(interval)
   }, [refreshDevices])
+
+  // Guests created before demo auto-attach existed have no devices and an
+  // empty timeline. Heal them once: attach the demo wearable the server now
+  // provides at guest creation.
+  const healedGuest = useRef<string | null>(null)
+  useEffect(() => {
+    if (!user || !isGuest || mode !== 'sandbox') return
+    if (healedGuest.current === user.id) return
+    let cancelled = false
+    api
+      .listDevices(user.id)
+      .then(async (list) => {
+        if (cancelled || list.some((d) => d.status !== 'disconnected')) return
+        healedGuest.current = user.id
+        await api.connectDemo(user.id, 'oura')
+        await refreshDevices()
+      })
+      .catch(() => {
+        // Next load retries; healing is best effort.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [user, isGuest, mode, refreshDevices])
 
   // Live updates: the backend streams an SSE event whenever new samples are
   // ingested, so charts refresh the moment a Aggregator webhook is processed.
