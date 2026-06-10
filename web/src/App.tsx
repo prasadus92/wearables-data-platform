@@ -1,7 +1,15 @@
 import { AlertCircle, Info } from 'lucide-react'
 import { AnimatePresence, motion, MotionConfig } from 'motion/react'
 import { useCallback, useEffect, useState } from 'react'
-import { api, streamUrl, type Device, type Metric, type Resolution, type User } from './api'
+import {
+  api,
+  streamUrl,
+  type Device,
+  type AggregatorEnv,
+  type Metric,
+  type Resolution,
+  type User,
+} from './api'
 import { DevicePanel } from './components/DevicePanel'
 import { springTransition, TapButton } from './components/motion'
 import { TimelineChart } from './components/TimelineChart'
@@ -25,7 +33,56 @@ const RANGES: { label: string; days: number; resolution: Resolution }[] = [
   { label: '90d', days: 90, resolution: 'week' },
 ]
 
-const STORAGE_KEY = 'wearables-user'
+// One session per environment, so Demo and Live coexist and switching is
+// instant. Demo (sandbox) offers synthetic wearables; Live (production)
+// connects real devices over real provider OAuth.
+const MODE_KEY = 'wearables-mode'
+const userKey = (env: AggregatorEnv) => `wearables-user:${env}`
+
+function loadUser(env: AggregatorEnv): User | null {
+  // Migrate the pre-mode single-session key into the sandbox slot.
+  const legacy = localStorage.getItem('wearables-user')
+  if (legacy && env === 'sandbox' && !localStorage.getItem(userKey('sandbox'))) {
+    localStorage.setItem(userKey('sandbox'), legacy)
+    localStorage.removeItem('wearables-user')
+  }
+  const saved = localStorage.getItem(userKey(env))
+  return saved ? JSON.parse(saved) : null
+}
+
+function ModeToggle({
+  mode,
+  onChange,
+}: {
+  mode: AggregatorEnv
+  onChange: (m: AggregatorEnv) => void
+}) {
+  return (
+    <ToggleGroup
+      type="single"
+      size="sm"
+      variant="outline"
+      value={mode}
+      onValueChange={(v) => {
+        if (v) onChange(v as AggregatorEnv)
+      }}
+      aria-label="Data environment"
+    >
+      <ToggleGroupItem
+        value="sandbox"
+        className="px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+      >
+        Demo
+      </ToggleGroupItem>
+      <ToggleGroupItem
+        value="production"
+        className="px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+      >
+        Live
+      </ToggleGroupItem>
+    </ToggleGroup>
+  )
+}
 
 // Entrance choreography: parents stagger, children rise gently into place.
 const staggerParent = {
@@ -85,10 +142,14 @@ function LivePulse({ version }: { version: number }) {
 }
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    return saved ? JSON.parse(saved) : null
-  })
+  const [mode, setMode] = useState<AggregatorEnv>(
+    () => (localStorage.getItem(MODE_KEY) as AggregatorEnv) || 'sandbox',
+  )
+  const [sessions, setSessions] = useState<Record<AggregatorEnv, User | null>>(() => ({
+    sandbox: loadUser('sandbox'),
+    production: loadUser('production'),
+  }))
+  const user = sessions[mode]
   const [devices, setDevices] = useState<Device[]>([])
   const [metric, setMetric] = useState<Metric>('heartrate')
   const [range, setRange] = useState(1)
@@ -134,14 +195,22 @@ export default function App() {
     setError(null)
     setBusy(true)
     try {
-      const created = await api.createUser(clientUserId)
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(created))
-      setUser(created)
+      const created = await api.createUser(clientUserId, mode)
+      localStorage.setItem(userKey(mode), JSON.stringify(created))
+      setSessions((s) => ({ ...s, [mode]: created }))
+      setDevices([])
     } catch (e) {
       setError(String(e))
     } finally {
       setBusy(false)
     }
+  }
+
+  function switchMode(next: AggregatorEnv) {
+    setMode(next)
+    localStorage.setItem(MODE_KEY, next)
+    setDevices([])
+    setError(null)
   }
 
   if (!user) {
@@ -157,8 +226,13 @@ export default function App() {
             ExampleHealth Wearables
           </motion.h1>
           <motion.p variants={riseIn} className="text-sm text-muted-foreground">
-            Connect your wearable and see your biometrics on a timeline.
+            {mode === 'sandbox'
+              ? 'Explore with demo wearables and synthetic data.'
+              : 'Connect your real wearables and see your biometrics on a timeline.'}
           </motion.p>
+          <motion.div variants={riseIn}>
+            <ModeToggle mode={mode} onChange={switchMode} />
+          </motion.div>
           <motion.div variants={riseIn} className="flex flex-col items-center gap-3">
             <TapButton
               size="lg"
@@ -217,7 +291,10 @@ export default function App() {
     <MotionConfig reducedMotion="user">
       <div className="mx-auto flex max-w-[880px] flex-col gap-4 px-5 pt-6 pb-16">
         <header className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-xl font-semibold tracking-tight">ExampleHealth Wearables</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-semibold tracking-tight">ExampleHealth Wearables</h1>
+            <ModeToggle mode={mode} onChange={switchMode} />
+          </div>
           <span className="flex items-center gap-1 rounded-full border bg-card py-1 pr-1.5 pl-3 text-xs">
             <Button
               variant="ghost"
@@ -240,8 +317,8 @@ export default function App() {
               size="xs"
               className="text-muted-foreground"
               onClick={() => {
-                localStorage.removeItem(STORAGE_KEY)
-                setUser(null)
+                localStorage.removeItem(userKey(mode))
+                setSessions((s) => ({ ...s, [mode]: null }))
                 setDevices([])
               }}
             >
@@ -270,6 +347,7 @@ export default function App() {
           <motion.div variants={riseIn}>
             <DevicePanel
               devices={devices}
+              environment={mode}
               onConnect={async (provider) => {
                 setError(null)
                 try {
