@@ -34,10 +34,41 @@ app = FastAPI(
     description=(
         "Wearable data integration for the YOU(th) app. Users connect WHOOP/Oura/"
         "Garmin/Apple Watch via Junction; biometrics are ingested via webhooks and "
-        "served here for timeline charts."
+        "served here for timeline charts.\n\n"
+        "Authentication: all `/v1` routes require the API token via `X-API-Key`, "
+        "`Authorization: Bearer`, or an `api_key` query parameter (the SSE stream "
+        "uses the query form because EventSource cannot send headers)."
     ),
-    version="0.1.0",
+    version="1.0.0",
     lifespan=lifespan,
+    openapi_tags=[
+        {"name": "users", "description": "App users and their Junction identity mapping."},
+        {
+            "name": "devices",
+            "description": "Wearable connections: hosted OAuth link, listing, disconnect.",
+        },
+        {
+            "name": "timeseries",
+            "description": "Biometric timelines with server-side bucketing (raw/hour/day/week).",
+        },
+        {
+            "name": "stream",
+            "description": "Server-sent events pushing live updates as new samples are ingested.",
+        },
+        {
+            "name": "sandbox",
+            "description": "Demo helpers available only against the Junction sandbox.",
+        },
+        {
+            "name": "webhooks",
+            "description": (
+                "Inbound event receiver. Deliberately unversioned: the URL is registered "
+                "in external dashboards (stability is the contract) and the payload schema "
+                "is versioned by the sender. Authenticated by Svix signature, never by API key."
+            ),
+        },
+        {"name": "ops", "description": "Health and operational endpoints."},
+    ],
 )
 
 # Demo scope: the web dashboard and Expo app run on other origins.
