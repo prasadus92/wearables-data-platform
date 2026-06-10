@@ -1,39 +1,17 @@
 import { SignInButton, UserButton } from '@clerk/react'
-import { AlertCircle, Info } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 import { AnimatePresence, motion, MotionConfig } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  api,
-  streamUrl,
-  type Device,
-  type AggregatorEnv,
-  type Metric,
-  type Resolution,
-  type User,
-} from './api'
+import { Link, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
+import { api, streamUrl, type Device, type AggregatorEnv, type User } from './api'
 import { useClerkBridge } from './components/AuthBridge'
-import { DevicePanel } from './components/DevicePanel'
 import { springTransition, TapButton } from './components/motion'
-import { TimelineChart } from './components/TimelineChart'
-import { METRIC_META } from './lib/metrics'
+import { DevicesPage } from './pages/DevicesPage'
+import { TimelinePage } from './pages/TimelinePage'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-
-const METRICS: { key: Metric; label: string }[] = (
-  ['heartrate', 'hrv', 'spo2', 'respiratory_rate', 'blood_pressure'] as Metric[]
-).map((key) => ({ key, label: METRIC_META[key].friendlyName }))
-
-const RANGES: { label: string; days: number; resolution: Resolution }[] = [
-  { label: '24h', days: 1, resolution: 'hour' },
-  { label: '7d', days: 7, resolution: 'hour' },
-  { label: '30d', days: 30, resolution: 'day' },
-  { label: '90d', days: 90, resolution: 'week' },
-]
 
 // One session per environment, so Demo and Live coexist and switching is
 // instant. Demo (sandbox) offers synthetic wearables; Live (production)
@@ -54,6 +32,16 @@ function loadUser(env: AggregatorEnv): StoredUser | null {
   }
   const saved = localStorage.getItem(userKey(env))
   return saved ? JSON.parse(saved) : null
+}
+
+/** Everything the routed pages need from the shell, via Outlet context. */
+export interface DashboardContext {
+  user: User
+  mode: AggregatorEnv
+  devices: Device[]
+  liveVersion: number
+  refreshDevices: () => Promise<void>
+  setError: (error: string | null) => void
 }
 
 function ModeToggle({
@@ -101,53 +89,40 @@ const riseIn = {
   show: { opacity: 1, y: 0, transition: springTransition },
 }
 
-/** Info button that explains the selected metric in plain language. */
-function MetricInfoPopover({ metric }: { metric: Metric }) {
-  const meta = METRIC_META[metric]
+/** Section switcher styled after the card titles: mono, uppercase, quiet. */
+function SectionNav() {
+  const { pathname } = useLocation()
+  const links = [
+    { to: '/metrics/heartrate', label: 'Timeline', active: pathname.startsWith('/metrics') },
+    { to: '/devices', label: 'Devices', active: pathname.startsWith('/devices') },
+  ]
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="xs"
-          className="size-6 rounded-full p-0 text-muted-foreground hover:text-foreground"
-          aria-label={`What is ${meta.friendlyName}?`}
+    <nav aria-label="Dashboard sections" className="flex items-center gap-4 border-b pb-2">
+      {links.map((link) => (
+        <Link
+          key={link.to}
+          to={link.to}
+          aria-current={link.active ? 'page' : undefined}
+          className={`font-mono text-xs font-medium tracking-widest uppercase transition-colors ${
+            link.active
+              ? 'text-foreground'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
         >
-          <Info className="size-3.5" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="flex w-80 flex-col gap-2">
-        <span className="text-sm font-medium">{meta.friendlyName}</span>
-        <p className="text-sm leading-relaxed text-popover-foreground/90">
-          {meta.shortExplanation}
-        </p>
-        <p className="border-t pt-2 text-xs text-muted-foreground">
-          This is informational, and no substitute for medical advice.
-        </p>
-      </PopoverContent>
-    </Popover>
+          {link.label}
+        </Link>
+      ))}
+    </nav>
   )
 }
 
-/** Tiny dot beside the Timeline title; pings once per SSE update. */
-function LivePulse({ version }: { version: number }) {
-  return (
-    <span className="relative flex size-2" aria-hidden="true">
-      {version > 0 && (
-        <motion.span
-          key={version}
-          className="absolute inset-0 rounded-full bg-emerald-500"
-          initial={{ scale: 1, opacity: 0.7 }}
-          animate={{ scale: 2.4, opacity: 0 }}
-          transition={{ duration: 0.35, ease: 'easeOut' }}
-        />
-      )}
-      <span className="size-2 rounded-full bg-emerald-500/70" />
-    </span>
-  )
-}
-
-export default function App() {
+/**
+ * Persistent layout: header and section nav stay mounted across routes.
+ * Owns the session, devices, and live-update state every page shares.
+ * When the active mode has no session, onboarding renders in place of the
+ * routed content and the URL is left untouched.
+ */
+function AppShell() {
   const [mode, setMode] = useState<AggregatorEnv>(
     () => (localStorage.getItem(MODE_KEY) as AggregatorEnv) || 'sandbox',
   )
@@ -164,15 +139,12 @@ export default function App() {
   const storedIsClerk = stored?.auth === 'clerk'
   const user = clerkLoaded && storedIsClerk !== signedIn ? null : stored
   const [devices, setDevices] = useState<Device[]>([])
-  const [metric, setMetric] = useState<Metric>('heartrate')
-  const [range, setRange] = useState(1)
   const [error, setError] = useState<string | null>(null)
   const [showExisting, setShowExisting] = useState(false)
   const [existingId, setExistingId] = useState('')
   const [busy, setBusy] = useState(false)
   // Bumped by SSE updates; charts refetch when it changes.
   const [liveVersion, setLiveVersion] = useState(0)
-  const devicesRef = useRef<HTMLDivElement>(null)
   const wasSignedIn = useRef(false)
 
   // Signed-in identities bootstrap through POST /v1/me per environment. The
@@ -372,6 +344,15 @@ export default function App() {
     )
   }
 
+  const context: DashboardContext = {
+    user,
+    mode,
+    devices,
+    liveVersion,
+    refreshDevices,
+    setError,
+  }
+
   return (
     <MotionConfig reducedMotion="user">
       <div className="mx-auto flex max-w-[880px] flex-col gap-4 px-5 pt-6 pb-16">
@@ -417,6 +398,8 @@ export default function App() {
           </div>
         </header>
 
+        <SectionNav />
+
         {error && (
           <Alert
             variant="destructive"
@@ -428,132 +411,21 @@ export default function App() {
           </Alert>
         )}
 
-        <motion.div
-          variants={staggerParent}
-          initial="hidden"
-          animate="show"
-          className="flex flex-col gap-4"
-        >
-          <motion.div variants={riseIn} ref={devicesRef}>
-            <DevicePanel
-              devices={devices}
-              environment={mode}
-              onConnect={async (provider) => {
-                setError(null)
-                try {
-                  const { link_url } = await api.createLink(user.id, provider)
-                  window.open(link_url, '_blank')
-                } catch (e) {
-                  setError(String(e))
-                }
-              }}
-              onConnectDemo={async (provider) => {
-                setError(null)
-                try {
-                  await api.connectDemo(user.id, provider)
-                  await refreshDevices()
-                } catch (e) {
-                  setError(String(e))
-                }
-              }}
-              onDisconnect={async (provider) => {
-                setError(null)
-                try {
-                  await api.disconnect(user.id, provider)
-                  await refreshDevices()
-                } catch (e) {
-                  setError(String(e))
-                }
-              }}
-            />
-          </motion.div>
-
-          <motion.div variants={riseIn}>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 font-mono text-xs font-medium tracking-widest text-muted-foreground uppercase">
-                  Timeline
-                  <LivePulse version={liveVersion} />
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
-                <div className="flex flex-wrap items-center justify-between gap-2.5">
-                  <div className="flex items-center gap-1.5">
-                    <Tabs value={metric} onValueChange={(v) => setMetric(v as Metric)}>
-                      <TabsList className="h-auto flex-wrap">
-                      {METRICS.map((m) => (
-                        <TabsTrigger
-                          key={m.key}
-                          value={m.key}
-                          className="data-[state=active]:bg-transparent group-data-[variant=default]/tabs-list:data-[state=active]:shadow-none dark:data-[state=active]:border-transparent dark:data-[state=active]:bg-transparent"
-                        >
-                          {metric === m.key && (
-                            <motion.span
-                              layoutId="metric-tab-pill"
-                              className="absolute inset-0 rounded-md bg-background shadow-sm dark:border dark:border-input dark:bg-input/30"
-                              transition={{ type: 'spring', stiffness: 500, damping: 38 }}
-                            />
-                          )}
-                          <span className="relative z-10">{m.label}</span>
-                        </TabsTrigger>
-                      ))}
-                      </TabsList>
-                    </Tabs>
-                    <MetricInfoPopover metric={metric} />
-                  </div>
-                  <ToggleGroup
-                    type="single"
-                    variant="outline"
-                    size="sm"
-                    value={String(range)}
-                    onValueChange={(v) => {
-                      if (v) setRange(Number(v))
-                    }}
-                  >
-                    {RANGES.map((r, i) => (
-                      <ToggleGroupItem
-                        key={r.label}
-                        value={String(i)}
-                        className="px-3 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
-                      >
-                        {r.label}
-                      </ToggleGroupItem>
-                    ))}
-                  </ToggleGroup>
-                </div>
-                <AnimatePresence mode="popLayout" initial={false}>
-                  <motion.div
-                    key={`${metric}-${range}`}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2, ease: 'easeOut' }}
-                  >
-                    <TimelineChart
-                      userId={user.id}
-                      metric={metric}
-                      days={RANGES[range].days}
-                      resolution={RANGES[range].resolution}
-                      liveVersion={liveVersion}
-                      hasDevices={devices.some((d) => d.status !== 'disconnected')}
-                      onConnectDevice={() =>
-                        devicesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                      }
-                      onSync={async () => {
-                        try {
-                          await api.sync(user.id)
-                        } catch (e) {
-                          setError(String(e))
-                        }
-                      }}
-                    />
-                  </motion.div>
-                </AnimatePresence>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </motion.div>
+        <Outlet context={context} />
       </div>
     </MotionConfig>
+  )
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route element={<AppShell />}>
+        <Route index element={<Navigate to="/metrics/heartrate" replace />} />
+        <Route path="metrics/:metric" element={<TimelinePage />} />
+        <Route path="devices" element={<DevicesPage />} />
+        <Route path="*" element={<Navigate to="/metrics/heartrate" replace />} />
+      </Route>
+    </Routes>
   )
 }
