@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -25,6 +25,7 @@ import Animated, {
   useAnimatedReaction,
   useAnimatedStyle,
   useDerivedValue,
+  useReducedMotion,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
@@ -438,6 +439,62 @@ function Cursor({
 const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
 /**
+ * Large latest reading that counts from the previously shown value to the
+ * new one on metric or range switches (~350ms). Dual readings and Reduce
+ * Motion swap in place. Runs on animated props, so counting never
+ * re-renders the tree.
+ */
+function LatestValue({
+  value,
+  text,
+  from,
+  countUp,
+  t,
+  dark,
+}: {
+  /** Numeric latest for single-series metrics. */
+  value: number;
+  /** Preformatted latest, used verbatim when not counting (dual). */
+  text: string;
+  /** Previously shown latest, the count-up's starting point. */
+  from: number | null;
+  countUp: boolean;
+  t: Theme;
+  dark: boolean;
+}) {
+  const reduced = useReducedMotion();
+  const animated = countUp && !reduced;
+  const sv = useSharedValue(animated && from != null ? from : value);
+
+  useEffect(() => {
+    if (!animated) {
+      sv.value = value;
+      return;
+    }
+    sv.value = withTiming(value, { duration: 350 });
+  }, [value, animated, sv]);
+
+  const valueProps = useAnimatedProps(() => {
+    const shown = animated ? formatValue(sv.value) : text;
+    return { text: shown, defaultValue: shown } as TextInputProps;
+  });
+
+  return (
+    <AnimatedTextInput
+      editable={false}
+      underlineColorAndroid="transparent"
+      animatedProps={valueProps}
+      style={{ padding: 0, margin: 0, color: t.strong }}
+      className={
+        dark
+          ? 'text-[36px] font-sans leading-[42px]'
+          : 'text-[28px] font-sans-medium leading-[32px]'
+      }
+    />
+  );
+}
+
+/**
  * Floating readout that follows the finger. Text updates run entirely on the
  * UI thread via animated props, so scrubbing never re-renders the tree.
  */
@@ -575,12 +632,49 @@ export function LineChart({
     return [rows[0].x - 30 * 60 * 1000, rows[0].x + 30 * 60 * 1000];
   }, [rows]);
 
+  // Explicit y-domain with headroom. The natural curve overshoots the data
+  // extremes, so a value sitting on the auto domain edge clips its stroke
+  // at the plot boundary. Pad 8% beyond the data and the typical-range
+  // band, so the line and the band always render fully inside the plot.
+  const yDomain = useMemo<[number, number] | undefined>(() => {
+    if (rows.length === 0) return undefined;
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const r of rows) {
+      lo = Math.min(lo, r.value);
+      hi = Math.max(hi, r.value);
+      if (dual) {
+        lo = Math.min(lo, r.secondary);
+        hi = Math.max(hi, r.secondary);
+      }
+    }
+    if (baselineBand) {
+      lo = Math.min(lo, baselineBand.low);
+      hi = Math.max(hi, baselineBand.high);
+    }
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) return undefined;
+    // Flat series still get breathing room via the absolute fallbacks.
+    const pad = Math.max((hi - lo) * 0.08, Math.abs(hi) * 0.01, 0.5);
+    return [lo - pad, hi + pad];
+  }, [rows, dual, baselineBand]);
+
   useAnimatedReaction(
     () => state.isActive.value,
     (active, prev) => {
       if (active && prev === false) runOnJS(tapLight)();
     },
   );
+
+  // The latest value last shown on screen, surviving the loading unmounts,
+  // so switching metric or range counts from the previous reading.
+  const lastShownLatest = useRef<number | null>(null);
+  const latestNumeric = rows.length > 0 ? rows[rows.length - 1].value : null;
+  const countFrom = lastShownLatest.current;
+  useEffect(() => {
+    if (!loading && latestNumeric != null) {
+      lastShownLatest.current = latestNumeric;
+    }
+  }, [latestNumeric, loading]);
 
   const xLabel = rangeHours <= 24 ? hourLabel : dayLabel;
   const hasData = rows.length > 0;
@@ -631,7 +725,16 @@ export function LineChart({
         data={rows}
         xKey="x"
         yKeys={['value', 'secondary']}
-        domain={xDomain ? { x: xDomain } : undefined}
+        domain={
+          xDomain || yDomain
+            ? {
+                ...(xDomain ? { x: xDomain } : {}),
+                ...(yDomain ? { y: yDomain } : {}),
+              }
+            : undefined
+        }
+        // Pixel padding on top of the padded domain keeps the 2.5pt stroke
+        // (plus its round caps) inside the clip even at the extremes.
         domainPadding={{ top: 14, bottom: 14, left: 6, right: 6 }}
         padding={{ top: 4, bottom: 2 }}
         chartPressState={state}
@@ -788,16 +891,14 @@ export function LineChart({
                 Latest
               </Text>
               <View className="flex-row items-baseline">
-                <Text
-                  style={{ color: t.strong }}
-                  className={
-                    dark
-                      ? 'text-[36px] font-sans leading-[42px]'
-                      : 'text-[28px] font-sans-medium leading-[32px]'
-                  }
-                >
-                  {stats.latest}
-                </Text>
+                <LatestValue
+                  value={latestNumeric ?? 0}
+                  text={stats.latest}
+                  from={countFrom}
+                  countUp={!dual && latestNumeric != null}
+                  t={t}
+                  dark={dark}
+                />
                 {unit ? (
                   <Text
                     style={{ color: t.body }}
