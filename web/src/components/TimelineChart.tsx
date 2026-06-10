@@ -117,10 +117,19 @@ export function TimelineChart({
               onClick={() => {
                 setSyncRequested(true)
                 onSync()
+                // Re-enable if nothing arrives: the provider cloud may simply
+                // have no new readings, and a stuck button reads as a hang.
+                setTimeout(() => setSyncRequested(false), 20_000)
               }}
             >
-              {syncRequested ? 'Syncing…' : 'Sync now'}
+              {syncRequested ? 'Checking…' : 'Sync now'}
             </TapButton>
+            {syncRequested && (
+              <span className="text-xs text-muted-foreground">
+                Asking the device's service for new readings. If nothing appears,
+                the wearable has not synced to its phone app yet.
+              </span>
+            )}
           </>
         ) : (
           <>
