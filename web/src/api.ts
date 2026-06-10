@@ -14,10 +14,13 @@ export function streamUrl(userId: string): string {
 export type Metric = 'heartrate' | 'hrv' | 'spo2' | 'respiratory_rate' | 'blood_pressure'
 export type Resolution = 'raw' | 'hour' | 'day' | 'week'
 
+export type JunctionEnv = 'sandbox' | 'production'
+
 export interface User {
   id: string
   client_user_id: string
   junction_user_id: string | null
+  junction_environment: JunctionEnv
 }
 
 export interface Device {
@@ -58,10 +61,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  createUser: (clientUserId: string) =>
+  createUser: (clientUserId: string, environment: JunctionEnv = 'sandbox') =>
     request<User>('/v1/users', {
       method: 'POST',
-      body: JSON.stringify({ client_user_id: clientUserId }),
+      body: JSON.stringify({ client_user_id: clientUserId, environment }),
     }),
 
   listDevices: (userId: string) => request<Device[]>(`/v1/users/${userId}/devices`),

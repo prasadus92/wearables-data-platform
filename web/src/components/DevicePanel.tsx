@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import type { Device } from '../api'
+import type { Device, JunctionEnv } from '../api'
 import { springTransition, TapButton } from './motion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,7 @@ const PROVIDERS = [
 
 interface Props {
   devices: Device[]
+  environment: JunctionEnv
   onConnect: (provider: string) => void
   onConnectDemo: (provider: string) => void
   onDisconnect: (provider: string) => void
@@ -54,7 +55,7 @@ function StatusBadge({ status }: { status: Device['status'] }) {
   )
 }
 
-export function DevicePanel({ devices, onConnect, onConnectDemo, onDisconnect }: Props) {
+export function DevicePanel({ devices, environment, onConnect, onConnectDemo, onDisconnect }: Props) {
   const active = devices.filter((d) => d.status !== 'disconnected')
   const connectedSlugs = new Set(active.map((d) => d.provider))
   // Connect menu shows only what is not already connected (product spec).
@@ -127,7 +128,7 @@ export function DevicePanel({ devices, onConnect, onConnectDemo, onDisconnect }:
                   <TapButton size="sm" onClick={() => onConnect(provider.slug)}>
                     Connect
                   </TapButton>
-                  {provider.demo && (
+                  {provider.demo && environment === 'sandbox' && (
                     <Button
                       variant="ghost"
                       size="sm"
