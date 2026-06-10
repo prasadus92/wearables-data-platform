@@ -1,0 +1,223 @@
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from 'react-native';
+
+import { api, ApiError } from '../api/client';
+import type { Device } from '../api/types';
+import { Button } from '../components/Button';
+import { Header } from '../components/Header';
+import { useApp } from '../lib/appContext';
+import { PROVIDERS, providerName } from '../lib/catalog';
+import { timeAgo } from '../lib/format';
+import { colors } from '../theme/tokens';
+
+function StatusDot({ status }: { status: 'connected' | 'expired' }) {
+  return (
+    <View
+      className={`mr-1.5 h-2 w-2 rounded-full ${status === 'connected' ? 'bg-leaf' : 'bg-amber'}`}
+    />
+  );
+}
+
+function DeviceCard({
+  device,
+  onDisconnect,
+  onReconnect,
+}: {
+  device: Device;
+  onDisconnect: () => void;
+  onReconnect: () => void;
+}) {
+  const expired = device.status === 'expired';
+  return (
+    <View className="mb-3 rounded-2xl bg-card p-4">
+      <View className="flex-row items-center">
+        <View className="h-12 w-12 items-center justify-center rounded-full bg-paper">
+          <Text className="text-[17px] font-bold text-ink">
+            {providerName(device.provider)[0]}
+          </Text>
+        </View>
+        <View className="ml-3 flex-1">
+          <Text className="text-[16px] font-semibold text-ink">
+            {providerName(device.provider)}
+          </Text>
+          <View className="mt-1 flex-row items-center">
+            <StatusDot status={expired ? 'expired' : 'connected'} />
+            <Text
+              className={`text-[13px] ${expired ? 'font-semibold text-amber' : 'text-leaf'}`}
+            >
+              {expired ? 'Connection expired' : 'Connected'}
+            </Text>
+          </View>
+        </View>
+        <Text className="text-[12px] text-faint">
+          Last synced {timeAgo(device.last_data_at)}
+        </Text>
+      </View>
+      <View className="mt-3 flex-row justify-end gap-4 border-t border-line pt-3">
+        {expired ? (
+          <Pressable onPress={onReconnect} className="active:opacity-60">
+            <Text className="text-[14px] font-semibold text-ink">
+              Reconnect
+            </Text>
+          </Pressable>
+        ) : null}
+        <Pressable onPress={onDisconnect} className="active:opacity-60">
+          <Text className="text-[14px] font-semibold text-coral">
+            Disconnect
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+export function DevicesScreen() {
+  const { session, signOut, nav } = useApp();
+  const [devices, setDevices] = useState<Device[] | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!session) {
+      setDevices([]);
+      return;
+    }
+    try {
+      setDevices(await api.getDevices(session.userId));
+    } catch {
+      setDevices((prev) => prev ?? []);
+    }
+  }, [session]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }, [load]);
+
+  function confirmDisconnect(device: Device) {
+    Alert.alert(
+      `Disconnect ${providerName(device.provider)}?`,
+      'We will stop receiving new data from this device. Your historical data is kept.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Disconnect',
+          style: 'destructive',
+          onPress: async () => {
+            if (!session) return;
+            try {
+              await api.disconnectDevice(session.userId, device.provider);
+            } catch (err) {
+              Alert.alert(
+                'Could not disconnect',
+                err instanceof ApiError ? err.message : 'Please try again.',
+              );
+            }
+            await load();
+          },
+        },
+      ],
+    );
+  }
+
+  function reconnect(device: Device) {
+    const provider = PROVIDERS.find((p) => p.slug === device.provider);
+    if (provider) nav.push({ name: 'connectIntro', provider });
+  }
+
+  const active = (devices ?? []).filter((d) => d.status !== 'disconnected');
+
+  return (
+    <View className="flex-1 bg-paper pt-14">
+      <Header title="Profile" onBack={nav.pop} />
+      <ScrollView
+        className="flex-1 px-5 pt-2"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.sub}
+          />
+        }
+      >
+        {session ? (
+          <View className="mb-5 flex-row items-center rounded-2xl bg-card p-4">
+            <View className="h-12 w-12 items-center justify-center rounded-full bg-ink">
+              <Text className="text-[16px] font-bold text-card">
+                {session.clientUserId[0]?.toUpperCase()}
+              </Text>
+            </View>
+            <View className="ml-3 flex-1">
+              <Text className="text-[16px] font-semibold text-ink">
+                {session.clientUserId}
+              </Text>
+              <Text className="mt-0.5 text-[12px] text-faint">
+                User id {session.userId.slice(0, 8)}
+              </Text>
+            </View>
+            <Pressable onPress={signOut} className="active:opacity-60">
+              <Text className="text-[13px] font-semibold text-sub">
+                Switch user
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        <Text className="mb-3 text-[18px] font-bold text-ink">
+          Your devices
+        </Text>
+
+        {!session ? (
+          <View className="items-center rounded-2xl bg-card px-6 py-12">
+            <Text className="mb-5 text-center text-[14px] leading-[20px] text-sub">
+              Create your profile to connect a wearable and start syncing your
+              health data.
+            </Text>
+            <Button label="Get started" onPress={signOut} />
+          </View>
+        ) : devices === null ? (
+          <View className="items-center py-16">
+            <ActivityIndicator color={colors.sub} />
+          </View>
+        ) : active.length === 0 ? (
+          <View className="items-center rounded-2xl bg-card px-6 py-12">
+            <Text className="mb-5 text-center text-[14px] leading-[20px] text-sub">
+              No devices connected yet. Connect a wearable to start syncing
+              your health data.
+            </Text>
+          </View>
+        ) : (
+          active.map((d) => (
+            <DeviceCard
+              key={d.id}
+              device={d}
+              onDisconnect={() => confirmDisconnect(d)}
+              onReconnect={() => reconnect(d)}
+            />
+          ))
+        )}
+
+        {session ? (
+          <View className="mb-12 mt-2">
+            <Button
+              label="Connect a device"
+              onPress={() => nav.push({ name: 'connectMenu' })}
+            />
+          </View>
+        ) : null}
+      </ScrollView>
+    </View>
+  );
+}
