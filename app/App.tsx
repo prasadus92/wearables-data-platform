@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AppContext, type AppState, type Nav, type Route } from './src/lib/appContext';
@@ -137,13 +138,15 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider>
-      <AppContext.Provider value={value}>
-        <View className="flex-1 bg-paper">
-          <StatusBar style={showWelcome ? 'light' : 'dark'} />
-          {screen}
-        </View>
-      </AppContext.Provider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AppContext.Provider value={value}>
+          <View className="flex-1 bg-paper">
+            <StatusBar style={showWelcome ? 'light' : 'dark'} />
+            {screen}
+          </View>
+        </AppContext.Provider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
