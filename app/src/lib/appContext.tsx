@@ -13,6 +13,8 @@ export type Route =
       name: 'connectResult';
       provider: ProviderInfo;
       ok: boolean;
+      /** Provider was connected before the flow even started. */
+      already?: boolean;
       message?: string;
     };
 

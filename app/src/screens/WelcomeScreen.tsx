@@ -70,33 +70,26 @@ function signInErrorMessage(err: unknown): string {
 }
 
 /**
- * Onboarding step. `choice` offers sign-in, guest start, or skip; `existing`
- * attaches to a known anonymous ID; `email` and `code` carry the two-step
- * email-code sign-in.
+ * Onboarding step. `choice` offers sign-in, a guest demo, or skip; `email`
+ * and `code` carry the two-step email-code sign-in.
  */
-type Step = 'choice' | 'existing' | 'email' | 'code';
+type Step = 'choice' | 'email' | 'code';
 
 export function WelcomeScreen() {
   const { mode, signIn, skip } = useApp();
   const { signIn: clerkSignIn, setActive, isLoaded: clerkReady } = useSignIn();
   const [step, setStep] = useState<Step>('choice');
-  const [existingId, setExistingId] = useState('');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleGetStarted() {
-    const trimmed = existingId.trim();
-    if (step === 'existing' && !trimmed) {
-      setError('Enter your ID, or switch back to starting fresh.');
-      return;
-    }
-    const clientUserId = step === 'existing' ? trimmed : randomClientUserId();
+  /** Guest start: a fresh anonymous identity, no account required. */
+  async function handleTryDemo() {
     setBusy(true);
     setError(null);
     try {
-      const user = await api.createUser(clientUserId, mode);
+      const user = await api.createUser(randomClientUserId(), mode);
       signIn({ userId: user.id, clientUserId: user.client_user_id });
     } catch (err) {
       setError(
@@ -202,25 +195,9 @@ export function WelcomeScreen() {
                   : step === 'code'
                     ? `Enter the code we emailed to ${email.trim()}.`
                     : mode === 'sandbox'
-                      ? 'Explore with demo wearables and synthetic data. Sign in to keep your data across devices, or start as a guest.'
-                      : 'Connect your real wearables. Sign in to keep your data across devices, or start as a guest.'}
+                      ? 'Explore with demo wearables and synthetic data. Sign in to keep your data across devices, or try the demo as a guest.'
+                      : 'Connect your real wearables. Sign in to keep your data across devices.'}
               </Text>
-
-              {step === 'existing' ? (
-                <Animated.View entering={enter(0)}>
-                  <TextInput
-                    value={existingId}
-                    onChangeText={setExistingId}
-                    placeholder="Your existing ID (e.g. youth-ios-1a2b3c4d)"
-                    placeholderTextColor={colors.faint}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    autoFocus
-                    editable={!busy}
-                    className="mt-5 h-14 rounded-2xl border border-line bg-paper px-4 text-[15px] font-sans text-ink"
-                  />
-                </Animated.View>
-              ) : null}
 
               {step === 'email' ? (
                 <Animated.View entering={enter(0)}>
@@ -275,33 +252,17 @@ export function WelcomeScreen() {
                       disabled={busy}
                     />
                   </View>
-                  <View className="mt-3 flex-row gap-3">
-                    <View className="flex-1">
-                      <Button label="Not now" variant="outline" onPress={skip} />
-                    </View>
-                    <View className="flex-1">
+                  {mode === 'sandbox' ? (
+                    <View className="mt-3">
                       <Button
-                        label="Get started"
+                        label="Try the demo"
                         variant="outline"
-                        onPress={handleGetStarted}
+                        onPress={handleTryDemo}
                         busy={busy}
                       />
                     </View>
-                  </View>
+                  ) : null}
                 </>
-              ) : step === 'existing' ? (
-                <View className="mt-5 flex-row gap-3">
-                  <View className="flex-1">
-                    <Button label="Not now" variant="outline" onPress={skip} />
-                  </View>
-                  <View className="flex-1">
-                    <Button
-                      label="Continue"
-                      onPress={handleGetStarted}
-                      busy={busy}
-                    />
-                  </View>
-                </View>
               ) : (
                 <View className="mt-5 flex-row gap-3">
                   <View className="flex-1">
@@ -322,17 +283,15 @@ export function WelcomeScreen() {
                 </View>
               )}
 
-              {step === 'choice' || step === 'existing' ? (
+              {step === 'choice' && mode === 'sandbox' ? (
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => goTo(step === 'existing' ? 'choice' : 'existing')}
+                  onPress={skip}
                   disabled={busy}
                   className="mt-4 items-center py-1.5 active:opacity-60"
                 >
                   <Text className="text-[13px] font-sans-medium text-sub underline">
-                    {step === 'existing'
-                      ? 'Start fresh instead'
-                      : 'I have an existing ID'}
+                    Skip for now
                   </Text>
                 </Pressable>
               ) : step === 'code' ? (

@@ -21,6 +21,7 @@ import { Button } from '../components/Button';
 import { Header } from '../components/Header';
 import { useApp } from '../lib/appContext';
 import { PROVIDERS, providerName } from '../lib/catalog';
+import { useDisplayName } from '../lib/displayName';
 import { timeAgo } from '../lib/format';
 import { tapLight } from '../lib/haptics';
 import { enter } from '../lib/motion';
@@ -159,6 +160,7 @@ export function DevicesScreen() {
   // Clerk-bootstrapped sessions end via a real sign-out that clears every
   // mode; anonymous ones just swap the per-mode identity.
   const clerkAuthed = session?.auth === 'clerk';
+  const displayName = useDisplayName(session);
   const [devices, setDevices] = useState<Device[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -235,12 +237,12 @@ export function DevicesScreen() {
             <View className="mb-3 flex-row items-center rounded-2xl bg-card p-4">
               <View className="h-12 w-12 items-center justify-center rounded-full bg-ink">
                 <Text className="text-[16px] font-sans-medium text-card">
-                  {session.clientUserId[0]?.toUpperCase()}
+                  {displayName[0].toUpperCase()}
                 </Text>
               </View>
               <View className="ml-3 flex-1">
                 <Text className="text-[16px] font-sans-medium text-ink">
-                  {session.clientUserId}
+                  {displayName}
                 </Text>
                 <Text className="mt-0.5 text-[12px] font-sans text-faint">
                   User id {session.userId.slice(0, 8)}
