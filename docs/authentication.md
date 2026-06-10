@@ -57,7 +57,7 @@ Honest edges of the current setup, in priority order:
 
 1. **The mobile bundle ships the service key.** The guest "Get started" path needs a
    credential to call user-creation, so published mobile bundles embed the service
-   key. Acceptable while the audience is the team and the founders; before wide
+   key. Acceptable while the audience is small and known; before wide
    distribution, guest creation moves behind a constrained route (rate-limited,
    guest-scoped token in the response, no service key on the client). The public web
    build already ships keyless by design.
