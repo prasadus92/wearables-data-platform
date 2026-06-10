@@ -15,6 +15,7 @@ dependencies = [
     "redis>=5.2",
     "arq>=0.26",
     "svix>=1.40",
+    "pyjwt[crypto]>=2.9",
     "structlog>=24.4",
     "tenacity>=9.0",
 ]
