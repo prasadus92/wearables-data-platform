@@ -55,7 +55,7 @@ Walk docs/architecture.md diagram 1, emphasizing the three invariants:
    because of this seam.
 
 Code layering: `api -> services -> models`, parsing pure and unit-tested, workers
-stateless. 70 tests: normalizers, Svix signatures (valid/tampered/cross-env), the
+stateless. 83 tests: normalizers, Svix signatures (valid/tampered/cross-env), the
 three auth branches and their scoping, idempotency, erasure with cascade
 verification, full webhook-to-chart integration against real Postgres.
 
@@ -70,6 +70,14 @@ invariants above survive every tier.
 ## 5. Criticalities and edge cases found (3 minutes)
 
 - The challenge API key was dead (401 from Junction): probed and reported day one.
+- **Demo data and real data have different shapes.** Demo wearables emit direct
+  biomarker resources; real Oura and WHOOP deliver heart rate, HRV, and breathing
+  rate inside sleep summaries. A pipeline tested only against sandbox demo data
+  ingests nothing from a real ring. Found against production, fixed with a sleep
+  parser, verified with 68 real nights backfilled.
+- A wearable's vendor cloud only has what the device synced to the vendor's phone
+  app over Bluetooth; web sign-ins cannot trigger a sync. Demo prep has to include
+  physically syncing devices, and the charts say honestly when data is stale.
 - WHOOP is BYOO-only: no aggregator-shared OAuth. Verified live (the consent exchange
   401s without team credentials); their production team has it configured, onsite
   teams do not. This is the single biggest "wearables integration" gotcha for them.
@@ -84,12 +92,16 @@ invariants above survive every tier.
 - Security observations: API keys shared in plaintext docs should be rotated after
   the challenge; biometric endpoints need auth from day one (implemented here).
 
-## 6. What I would do next (1 minute)
+## 6. From here to production (1 minute)
 
+Already production-shaped: CI/CD on merge, IaC, idempotent ingestion, consent
+ledger, erasure, dual environments. The queue to call it production-ready:
 Timescale hypertables and continuous aggregates, webhook-event retention sweep and
-S3 archival, the authentication hardening queue (docs/authentication.md), native
-HealthKit via the Junction mobile SDK instead of the Vital Connect bridge app, and
-a status page on queue depth and webhook failure rate.
+S3 archival, the authentication hardening queue (docs/authentication.md: Clerk
+production instance, per-IP rate limits on guest minting), native HealthKit via the
+Junction mobile SDK instead of the Vital Connect bridge app, EAS release builds in
+the stores instead of Expo Go, and a status page on queue depth and webhook failure
+rate.
 
 ## Links
 
