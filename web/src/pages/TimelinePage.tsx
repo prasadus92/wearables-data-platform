@@ -103,7 +103,14 @@ export function TimelinePage() {
     try {
       await api.sync(user.id)
     } catch (e) {
+      // The ask never went out, so there is nothing to wait for: reset the
+      // button right away instead of holding "Checking" for the full 20s.
       setError(String(e))
+      if (syncTimer.current) {
+        clearTimeout(syncTimer.current)
+        syncTimer.current = null
+      }
+      setSyncRequested(false)
     }
   }, [user.id, setError])
   const resolveSync = useCallback(() => {
