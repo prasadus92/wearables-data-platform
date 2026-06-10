@@ -21,7 +21,6 @@ import { DevicesPage } from './pages/DevicesPage'
 import { TimelinePage } from './pages/TimelinePage'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 // One session per environment, so Demo and Live coexist and switching is
 // instant. Demo (sandbox) offers synthetic wearables; Live (production)
@@ -58,50 +57,6 @@ export interface DashboardContext {
   liveVersion: number
   refreshDevices: () => Promise<void>
   setError: (error: string | null) => void
-}
-
-function ModeToggle({
-  mode,
-  onChange,
-  className,
-  liveDisabled = false,
-}: {
-  mode: JunctionEnv
-  onChange: (m: JunctionEnv) => void
-  className?: string
-  /** Guests are demo identities, so Live stays visible yet unclickable. */
-  liveDisabled?: boolean
-}) {
-  return (
-    <ToggleGroup
-      type="single"
-      size="sm"
-      variant="outline"
-      className={className}
-      value={mode}
-      onValueChange={(v) => {
-        if (v) onChange(v as JunctionEnv)
-      }}
-      aria-label="Data environment"
-    >
-      <ToggleGroupItem
-        value="sandbox"
-        className="px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
-      >
-        Demo
-      </ToggleGroupItem>
-      <ToggleGroupItem
-        value="production"
-        className={`px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground${
-          liveDisabled ? ' pointer-events-none opacity-40' : ''
-        }`}
-        title={liveDisabled ? 'Sign in to connect real devices' : undefined}
-        aria-disabled={liveDisabled || undefined}
-      >
-        Live
-      </ToggleGroupItem>
-    </ToggleGroup>
-  )
 }
 
 // Entrance choreography: parents stagger, children rise gently into place.
@@ -174,11 +129,17 @@ function AppShell() {
       localStorage.removeItem(userKey('production'))
       setSessions((s) => ({ ...s, production: null }))
     }
-    if (!signedIn && mode === 'production') {
-      setMode('sandbox')
-      localStorage.setItem(MODE_KEY, 'sandbox')
+    // The door you entered through decides the world: sign-in is Live,
+    // anonymous is Demo. No switching once inside.
+    if (clerkLoaded) {
+      const next: JunctionEnv = signedIn ? 'production' : 'sandbox'
+      if (mode !== next) {
+        setMode(next)
+        localStorage.setItem(MODE_KEY, next)
+        setDevices([])
+      }
     }
-  }, [sessions.production, signedIn, mode])
+  }, [sessions.production, signedIn, clerkLoaded, mode])
   // Guests are demo-only identities; Live mode is reserved for sign-in.
   const isGuest = Boolean(
     user && (user.client_user_id.startsWith('guest:') || user.guest_token),
@@ -238,12 +199,6 @@ function AppShell() {
   // to onboarding, so signed-in sessions never linger as anonymous ones.
   useEffect(() => {
     if (signedIn) {
-      // Signed-in users live in Live: real devices, real readings. Demo
-      // stays one click away in the header for exploring synthetic data.
-      if (!wasSignedIn.current) {
-        setMode('production')
-        localStorage.setItem(MODE_KEY, 'production')
-      }
       wasSignedIn.current = true
       return
     }
@@ -349,13 +304,6 @@ function AppShell() {
   // The shared sample account rides the idempotent service-side create.
   const exploreSample = () => establishSession(() => api.createUser('youth-sample', mode))
 
-  function switchMode(next: JunctionEnv) {
-    setMode(next)
-    localStorage.setItem(MODE_KEY, next)
-    setDevices([])
-    setError(null)
-  }
-
   if (!user) {
     return (
       <MotionConfig reducedMotion="user">
@@ -433,7 +381,16 @@ function AppShell() {
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-semibold tracking-tight">YOU(th) Wearables</h1>
-            <ModeToggle mode={mode} onChange={switchMode} liveDisabled={isGuest} />
+            <span
+              className="rounded-full border bg-card px-2.5 py-0.5 font-mono text-xs tracking-wide text-muted-foreground uppercase"
+              title={
+                mode === 'production'
+                  ? 'Real wearables connected to your account'
+                  : 'Synthetic data for exploring'
+              }
+            >
+              {mode === 'production' ? 'Live' : 'Demo'}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <span className="flex items-center gap-1 rounded-full border bg-card py-1 pr-1.5 pl-3 text-xs">
