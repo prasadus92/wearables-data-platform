@@ -73,3 +73,11 @@ Honest edges of the current setup, in priority order:
    deliberately rather than implicitly.
 5. **Single service key.** Production splits it per consumer with rotation, plus rate
    limiting and audit logging of service-key access to user data.
+6. **Right to erasure is service-side only.** DELETE /v1/users/{id} (service
+   credential required) deregisters providers at Junction, deletes the Junction user,
+   and cascades the local user, connections, samples, and device events. End users go
+   through support in this version; a self-serve "delete my account" flow would wrap
+   the same endpoint. Caveat: ``webhook_events`` rows are payload-matched rather than
+   FK'd and survive erasure as the raw ingestion audit log; they carry provider
+   identifiers, so a scheduled N-day retention sweep of that table is part of this
+   queue.
