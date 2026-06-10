@@ -20,6 +20,7 @@ import { storage, type Session } from './src/lib/storage';
 import { ConnectIntroScreen } from './src/screens/ConnectIntroScreen';
 import { ConnectMenuScreen } from './src/screens/ConnectMenuScreen';
 import { ConnectResultScreen } from './src/screens/ConnectResultScreen';
+import { ConnectSyncScreen } from './src/screens/ConnectSyncScreen';
 import { DevicesScreen } from './src/screens/DevicesScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { WelcomeScreen } from './src/screens/WelcomeScreen';
@@ -313,8 +314,20 @@ function Root() {
           />
         );
         break;
+      case 'connectSync':
+        screen = <ConnectSyncScreen provider={top.provider} />;
+        break;
     }
   }
+
+  // Connect-flow sheets sit on a dark scrim, so their status bar flips light.
+  const onScrim =
+    !bootstrapping &&
+    !showWelcome &&
+    (top.name === 'connectMenu' ||
+      top.name === 'connectIntro' ||
+      top.name === 'connectResult' ||
+      top.name === 'connectSync');
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -323,7 +336,7 @@ function Root() {
       <SafeAreaProvider>
         <AppContext.Provider value={value}>
           <View className="flex-1 bg-paper">
-            <StatusBar style={showWelcome ? 'light' : 'dark'} />
+            <StatusBar style={showWelcome || onScrim ? 'light' : 'dark'} />
             {screen}
           </View>
         </AppContext.Provider>

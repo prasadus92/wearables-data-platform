@@ -1,7 +1,7 @@
 import { ActivityIndicator, Text } from 'react-native';
 
 import { actionMedium, tapLight } from '../lib/haptics';
-import { colors } from '../theme/tokens';
+import { colors, fonts } from '../theme/tokens';
 import { AnimatedPressable } from './AnimatedPressable';
 
 type Variant = 'primary' | 'outline' | 'ghost' | 'light';
@@ -14,9 +14,11 @@ interface Props {
   busy?: boolean;
 }
 
+// Figma button system: 50pt tall, 12pt corners, mono uppercase label.
+// Outlined buttons carry the design's dark 1px outline.
 const container: Record<Variant, string> = {
   primary: 'bg-ink',
-  outline: 'border border-line bg-transparent',
+  outline: 'border border-ink bg-transparent',
   ghost: 'bg-transparent',
   light: 'bg-card',
 };
@@ -47,7 +49,7 @@ export function Button({
         onPress();
       }}
       disabled={inactive}
-      className={`h-14 flex-row items-center justify-center rounded-full px-6 ${container[variant]} ${inactive ? 'opacity-50' : ''}`}
+      className={`h-[50px] flex-row items-center justify-center rounded-xl px-6 ${container[variant]} ${inactive ? 'opacity-50' : ''}`}
     >
       {busy ? (
         <ActivityIndicator
@@ -55,7 +57,8 @@ export function Button({
         />
       ) : (
         <Text
-          className={`text-[13px] font-sans-medium uppercase tracking-[2px] ${labelCls[variant]}`}
+          style={{ fontFamily: fonts.mono }}
+          className={`text-[13px] uppercase tracking-[0.5px] ${labelCls[variant]}`}
         >
           {label}
         </Text>
