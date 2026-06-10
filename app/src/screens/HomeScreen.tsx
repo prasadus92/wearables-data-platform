@@ -19,8 +19,16 @@ import Animated, {
 
 import Svg, { Circle as SvgCircle, Path as SvgPath } from 'react-native-svg';
 
+import {
+  baseline,
+  latestStatus,
+  METRIC_META,
+  weekDelta,
+  type Device,
+  type Timeseries,
+} from '@youth/health-core';
+
 import { api } from '../api/client';
-import type { Device, TimeseriesOut } from '../api/types';
 import { Banner } from '../components/Banner';
 import { LineChart } from '../components/LineChart';
 import { MetricInfoSheet } from '../components/MetricInfoSheet';
@@ -33,8 +41,6 @@ import {
   providerName,
 } from '../lib/catalog';
 import { isOlderThan } from '../lib/format';
-import { baseline, latestStatus, weekDelta } from '../lib/insights';
-import { METRIC_META } from '../lib/metrics';
 import { enter, pressSpring } from '../lib/motion';
 import { colors, fonts } from '../theme/tokens';
 
@@ -239,7 +245,7 @@ export function HomeScreen() {
   const [metric, setMetric] = useState(METRICS[0]);
   const [range, setRange] = useState(RANGES[1]);
   const [devices, setDevices] = useState<Device[]>([]);
-  const [series, setSeries] = useState<TimeseriesOut | null>(null);
+  const [series, setSeries] = useState<Timeseries | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);

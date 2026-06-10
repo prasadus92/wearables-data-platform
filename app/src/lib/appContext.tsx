@@ -1,6 +1,6 @@
+import type { JunctionEnv } from '@youth/health-core';
 import { createContext, useContext } from 'react';
 
-import type { JunctionEnv } from '../api/types';
 import type { ProviderInfo } from './catalog';
 import type { Session } from './storage';
 

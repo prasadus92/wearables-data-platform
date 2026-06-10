@@ -10,9 +10,16 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { api, type Metric, type Resolution, type Timeseries } from '../api'
-import { baseline, latestStatus, weekDelta } from '../lib/insights'
-import { METRIC_META } from '../lib/metrics'
+import {
+  baseline,
+  latestStatus,
+  METRIC_META,
+  weekDelta,
+  type Metric,
+  type Resolution,
+  type Timeseries,
+} from '@youth/health-core'
+import { api } from '../api'
 import { TapButton } from './motion'
 import { Skeleton } from '@/components/ui/skeleton'
 

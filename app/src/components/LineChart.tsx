@@ -40,10 +40,13 @@ import {
 
 import Svg, { Path } from 'react-native-svg';
 
-import type { TimeseriesPoint } from '../api/types';
+import type {
+  Baseline,
+  ClinicalBand,
+  TimeseriesPoint,
+} from '@youth/health-core';
+
 import { dayLabel, hourLabel } from '../lib/format';
-import type { Baseline } from '../lib/insights';
-import type { ClinicalBand } from '../lib/metrics';
 import { colors } from '../theme/tokens';
 
 interface Props {

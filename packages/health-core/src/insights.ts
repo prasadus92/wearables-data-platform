@@ -4,7 +4,7 @@
 // descriptive: these functions report position relative to the user's own
 // data, never a judgement about health.
 
-import type { TimeseriesPoint } from '../api/types';
+import type { TimeseriesPoint } from './api-types';
 import type { GoodDirection } from './metrics';
 
 export interface Baseline {

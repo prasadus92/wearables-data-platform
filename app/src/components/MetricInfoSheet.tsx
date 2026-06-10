@@ -1,6 +1,6 @@
 import { Modal, Pressable, Text, View } from 'react-native';
 
-import type { MetricMeta } from '../lib/metrics';
+import type { MetricMeta } from '@youth/health-core';
 
 interface Props {
   meta: MetricMeta;

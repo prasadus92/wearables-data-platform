@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import type { Device, JunctionEnv } from '../api'
+import type { Device, JunctionEnv } from '@youth/health-core'
 import { springTransition, TapButton } from './motion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
