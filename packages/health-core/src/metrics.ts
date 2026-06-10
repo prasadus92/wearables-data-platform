@@ -76,3 +76,33 @@ export const METRIC_META: Record<Metric, MetricMeta> = {
     clinicalBand: { min: 90, max: 120, label: 'typical systolic range' },
   },
 };
+
+/**
+ * Which metrics each provider can actually deliver through Aggregator.
+ *
+ * Drives honest empty states: when nothing a user has connected measures a
+ * metric, the UI says so and points at a device that does, instead of
+ * offering a sync that can never produce data.
+ *
+ * Demo wearables are narrower than their real counterparts: Aggregator's
+ * synthetic data covers heart rate, HRV, and blood oxygen only, so demo
+ * connections use the `demo` entry regardless of provider slug.
+ */
+export const PROVIDER_METRICS: Record<string, readonly Metric[]> = {
+  oura: ['heartrate', 'hrv', 'spo2', 'respiratory_rate'],
+  whoop_v2: ['heartrate', 'hrv', 'spo2', 'respiratory_rate'],
+  garmin: ['heartrate', 'hrv', 'spo2', 'respiratory_rate'],
+  fitbit: ['heartrate', 'hrv', 'spo2', 'respiratory_rate'],
+  apple_health_kit: ['heartrate', 'hrv', 'spo2', 'respiratory_rate', 'blood_pressure'],
+  demo: ['heartrate', 'hrv', 'spo2'],
+};
+
+/** True when at least one of the given providers can deliver the metric. */
+export function metricSupported(
+  metric: Metric,
+  providers: readonly string[],
+  options?: { demo?: boolean },
+): boolean {
+  if (options?.demo) return PROVIDER_METRICS.demo.includes(metric);
+  return providers.some((slug) => (PROVIDER_METRICS[slug] ?? []).includes(metric));
+}

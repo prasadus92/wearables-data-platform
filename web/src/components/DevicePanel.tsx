@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 // demo data); Apple Watch requires the native SDK and is mobile-only.
 const PROVIDERS = [
   { slug: 'whoop_v2', name: 'WHOOP', demo: false, unlocks: 'Heart rate, HRV, breathing rate' },
-  { slug: 'oura', name: 'Oura', demo: true, unlocks: 'Sleep, HRV, blood oxygen' },
+  { slug: 'oura', name: 'Oura', demo: true, unlocks: 'HRV, blood oxygen, breathing rate' },
   { slug: 'garmin', name: 'Garmin', demo: false, unlocks: 'Heart rate, HRV, breathing rate' },
   { slug: 'fitbit', name: 'Fitbit', demo: true, unlocks: 'Heart rate, sleep, blood oxygen' },
 ]
@@ -24,13 +24,15 @@ interface Props {
 }
 
 function lastSynced(device: Device): string {
+  // last_data_at is the newest reading's own timestamp, so the honest label
+  // is about the data's age, never about when a sync ran.
   if (!device.last_data_at) return 'no data yet'
   const minutes = Math.round((Date.now() - new Date(device.last_data_at).getTime()) / 60000)
-  if (minutes < 1) return 'synced just now'
-  if (minutes < 60) return `synced ${minutes}m ago`
+  if (minutes < 1) return 'latest reading just now'
+  if (minutes < 60) return `latest reading ${minutes}m ago`
   const hours = Math.round(minutes / 60)
-  if (hours < 48) return `synced ${hours}h ago`
-  return `synced ${Math.round(hours / 24)}d ago`
+  if (hours < 48) return `latest reading ${hours}h ago`
+  return `latest reading ${Math.round(hours / 24)}d ago`
 }
 
 function StatusBadge({ status }: { status: Device['status'] }) {

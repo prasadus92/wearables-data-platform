@@ -14,6 +14,7 @@ import {
   baseline,
   latestStatus,
   METRIC_META,
+  metricSupported,
   weekDelta,
   type Metric,
   type Resolution,
@@ -35,6 +36,12 @@ interface Props {
   hasDevices: boolean
   /** Display names of the active connections, for the waiting empty state. */
   providerNames: string[]
+  /** Provider slugs of the active connections, for metric capability checks. */
+  providerSlugs: string[]
+  /** Demo connections deliver a narrower metric set than real devices. */
+  demoMode: boolean
+  /** Switches the metric tab when the current one cannot have data. */
+  onShowMetric: (metric: Metric) => void
   /** Label of the selected range ("7d"), for the out-of-range empty state. */
   rangeLabel: string
   /** Scrolls/leads the user to the connect section. */
@@ -90,6 +97,9 @@ export function TimelineChart({
   liveVersion,
   hasDevices,
   providerNames,
+  providerSlugs,
+  demoMode,
+  onShowMetric,
   rangeLabel,
   onConnectDevice,
   onShowRange,
@@ -136,6 +146,12 @@ export function TimelineChart({
 
   useEffect(() => {
     if (!inRangeEmpty || !hasDevices || probe.state !== 'idle') return
+    if (!metricSupported(metric, providerSlugs, { demo: demoMode })) {
+      // Nothing connected can produce this metric; skip the wide probe so
+      // the capability empty state renders without a wasted round trip.
+      setProbe({ state: 'empty' })
+      return
+    }
     let cancelled = false
     setProbe({ state: 'pending' })
     api
@@ -152,7 +168,7 @@ export function TimelineChart({
     return () => {
       cancelled = true
     }
-  }, [inRangeEmpty, hasDevices, probe.state, userId, metric])
+  }, [inRangeEmpty, hasDevices, probe.state, userId, metric, providerSlugs, demoMode])
 
   const meta = METRIC_META[metric]
 
@@ -185,6 +201,38 @@ export function TimelineChart({
       )
     }
 
+    if (hasDevices && !metricSupported(metric, providerSlugs, { demo: demoMode })) {
+      // Nothing connected can ever produce this metric; offering a sync here
+      // would be a dead end. Say what measures it instead.
+      return (
+        <div className="flex h-[400px] flex-col items-center justify-center gap-4 px-10 text-center">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium">
+              {demoMode
+                ? `Demo wearables do not include ${meta.friendlyName.toLowerCase()}`
+                : `None of your devices measures ${meta.friendlyName.toLowerCase()} yet`}
+            </span>
+            <span className="max-w-md text-sm text-muted-foreground">
+              {demoMode
+                ? 'Demo data covers heart rate, heart rate variability, and blood oxygen. Real devices deliver the rest.'
+                : metric === 'blood_pressure'
+                  ? 'Blood pressure usually comes from a smart cuff, or from readings logged in Apple Health on your phone.'
+                  : 'Connect a device that measures it and readings flow in automatically.'}
+            </span>
+          </div>
+          {demoMode ? (
+            <TapButton size="sm" onClick={() => onShowMetric('heartrate')}>
+              See heart rate instead
+            </TapButton>
+          ) : (
+            <TapButton size="sm" onClick={onConnectDevice}>
+              Connect a device
+            </TapButton>
+          )}
+        </div>
+      )
+    }
+
     return (
       <div className="flex h-[400px] flex-col items-center justify-center gap-4 px-10 text-center">
         {hasDevices ? (
@@ -194,9 +242,9 @@ export function TimelineChart({
                 No {meta.friendlyName.toLowerCase()} here yet
               </span>
               <span className="max-w-md text-sm text-muted-foreground">
-                {formatNameList(providerNames) || 'Your device'} connected. We are
-                waiting for the wearable to sync with its phone app; readings appear
-                here automatically the moment it does.
+                {demoMode
+                  ? `${formatNameList(providerNames) || 'Your demo wearable'} connected. The first readings are being generated and usually land within a couple of minutes; the chart fills in by itself.`
+                  : `${formatNameList(providerNames) || 'Your device'} connected. We are waiting for the wearable to sync with its phone app; readings appear here automatically the moment it does.`}
               </span>
             </div>
             <TapButton size="sm" disabled={syncRequested} onClick={onSync}>

@@ -11,7 +11,7 @@ export type {
   User,
 } from './api-types';
 
-export { METRIC_META } from './metrics';
+export { METRIC_META, PROVIDER_METRICS, metricSupported } from './metrics';
 export type { ClinicalBand, GoodDirection, MetricMeta } from './metrics';
 
 export { baseline, latestStatus, weekDelta } from './insights';

@@ -1,4 +1,4 @@
-import { SignInButton, UserButton } from '@clerk/react'
+import { SignInButton, UserButton, useUser } from '@clerk/react'
 import { AlertCircle } from 'lucide-react'
 import { motion, MotionConfig } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -169,6 +169,11 @@ function AppShell() {
   const isGuest = Boolean(
     user && (user.client_user_id.startsWith('guest:') || user.guest_token),
   )
+  const { user: clerkUser } = useUser()
+  // Header identity: a person's name, never a backend identifier.
+  const displayName = isGuest
+    ? 'Guest'
+    : clerkUser?.firstName || clerkUser?.fullName || 'You'
   const navigate = useNavigate()
   const [devices, setDevices] = useState<Device[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -289,7 +294,10 @@ function AppShell() {
   // guest has no data, so land on Devices where the first decision (pick a
   // wearable) lives instead of an empty timeline.
   const startAsGuest = async () => {
-    if (await establishSession(() => api.guests(mode))) navigate('/devices')
+    // Guests get a demo wearable attached server-side, so the timeline is
+    // the right first impression: readings stream in within a couple of
+    // minutes over SSE.
+    if (await establishSession(() => api.guests(mode))) navigate('/metrics/heartrate')
   }
   // The shared sample account rides the idempotent service-side create.
   const exploreSample = () => establishSession(() => api.createUser('wearables-sample', mode))
@@ -397,8 +405,8 @@ function AppShell() {
               >
                 sync now
               </Button>
-              <span className="font-mono text-foreground">
-                {user.client_user_id.startsWith('guest:') ? 'Guest' : user.client_user_id}
+              <span className="text-foreground" title={user.client_user_id}>
+                {displayName}
               </span>
               {!signedIn && (
                 <Button
