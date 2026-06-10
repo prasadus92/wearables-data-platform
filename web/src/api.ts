@@ -17,25 +17,44 @@ import type {
 const BASE = import.meta.env.VITE_API_URL ?? ''
 const API_KEY = import.meta.env.VITE_API_KEY ?? ''
 
-// When a signed-in Clerk session exists, AuthBridge registers a provider that
-// yields a session JWT; every request then authenticates as that identity via
-// Authorization: Bearer. With no provider (anonymous mode) the static API key
-// flows exactly as before.
+// Credential chain, strongest identity first: a signed-in Clerk session
+// (AuthBridge registers a provider yielding a session JWT), else the active
+// guest session's token (AppShell registers it when the active session
+// changes), else the build-time static API key. Keyless builds therefore run
+// the whole guest flow on the guest token alone.
 type TokenProvider = () => Promise<string | null>
 let tokenProvider: TokenProvider | null = null
+let guestToken: string | null = null
 
 export function setTokenProvider(fn: TokenProvider | null): void {
   tokenProvider = fn
 }
 
-async function authToken(): Promise<string | null> {
-  if (!tokenProvider) return null
-  try {
-    return await tokenProvider()
-  } catch {
-    return null
-  }
+/** AppShell calls this whenever the active session changes; null clears it. */
+export function setGuestToken(token: string | null): void {
+  guestToken = token
 }
+
+async function authToken(): Promise<string | null> {
+  // Clerk's getToken can transiently return null while a session revalidates
+  // (frequent on dev instances). A naked request would 401 on keyless builds,
+  // so retry briefly before falling back to the guest token.
+  if (tokenProvider) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const token = await tokenProvider()
+        if (token) return token
+      } catch {
+        // fall through to retry
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+  }
+  return guestToken
+}
+
+/** Backend GuestOut: the new user plus its one-time session token. */
+export type GuestUser = User & { guest_token: string }
 
 /** EventSource cannot set headers, so the stream URL carries the credential. */
 export async function streamUrl(userId: string): Promise<string> {
@@ -72,9 +91,10 @@ export const api = {
       body: JSON.stringify({ client_user_id: clientUserId, environment }),
     }),
 
-  /** Start an explicit guest session; the identity is minted server-side. */
+  /** Start an explicit guest session; the identity is minted server-side.
+   * The response carries guest_token exactly once; persist it. */
   guests: (environment: JunctionEnv = 'sandbox') =>
-    request<User>('/v1/guests', {
+    request<GuestUser>('/v1/guests', {
       method: 'POST',
       body: JSON.stringify({ environment }),
     }),

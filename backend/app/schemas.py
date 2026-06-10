@@ -63,6 +63,20 @@ class UserOut(BaseModel):
     created_at: datetime
 
 
+class GuestOut(UserOut):
+    """POST /v1/guests response: the new user plus its session token.
+
+    ``guest_token`` is returned exactly once, here. Only its SHA-256 is
+    stored, so it cannot be recovered later; the client must persist it.
+    The token authenticates requests scoped to this single user.
+    """
+
+    guest_token: str = Field(
+        description="One-time-issued session token; shown only in this response and "
+        "scoped to this user only."
+    )
+
+
 # --- Devices / connections ---
 
 
