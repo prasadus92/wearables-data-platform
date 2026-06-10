@@ -1,6 +1,7 @@
 import {ClerkProvider} from '@clerk/react';
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { AuthBridge } from './components/AuthBridge'
 import './styles.css'
@@ -13,7 +14,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       appearance={{ variables: { colorPrimary: '#1c1c1e' } }}
     >
       <AuthBridge>
-        <App />
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
       </AuthBridge>
     </ClerkProvider>
   </React.StrictMode>,
