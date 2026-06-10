@@ -420,7 +420,7 @@ export function TimelineChart({
           <Line
             type="monotone"
             dataKey="value"
-            name={isBloodPressure ? 'systolic' : metric}
+            name={isBloodPressure ? 'systolic' : meta.friendlyName}
             stroke="var(--chart-1)"
             strokeWidth={2}
             dot={points.length < 60}

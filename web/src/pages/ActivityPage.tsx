@@ -61,6 +61,12 @@ export function ActivityPage() {
   const { user, liveVersion } = useOutletContext<DashboardContext>()
   const navigate = useNavigate()
   const [events, setEvents] = useState<ActivityEvent[] | null>(null)
+  const [failed, setFailed] = useState(false)
+  // Whether the last fetch had rows before filtering, so the empty state can
+  // tell "nothing happened yet" apart from "only uncharted readings arrived".
+  const [hadRawRows, setHadRawRows] = useState(false)
+  // Bumped by the retry button; re-runs the load effect.
+  const [retryNonce, setRetryNonce] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -71,9 +77,15 @@ export function ActivityPage() {
         // Skipped events are readings we deliberately do not chart (steps,
         // calories, distance); a feed full of them reads as failure, so the
         // activity view shows only what moved the timeline or the devices.
-        if (!cancelled) setEvents(rows.filter((row) => row.status !== 'skipped'))
+        if (!cancelled) {
+          setEvents(rows.filter((row) => row.status !== 'skipped'))
+          setHadRawRows(rows.length > 0)
+          setFailed(false)
+        }
       } catch {
-        // Keep showing the last good list; the next tick retries.
+        // Keep showing the last good list; the next tick retries. With no
+        // list yet, surface a retryable error instead of an eternal skeleton.
+        if (!cancelled) setFailed(true)
       }
     }
 
@@ -85,7 +97,7 @@ export function ActivityPage() {
       cancelled = true
       clearInterval(interval)
     }
-  }, [user.id, liveVersion])
+  }, [user.id, liveVersion, retryNonce])
 
   return (
     <motion.div
@@ -100,20 +112,51 @@ export function ActivityPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {events === null && <Skeleton className="h-[300px] w-full rounded-xl" />}
+          {events === null && !failed && (
+            <Skeleton className="h-[300px] w-full rounded-xl" />
+          )}
+
+          {events === null && failed && (
+            <div className="flex h-[300px] flex-col items-center justify-center gap-4 px-10 text-center">
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-medium">Could not load your activity</span>
+                <span className="text-sm text-muted-foreground">
+                  The connection hiccuped. Your data is safe; try again.
+                </span>
+              </div>
+              <TapButton
+                size="sm"
+                onClick={() => {
+                  setFailed(false)
+                  setRetryNonce((n) => n + 1)
+                }}
+              >
+                Retry
+              </TapButton>
+            </div>
+          )}
 
           {events !== null && events.length === 0 && (
             <div className="flex h-[300px] flex-col items-center justify-center gap-4 px-10 text-center">
               <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium">No activity yet</span>
+                <span className="text-sm font-medium">
+                  {hadRawRows ? 'Nothing to show here yet' : 'No activity yet'}
+                </span>
                 <span className="text-sm text-muted-foreground">
-                  Every update lands here as your devices deliver readings: new data,
-                  backfills, and connection changes.
+                  {hadRawRows
+                    ? 'Updates are arriving, and so far they are all readings the timeline does not chart, like steps. Heart rate, sleep, and connection changes land here.'
+                    : 'Every update lands here as your devices deliver readings: new data, backfills, and connection changes.'}
                 </span>
               </div>
-              <TapButton size="sm" onClick={() => navigate('/devices')}>
-                Connect a device
-              </TapButton>
+              {hadRawRows ? (
+                <TapButton size="sm" onClick={() => navigate('/metrics/heartrate')}>
+                  View your timeline
+                </TapButton>
+              ) : (
+                <TapButton size="sm" onClick={() => navigate('/devices')}>
+                  Connect a device
+                </TapButton>
+              )}
             </div>
           )}
 

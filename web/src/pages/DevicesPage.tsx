@@ -27,7 +27,11 @@ export function DevicesPage() {
           setError(null)
           try {
             const { link_url } = await api.createLink(user.id, provider)
-            window.open(link_url, '_blank')
+            // Popup blockers return null without throwing; falling back to
+            // this tab keeps the flow alive (the link redirects back here
+            // when it finishes) instead of silently doing nothing.
+            const popup = window.open(link_url, '_blank')
+            if (!popup) window.location.assign(link_url)
           } catch (e) {
             setError(String(e))
           }
