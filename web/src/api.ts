@@ -52,6 +52,15 @@ export interface Device {
   last_data_at: string | null
 }
 
+export interface ActivityEvent {
+  id: string
+  event_type: string
+  status: 'received' | 'processed' | 'failed' | 'skipped'
+  received_at: string
+  processed_at: string | null
+  summary: string
+}
+
 export interface TimeseriesPoint {
   ts: string
   value: number
@@ -116,6 +125,9 @@ export const api = {
 
   disconnect: (userId: string, provider: string) =>
     request<void>(`/v1/users/${userId}/devices/${provider}`, { method: 'DELETE' }),
+
+  events: (userId: string, limit = 50) =>
+    request<ActivityEvent[]>(`/v1/users/${userId}/events?limit=${limit}`),
 
   sync: (userId: string) =>
     request<{ status: string; jobs: number }>(`/v1/users/${userId}/sync`, { method: 'POST' }),

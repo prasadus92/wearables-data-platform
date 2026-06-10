@@ -6,6 +6,7 @@ import { Link, Navigate, Outlet, Route, Routes, useLocation } from 'react-router
 import { api, streamUrl, type Device, type AggregatorEnv, type User } from './api'
 import { useClerkBridge } from './components/AuthBridge'
 import { springTransition, TapButton } from './components/motion'
+import { ActivityPage } from './pages/ActivityPage'
 import { DevicesPage } from './pages/DevicesPage'
 import { TimelinePage } from './pages/TimelinePage'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -95,6 +96,7 @@ function SectionNav() {
   const links = [
     { to: '/metrics/heartrate', label: 'Timeline', active: pathname.startsWith('/metrics') },
     { to: '/devices', label: 'Devices', active: pathname.startsWith('/devices') },
+    { to: '/activity', label: 'Activity', active: pathname.startsWith('/activity') },
   ]
   return (
     <nav aria-label="Dashboard sections" className="flex items-center gap-4 border-b pb-2">
@@ -424,6 +426,7 @@ export default function App() {
         <Route index element={<Navigate to="/metrics/heartrate" replace />} />
         <Route path="metrics/:metric" element={<TimelinePage />} />
         <Route path="devices" element={<DevicesPage />} />
+        <Route path="activity" element={<ActivityPage />} />
         <Route path="*" element={<Navigate to="/metrics/heartrate" replace />} />
       </Route>
     </Routes>
