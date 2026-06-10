@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Image,
   type LayoutChangeEvent,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import Animated, {
+  Easing,
   Extrapolation,
   interpolate,
   ReduceMotion,
@@ -63,14 +66,41 @@ import { heartbeat, tapLight } from '../lib/haptics';
 import { enter, pressSpring } from '../lib/motion';
 import { colors, fonts } from '../theme/tokens';
 
+// Blurred warm raster lifted from the Figma home backdrop; it already fades
+// to transparent at its lower edge so it melts into the night background.
+const backdropRaster = require('../../assets/home-backdrop.png');
+const BACKDROP_ASPECT = 393 / 470;
+
 /**
- * Full-bleed warm dark backdrop, approximating the Figma home's blurred
- * ember imagery with a vertical fade plus a soft glow near the top.
+ * Full-bleed warm dark backdrop. The blurred ember raster from the Figma
+ * home covers the top of the screen, with the original gradient overlaid
+ * at reduced opacity so text contrast holds. If the raster ever fails to
+ * load, the gradient returns to full strength as the whole backdrop.
  */
 function HomeBackdrop() {
+  const [rasterFailed, setRasterFailed] = useState(false);
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      <Svg width="100%" height="100%" preserveAspectRatio="none">
+      {rasterFailed ? null : (
+        <Image
+          source={backdropRaster}
+          resizeMode="cover"
+          onError={() => setRasterFailed(true)}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            aspectRatio: BACKDROP_ASPECT,
+          }}
+        />
+      )}
+      <Svg
+        width="100%"
+        height="100%"
+        preserveAspectRatio="none"
+        style={{ opacity: rasterFailed ? 1 : 0.55 }}
+      >
         <Defs>
           <SvgLinearGradient id="homeBase" x1="0" y1="0" x2="0" y2="1">
             <Stop offset="0" stopColor={colors.emberDeep} />
@@ -420,10 +450,44 @@ export function HomeScreen() {
   }, [series, meta]);
 
   const reduced = useReducedMotion();
+  const { height: windowHeight } = useWindowDimensions();
   const scrollY = useSharedValue(0);
+  // Quiet entrance for the ExampleHealth wordmark at the foot: it fades in and
+  // settles upward once the end of the page scrolls into view. One-shot,
+  // and instant when the OS asks for reduced motion.
+  const logoIn = useSharedValue(0);
+  const logoTriggered = useSharedValue(false);
+  const logoTiming = {
+    duration: 480,
+    easing: Easing.out(Easing.cubic),
+    reduceMotion: ReduceMotion.System,
+  } as const;
   const onScroll = useAnimatedScrollHandler((event) => {
     scrollY.value = event.contentOffset.y;
+    if (
+      !logoTriggered.value &&
+      event.contentOffset.y + event.layoutMeasurement.height >=
+        event.contentSize.height - 64
+    ) {
+      logoTriggered.value = true;
+      logoIn.value = withTiming(1, logoTiming);
+    }
   });
+  // Scroll events never fire when everything already fits on screen, so a
+  // short page reveals the wordmark as soon as the content size is known.
+  const onContentSizeChange = useCallback(
+    (_width: number, height: number) => {
+      if (height > windowHeight || logoTriggered.value) return;
+      logoTriggered.value = true;
+      logoIn.value = withTiming(1, logoTiming);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [windowHeight, logoIn, logoTriggered],
+  );
+  const logoStyle = useAnimatedStyle(() => ({
+    opacity: logoIn.value,
+    transform: [{ translateY: (1 - logoIn.value) * 10 }],
+  }));
   // Light condense effect: the title drifts up and shrinks slightly as the
   // list scrolls. Clamped so pull-to-refresh (negative offsets) is untouched.
   const headerStyle = useAnimatedStyle(() => {
@@ -456,6 +520,8 @@ export function HomeScreen() {
       return null;
     }
     setLoading(true);
+    // A retry must show the busy spinner, never a frozen error view.
+    setError(null);
     const fetchOnce = () => {
       const end = new Date();
       const start = new Date(end.getTime() - range.hours * 3600 * 1000);
@@ -480,7 +546,7 @@ export function HomeScreen() {
       return next;
     } catch {
       // Both attempts failed: a real request failure.
-      setError('Could not load data. Pull to refresh to retry.');
+      setError('Could not load data. Check your connection and try again.');
       setSeries(null);
       return null;
     } finally {
@@ -490,9 +556,18 @@ export function HomeScreen() {
 
   // Revalidate the shared device list every time home gains focus (this
   // screen mounts fresh per navigation) and when the session or auth state
-  // resolves, so connect-state UI never trusts a stale snapshot.
+  // resolves, so connect-state UI never trusts a stale snapshot. The settle
+  // result is tracked so a device list that cannot load bounds its spinner
+  // with retryable copy instead of holding it forever.
+  const [devicesFailed, setDevicesFailed] = useState(false);
   useEffect(() => {
-    refreshDevices();
+    let stale = false;
+    refreshDevices().then((list) => {
+      if (!stale) setDevicesFailed(list === null);
+    });
+    return () => {
+      stale = true;
+    };
   }, [refreshDevices]);
 
   useEffect(() => {
@@ -562,21 +637,35 @@ export function HomeScreen() {
       : false;
 
   // The selected window may simply be too narrow; probe wide before
-  // explaining the emptiness, so the copy never misleads.
-  useEffect(() => {
-    setProbe({ state: 'idle' });
-  }, [metric.key, range.key, session?.userId, slugsKey]);
+  // explaining the emptiness, so the copy never misleads. The probe key
+  // names the context a result belongs to; a change resets the machine.
+  const probeKey = `${session?.userId ?? ''}|${metric.key}|${range.key}|${slugsKey}`;
+  const probeKeyRef = useRef(probeKey);
+  probeKeyRef.current = probeKey;
 
   useEffect(() => {
+    setProbe({ state: 'idle' });
+  }, [probeKey]);
+
+  // The probe effect must not pair a probe-state dependency with a
+  // cancelling cleanup: setting `pending` would re-run the effect, fire the
+  // previous run's cleanup, and discard the fetch result, leaving the
+  // spinner up forever. An in-flight ref guards a single probe instead;
+  // there is no cleanup, and a resolution whose key no longer matches is
+  // dropped and re-arms the machine for the current key. A late resolution
+  // on an unmounted instance is a harmless no-op.
+  const probeInFlight = useRef(false);
+  useEffect(() => {
     if (!inRangeEmpty || !session || active.length === 0) return;
-    if (probe.state !== 'idle') return;
+    if (probe.state !== 'idle' || probeInFlight.current) return;
     if (!supported) {
       // Nothing connected can produce this metric; skip the wide probe so
       // the capability empty state renders without a wasted round trip.
       setProbe({ state: 'empty' });
       return;
     }
-    let cancelled = false;
+    probeInFlight.current = true;
+    const key = probeKey;
     setProbe({ state: 'pending' });
     const end = new Date();
     const start = new Date(end.getTime() - 90 * 24 * 3600 * 1000);
@@ -587,7 +676,7 @@ export function HomeScreen() {
         resolution: 'day',
       })
       .then((wide) => {
-        if (cancelled) return;
+        if (probeKeyRef.current !== key) return;
         const last = wide.points.at(-1);
         setProbe(
           last ? { state: 'found', latestTs: last.ts } : { state: 'empty' },
@@ -595,13 +684,16 @@ export function HomeScreen() {
       })
       .catch(() => {
         // On probe failure fall back to the connected-but-waiting copy.
-        if (!cancelled) setProbe({ state: 'empty' });
+        if (probeKeyRef.current === key) setProbe({ state: 'empty' });
+      })
+      .finally(() => {
+        probeInFlight.current = false;
+        // A result for a superseded key settled nothing; re-arm so the
+        // current key launches its own probe instead of idling forever.
+        if (probeKeyRef.current !== key) setProbe({ state: 'idle' });
       });
-    return () => {
-      cancelled = true;
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inRangeEmpty, active.length, probe.state, supported, session, metric.key]);
+  }, [inRangeEmpty, active.length, probe, supported, session, metric.key]);
 
   // Hold the spinner while the probe decides which empty state applies, so
   // the explanation never flickers between copies.
@@ -612,11 +704,23 @@ export function HomeScreen() {
     (probe.state === 'idle' || probe.state === 'pending');
 
   // An empty chart cannot pick its empty-state copy until the device list
-  // is known; hold the spinner rather than guess.
-  const devicesPending = !!session && !devicesKnown && inRangeEmpty;
+  // is known; hold the spinner rather than guess. Once every fetch attempt
+  // has failed the spinner yields to retryable copy instead of hanging.
+  const devicesPending =
+    !!session && !devicesKnown && !devicesFailed && inRangeEmpty;
 
   const friendly = meta.friendlyName.toLowerCase();
   const empty = useMemo(() => {
+    if (!devicesKnown) {
+      // Reachable only when every device fetch failed: without the list the
+      // other copies would guess, so say what happened and offer a retry.
+      return {
+        title: 'Could not check your devices',
+        message:
+          'The connection hiccuped while loading your device list. Your data is safe.',
+        action: { label: 'Try again', onPress: onRefresh },
+      };
+    }
     if (active.length === 0) {
       return {
         title: `Your ${friendly} will live here`,
@@ -678,6 +782,7 @@ export function HomeScreen() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    devicesKnown,
     slugsKey,
     active.length,
     supported,
@@ -698,6 +803,7 @@ export function HomeScreen() {
       <Animated.ScrollView
         style={{ flex: 1 }}
         onScroll={onScroll}
+        onContentSizeChange={onContentSizeChange}
         scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
@@ -821,10 +927,21 @@ export function HomeScreen() {
                 </View>
 
                 {error ? (
-                  <View className="h-[220px] items-center justify-center px-6">
+                  <View className="h-[220px] items-center justify-center gap-3 px-6">
                     <Text className="text-center text-[13px] font-sans text-[rgba(255,255,255,0.65)]">
                       {error}
                     </Text>
+                    <Pressable
+                      onPress={() => loadSeries()}
+                      className="mt-1 h-10 items-center justify-center rounded-full bg-white px-5 active:opacity-80"
+                    >
+                      <Text
+                        style={{ fontFamily: fonts.mono }}
+                        className="text-[12px] uppercase tracking-[0.5px] text-ink"
+                      >
+                        Try again
+                      </Text>
+                    </Pressable>
                   </View>
                 ) : !session ? (
                   <View className="h-[220px] items-center justify-center px-6">
@@ -867,9 +984,11 @@ export function HomeScreen() {
                 everything. Regular check-ups with health professionals are
                 recommended.
               </Text>
-              <Text className="mt-6 text-[20px] font-sans-medium text-white">
-                ExampleHealth
-              </Text>
+              <Animated.View style={logoStyle}>
+                <Text className="mt-6 text-[20px] font-sans-medium text-white">
+                  ExampleHealth
+                </Text>
+              </Animated.View>
             </View>
           </Animated.View>
         </View>

@@ -108,7 +108,12 @@ export function WelcomeScreen() {
       setError('Enter your email address.');
       return;
     }
-    if (!clerkReady || !clerkSignIn) return;
+    if (!clerkReady || !clerkSignIn) {
+      // Auth is still starting up (or could not start); a silent return
+      // would make the button a dead tap.
+      setError('Sign-in is still getting ready. Try again in a moment.');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -129,7 +134,10 @@ export function WelcomeScreen() {
       setError('Enter the code from your email.');
       return;
     }
-    if (!clerkReady || !clerkSignIn || !setActive) return;
+    if (!clerkReady || !clerkSignIn || !setActive) {
+      setError('Sign-in is still getting ready. Try again in a moment.');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
