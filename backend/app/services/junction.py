@@ -96,7 +96,9 @@ class JunctionClient:
         return await self._request("DELETE", f"/v2/user/{junction_user_id}/{provider}")
 
     async def get_user_connections(self, junction_user_id: str) -> dict[str, Any]:
-        return await self._request("GET", f"/v2/user/{junction_user_id}/providers")
+        # Verified against the live API: /v2/user/{id}/providers returns 405,
+        # the working shape is /v2/user/providers/{id}.
+        return await self._request("GET", f"/v2/user/providers/{junction_user_id}")
 
     async def connect_demo_provider(self, junction_user_id: str, provider: str) -> dict[str, Any]:
         """Sandbox only: create a demo connection (oura/fitbit/apple_health_kit)
