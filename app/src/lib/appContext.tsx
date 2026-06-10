@@ -16,7 +16,9 @@ export type Route =
       /** Provider was connected before the flow even started. */
       already?: boolean;
       message?: string;
-    };
+    }
+  /** Post-success syncing story shown between Done and home. */
+  | { name: 'connectSync'; provider: ProviderInfo };
 
 export interface Nav {
   push: (route: Route) => void;

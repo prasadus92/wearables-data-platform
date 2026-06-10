@@ -226,17 +226,19 @@ function ConnectCard({
         <Text className="text-[16px] text-[#8E8C88]">✕</Text>
       </Pressable>
       <Text className="pr-8 text-[17px] font-sans-medium text-card">
-        Connect your wearables for an enhanced experience
+        Connect your devices
       </Text>
       <Text className="mt-1.5 text-[13px] font-sans leading-[19px] text-[#B9B7B2]">
-        Sync your devices to unlock deeper health insights and keep your data
-        up to date.
+        Unlock more insights by connecting your wearable devices.
       </Text>
       <Pressable
         onPress={onConnect}
-        className="mt-4 self-start rounded-full bg-card px-5 py-2.5 active:opacity-80"
+        className="mt-4 self-start rounded-xl bg-card px-5 py-2.5 active:opacity-80"
       >
-        <Text className="text-[12px] font-sans-medium uppercase tracking-[2px] text-ink">
+        <Text
+          style={{ fontFamily: fonts.mono }}
+          className="text-[12px] uppercase tracking-[0.5px] text-ink"
+        >
           {hasSession ? 'Connect a device' : 'Get started'}
         </Text>
       </Pressable>
@@ -409,7 +411,7 @@ export function HomeScreen() {
                 style={{ fontFamily: fonts.mono }}
                 className="text-[11px] uppercase tracking-[2px] text-faint"
               >
-                Welcome back
+                Welcome back,
               </Text>
               <Text className="text-[24px] font-sans-medium text-ink">
                 {displayName}
@@ -464,7 +466,7 @@ export function HomeScreen() {
         <Animated.View entering={enter(2)}>
           <View className="mb-3 mt-2 flex-row items-center justify-between">
             <Text className="text-[18px] font-sans-medium text-ink">
-              Your biomarkers
+              Biomarkers
             </Text>
             <Pressable
               accessibilityRole="button"

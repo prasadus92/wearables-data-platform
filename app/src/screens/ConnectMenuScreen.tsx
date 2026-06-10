@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import Animated, {
   ReduceMotion,
   useAnimatedStyle,
@@ -13,19 +13,18 @@ import type { Device } from '@examplehealth/health-core';
 
 import { api } from '../api/client';
 import { AnimatedPressable } from '../components/AnimatedPressable';
-import { Header } from '../components/Header';
+import { SheetHandle, SheetTitle, sheetIn } from '../components/Sheet';
 import { useApp } from '../lib/appContext';
 import { PROVIDERS, type ProviderInfo } from '../lib/catalog';
-import { enter } from '../lib/motion';
-import { colors } from '../theme/tokens';
+import { colors, fonts } from '../theme/tokens';
 
 function Chevron() {
   return (
-    <Svg width={16} height={16} viewBox="0 0 16 16" fill="none">
+    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
       <Path
-        d="M6 3.5L10.5 8L6 12.5"
-        stroke={colors.faint}
-        strokeWidth={1.8}
+        d="M9.5 6.5L15 12L9.5 17.5"
+        stroke={colors.ink}
+        strokeWidth={1.6}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -33,37 +32,47 @@ function Chevron() {
   );
 }
 
+/** 20pt monochrome stand-in for the brand glyphs in the design. */
+function ProviderGlyph({ name }: { name: string }) {
+  return (
+    <View className="h-5 w-5 items-center justify-center rounded-full border border-ink">
+      <Text className="text-[10px] font-sans-medium leading-[12px] text-ink">
+        {name[0]}
+      </Text>
+    </View>
+  );
+}
+
 function ProviderRow({
   provider,
   status,
-  index,
   onPress,
 }: {
   provider: ProviderInfo;
   status: 'none' | 'expired';
-  index: number;
   onPress: () => void;
 }) {
   return (
     <AnimatedPressable
-      entering={enter(index)}
       onPress={onPress}
-      className="mb-3 flex-row items-center rounded-2xl bg-card p-4"
+      className="mb-2 w-full flex-row items-center gap-1.5 rounded-2xl bg-grey px-5 py-3.5"
     >
-      <View className="h-12 w-12 items-center justify-center rounded-full bg-paper">
-        <Text className="text-[17px] font-sans-medium text-ink">
-          {provider.name[0]}
-        </Text>
-      </View>
-      <View className="ml-3 flex-1">
-        <Text className="text-[16px] font-sans-medium text-ink">
-          {provider.name}
-        </Text>
-        <Text
-          className={`mt-0.5 text-[13px] ${status === 'expired' ? 'font-sans-medium text-amber' : 'font-sans text-sub'}`}
-        >
-          {status === 'expired' ? 'Connection expired' : 'Not connected'}
-        </Text>
+      <View className="flex-1 flex-row items-start gap-1.5">
+        <ProviderGlyph name={provider.name} />
+        <View className="gap-0.5">
+          <Text className="text-[16px] font-sans-medium leading-[22px] text-ink">
+            {provider.name}
+          </Text>
+          <Text
+            style={{
+              fontFamily: fonts.mono,
+              color: status === 'expired' ? colors.attention : colors.mute,
+            }}
+            className="text-[10px] uppercase leading-[12px] tracking-[0.5px]"
+          >
+            {status === 'expired' ? 'Connection expired' : 'Not connected'}
+          </Text>
+        </View>
       </View>
       <Chevron />
     </AnimatedPressable>
@@ -71,7 +80,7 @@ function ProviderRow({
 }
 
 /**
- * Placeholder card shown while the device list loads, so already-connected
+ * Placeholder row while the device list loads, so already-connected
  * providers never flash in the menu. A simple opacity pulse; static under
  * Reduce Motion.
  */
@@ -94,22 +103,43 @@ function SkeletonRow() {
     <Animated.View
       style={[
         {
-          marginBottom: 12,
+          marginBottom: 8,
           flexDirection: 'row',
           alignItems: 'center',
           borderRadius: 16,
-          backgroundColor: colors.card,
-          padding: 16,
+          backgroundColor: colors.grey,
+          paddingHorizontal: 20,
+          paddingVertical: 14,
         },
         style,
       ]}
     >
-      <View className="h-12 w-12 rounded-full bg-paper" />
-      <View className="ml-3 flex-1">
-        <View className="h-4 w-24 rounded-full bg-paper" />
-        <View className="mt-2 h-3 w-32 rounded-full bg-paper" />
+      <View className="h-5 w-5 rounded-full bg-card" />
+      <View className="ml-1.5 gap-1.5">
+        <View className="h-4 w-24 rounded-full bg-card" />
+        <View className="h-2.5 w-32 rounded-full bg-card" />
       </View>
     </Animated.View>
+  );
+}
+
+function Disclaimer() {
+  return (
+    <View className="mt-2 w-full flex-row gap-4 py-1">
+      <View className="h-[56px] w-[5px] rounded-[20px] bg-grey" />
+      <View className="flex-1 gap-1">
+        <Text
+          style={{ fontFamily: fonts.mono, color: 'rgba(27, 27, 27, 0.5)' }}
+          className="text-[12px] uppercase leading-[16px]"
+        >
+          Disclaimer
+        </Text>
+        <Text className="text-[14px] font-sans leading-[20px] text-ink">
+          Your historical data will be collected starting with next month's
+          app update.
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -145,41 +175,52 @@ export function ConnectMenuScreen() {
   const available = PROVIDERS.filter((p) => statusFor(p.slug) !== 'connected');
 
   return (
-    <View className="flex-1 bg-paper pt-14">
-      <Header title="Connect a device" onBack={nav.pop} />
-      <ScrollView className="flex-1 px-5 pt-2">
-        <Animated.View entering={enter(0)}>
-          <Text className="mb-4 text-[14px] font-sans leading-[20px] text-sub">
-            Choose your wearable. You will sign in to the brand's own account
-            to authorize data sharing.
-          </Text>
-        </Animated.View>
-        {devices === null ? (
-          // The connected set is unknown until the fetch lands; placeholder
-          // cards keep the menu from offering providers it should hide.
-          <>
-            <SkeletonRow />
-            <SkeletonRow />
-            <SkeletonRow />
-          </>
-        ) : available.length === 0 ? (
-          <View className="items-center rounded-2xl bg-card px-6 py-12">
-            <Text className="text-center text-[14px] font-sans text-sub">
-              All supported devices are already connected.
-            </Text>
+    <View className="flex-1 bg-scrim">
+      {/* The dimmed area above the sheet dismisses it, like the design. */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Close"
+        onPress={nav.pop}
+        className="flex-1"
+      />
+      <Animated.View
+        entering={sheetIn}
+        style={{ paddingHorizontal: 8, paddingBottom: 8 }}
+      >
+        <SheetHandle />
+        <View className="rounded-[29px] border border-mist bg-card p-5">
+          <View className="mb-4">
+            <SheetTitle>Select a device</SheetTitle>
           </View>
-        ) : (
-          available.map((p, i) => (
-            <ProviderRow
-              key={p.slug}
-              provider={p}
-              status={statusFor(p.slug) === 'expired' ? 'expired' : 'none'}
-              index={i + 1}
-              onPress={() => nav.push({ name: 'connectIntro', provider: p })}
-            />
-          ))
-        )}
-      </ScrollView>
+          {devices === null ? (
+            // The connected set is unknown until the fetch lands;
+            // placeholder rows keep the menu from offering providers it
+            // should hide.
+            <>
+              <SkeletonRow />
+              <SkeletonRow />
+              <SkeletonRow />
+              <SkeletonRow />
+            </>
+          ) : available.length === 0 ? (
+            <View className="items-center rounded-2xl bg-grey px-6 py-10">
+              <Text className="text-center text-[14px] font-sans text-sub">
+                All supported devices are already connected.
+              </Text>
+            </View>
+          ) : (
+            available.map((p) => (
+              <ProviderRow
+                key={p.slug}
+                provider={p}
+                status={statusFor(p.slug) === 'expired' ? 'expired' : 'none'}
+                onPress={() => nav.push({ name: 'connectIntro', provider: p })}
+              />
+            ))
+          )}
+          <Disclaimer />
+        </View>
+      </Animated.View>
     </View>
   );
 }
