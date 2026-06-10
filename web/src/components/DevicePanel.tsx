@@ -9,10 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 // sandbox demo shortcut. WHOOP/Garmin require real accounts (no sandbox
 // demo data); Apple Watch requires the native SDK and is mobile-only.
 const PROVIDERS = [
-  { slug: 'whoop_v2', name: 'WHOOP', demo: false },
-  { slug: 'oura', name: 'Oura', demo: true },
-  { slug: 'garmin', name: 'Garmin', demo: false },
-  { slug: 'fitbit', name: 'Fitbit', demo: true },
+  { slug: 'whoop_v2', name: 'WHOOP', demo: false, unlocks: 'Heart rate, HRV, breathing rate' },
+  { slug: 'oura', name: 'Oura', demo: true, unlocks: 'Sleep, HRV, blood oxygen' },
+  { slug: 'garmin', name: 'Garmin', demo: false, unlocks: 'Heart rate, HRV, breathing rate' },
+  { slug: 'fitbit', name: 'Fitbit', demo: true, unlocks: 'Heart rate, sleep, blood oxygen' },
 ]
 
 interface Props {
@@ -70,7 +70,7 @@ export function DevicePanel({ devices, environment, onConnect, onConnectDemo, on
       </CardHeader>
       <CardContent className="flex flex-col gap-3.5">
         {active.length === 0 && (
-          <p className="text-sm text-muted-foreground">No devices connected. Pick one below.</p>
+          <p className="text-sm text-muted-foreground">Connect a wearable once and your readings keep flowing in automatically.</p>
         )}
 
         {active.length > 0 && (
@@ -125,6 +125,9 @@ export function DevicePanel({ devices, environment, onConnect, onConnectDemo, on
                   className="flex min-w-[120px] flex-col items-center gap-2 rounded-xl border border-dashed border-input px-4 py-3.5"
                 >
                   <span className="text-sm font-medium">{provider.name}</span>
+                <span className="text-center text-xs leading-snug text-muted-foreground">
+                  {provider.unlocks}
+                </span>
                   <TapButton size="sm" onClick={() => onConnect(provider.slug)}>
                     Connect
                   </TapButton>
