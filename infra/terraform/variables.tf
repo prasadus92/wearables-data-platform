@@ -39,6 +39,12 @@ variable "aggregator_environment" {
   default     = "sandbox"
 }
 
+variable "api_auth_token" {
+  description = "Static token required by the /v1 API (X-API-Key / Bearer)"
+  type        = string
+  sensitive   = true
+}
+
 variable "aggregator_webhook_secret" {
   description = "Svix signing secret from the Aggregator webhook endpoint config (set after registering the endpoint)"
   type        = string

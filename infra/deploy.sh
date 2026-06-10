@@ -13,6 +13,7 @@ AGGREGATOR_API_KEY=$(grep '^AGGREGATOR_API_KEY=' .env | cut -d= -f2)
 AGGREGATOR_WEBHOOK_SECRET=$(grep '^AGGREGATOR_WEBHOOK_SECRET=' .env | cut -d= -f2 || true)
 export TF_VAR_aggregator_api_key="$AGGREGATOR_API_KEY"
 export TF_VAR_aggregator_webhook_secret="$AGGREGATOR_WEBHOOK_SECRET"
+export TF_VAR_api_auth_token="$(grep '^API_AUTH_TOKEN=' .env | cut -d= -f2)"
 
 if [[ "${APPLY:-0}" == "1" ]]; then
   terraform -chdir=infra/terraform init -upgrade -input=false

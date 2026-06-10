@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     # --- Service ---
     log_level: str = "INFO"
     environment: str = "local"  # local | staging | production
+    # Static bearer token for the /v1 API (app/Postman traffic). Empty
+    # disables auth (local development only). Production replaces this
+    # with per-user JWTs; see docs/architecture.md security notes.
+    api_auth_token: str = ""
 
     @property
     def aggregator_base_url(self) -> str:
