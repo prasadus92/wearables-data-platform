@@ -1,0 +1,58 @@
+# Local development stack. Mirrors the production topology:
+# api (FastAPI) + worker (ARQ) + Postgres (TimescaleDB) + Redis.
+services:
+  api:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://youth:youth@db:5432/wearables
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  worker:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://youth:youth@db:5432/wearables
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: arq app.workers.worker.WorkerSettings
+
+  db:
+    # TimescaleDB = Postgres + time-series superpowers; we use plain Postgres
+    # features now, hypertables are a one-command upgrade when volume demands.
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_USER: youth
+      POSTGRES_PASSWORD: youth
+      POSTGRES_DB: wearables
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U youth -d wearables"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  pgdata:
