@@ -9,6 +9,10 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://youth:youth@db:5432/wearables
       REDIS_URL: redis://redis:6379/0
+      # Local receives no real Junction traffic (not publicly reachable), so
+      # signature verification is disabled to allow simulated webhooks.
+      # The deployed environment always verifies.
+      JUNCTION_WEBHOOK_SECRET: ""
     depends_on:
       db:
         condition: service_healthy
