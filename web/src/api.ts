@@ -5,9 +5,30 @@
 const BASE = import.meta.env.VITE_API_URL ?? ''
 const API_KEY = import.meta.env.VITE_API_KEY ?? ''
 
-/** EventSource cannot set headers, so the stream URL carries the key. */
-export function streamUrl(userId: string): string {
-  const suffix = API_KEY ? `?api_key=${encodeURIComponent(API_KEY)}` : ''
+// When a signed-in Clerk session exists, AuthBridge registers a provider that
+// yields a session JWT; every request then authenticates as that identity via
+// Authorization: Bearer. With no provider (anonymous mode) the static API key
+// flows exactly as before.
+type TokenProvider = () => Promise<string | null>
+let tokenProvider: TokenProvider | null = null
+
+export function setTokenProvider(fn: TokenProvider | null): void {
+  tokenProvider = fn
+}
+
+async function authToken(): Promise<string | null> {
+  if (!tokenProvider) return null
+  try {
+    return await tokenProvider()
+  } catch {
+    return null
+  }
+}
+
+/** EventSource cannot set headers, so the stream URL carries the credential. */
+export async function streamUrl(userId: string): Promise<string> {
+  const credential = (await authToken()) ?? API_KEY
+  const suffix = credential ? `?api_key=${encodeURIComponent(credential)}` : ''
   return `${BASE}/v1/users/${userId}/stream${suffix}`
 }
 
@@ -45,10 +66,15 @@ export interface Timeseries {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = await authToken()
   const response = await fetch(`${BASE}${path}`, {
     headers: {
       'Content-Type': 'application/json',
-      ...(API_KEY ? { 'X-API-Key': API_KEY } : {}),
+      ...(token
+        ? { Authorization: `Bearer ${token}` }
+        : API_KEY
+          ? { 'X-API-Key': API_KEY }
+          : {}),
     },
     ...init,
   })
@@ -65,6 +91,13 @@ export const api = {
     request<User>('/v1/users', {
       method: 'POST',
       body: JSON.stringify({ client_user_id: clientUserId, environment }),
+    }),
+
+  /** Bootstrap the signed-in identity: gets-or-creates its user per mode. */
+  me: (environment: JunctionEnv = 'sandbox') =>
+    request<User>('/v1/me', {
+      method: 'POST',
+      body: JSON.stringify({ environment }),
     }),
 
   listDevices: (userId: string) => request<Device[]>(`/v1/users/${userId}/devices`),

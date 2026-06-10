@@ -1,3 +1,4 @@
+import { SignInButton, UserButton } from '@clerk/react'
 import { AlertCircle, Info } from 'lucide-react'
 import { AnimatePresence, motion, MotionConfig } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -10,6 +11,7 @@ import {
   type Resolution,
   type User,
 } from './api'
+import { useClerkBridge } from './components/AuthBridge'
 import { DevicePanel } from './components/DevicePanel'
 import { springTransition, TapButton } from './components/motion'
 import { TimelineChart } from './components/TimelineChart'
@@ -39,7 +41,11 @@ const RANGES: { label: string; days: number; resolution: Resolution }[] = [
 const MODE_KEY = 'youth-wearables-mode'
 const userKey = (env: JunctionEnv) => `youth-wearables-user:${env}`
 
-function loadUser(env: JunctionEnv): User | null {
+// Sessions bootstrapped through Clerk carry a marker so anonymous and
+// signed-in identities never mix: each is ignored while the other applies.
+type StoredUser = User & { auth?: 'clerk' }
+
+function loadUser(env: JunctionEnv): StoredUser | null {
   // Migrate the pre-mode single-session key into the sandbox slot.
   const legacy = localStorage.getItem('youth-wearables-user')
   if (legacy && env === 'sandbox' && !localStorage.getItem(userKey('sandbox'))) {
@@ -145,11 +151,18 @@ export default function App() {
   const [mode, setMode] = useState<JunctionEnv>(
     () => (localStorage.getItem(MODE_KEY) as JunctionEnv) || 'sandbox',
   )
-  const [sessions, setSessions] = useState<Record<JunctionEnv, User | null>>(() => ({
+  const [sessions, setSessions] = useState<Record<JunctionEnv, StoredUser | null>>(() => ({
     sandbox: loadUser('sandbox'),
     production: loadUser('production'),
   }))
-  const user = sessions[mode]
+  const { loaded: clerkLoaded, signedIn } = useClerkBridge()
+  // Once Clerk has resolved, only show sessions that match the auth state:
+  // signed in ignores stored anonymous sessions (api.me replaces them), and
+  // signed out ignores any leftover Clerk-bootstrapped session. While Clerk
+  // is still loading, trust the stored slot to avoid an onboarding flash.
+  const stored = sessions[mode]
+  const storedIsClerk = stored?.auth === 'clerk'
+  const user = clerkLoaded && storedIsClerk !== signedIn ? null : stored
   const [devices, setDevices] = useState<Device[]>([])
   const [metric, setMetric] = useState<Metric>('heartrate')
   const [range, setRange] = useState(1)
@@ -160,6 +173,50 @@ export default function App() {
   // Bumped by SSE updates; charts refetch when it changes.
   const [liveVersion, setLiveVersion] = useState(0)
   const devicesRef = useRef<HTMLDivElement>(null)
+  const wasSignedIn = useRef(false)
+
+  // Signed-in identities bootstrap through POST /v1/me per environment. The
+  // result lands in the same per-mode slot, replacing any stored anonymous
+  // session, so the rest of the app is identity-agnostic. Re-runs on mode
+  // switch so Demo and Live each resolve their own user.
+  useEffect(() => {
+    if (!signedIn) return
+    let cancelled = false
+    setBusy(true)
+    api
+      .me(mode)
+      .then((me) => {
+        if (cancelled) return
+        const session: StoredUser = { ...me, auth: 'clerk' }
+        localStorage.setItem(userKey(mode), JSON.stringify(session))
+        setSessions((s) => ({ ...s, [mode]: session }))
+      })
+      .catch((e) => {
+        if (!cancelled) setError(String(e))
+      })
+      .finally(() => {
+        if (!cancelled) setBusy(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [signedIn, mode])
+
+  // Signing out (via Clerk's UserButton) clears both mode slots and returns
+  // to onboarding, so signed-in sessions never linger as anonymous ones.
+  useEffect(() => {
+    if (signedIn) {
+      wasSignedIn.current = true
+      return
+    }
+    if (!wasSignedIn.current) return
+    wasSignedIn.current = false
+    localStorage.removeItem(userKey('sandbox'))
+    localStorage.removeItem(userKey('production'))
+    setSessions({ sandbox: null, production: null })
+    setDevices([])
+    setError(null)
+  }, [signedIn])
 
   const refreshDevices = useCallback(async () => {
     if (!user) return
@@ -182,12 +239,20 @@ export default function App() {
   // ingested, so charts refresh the moment a Junction webhook is processed.
   useEffect(() => {
     if (!user) return
-    const source = new EventSource(streamUrl(user.id))
-    source.addEventListener('update', () => {
-      setLiveVersion((v) => v + 1)
-      refreshDevices()
+    let source: EventSource | null = null
+    let cancelled = false
+    streamUrl(user.id).then((url) => {
+      if (cancelled) return
+      source = new EventSource(url)
+      source.addEventListener('update', () => {
+        setLiveVersion((v) => v + 1)
+        refreshDevices()
+      })
     })
-    return () => source.close()
+    return () => {
+      cancelled = true
+      source?.close()
+    }
   }, [user, refreshDevices])
 
   // Identity is an implementation detail: generate it silently, or attach to
@@ -235,20 +300,39 @@ export default function App() {
             <ModeToggle mode={mode} onChange={switchMode} />
           </motion.div>
           <motion.div variants={riseIn} className="flex flex-col items-center gap-3">
-            <TapButton
-              size="lg"
-              disabled={busy}
-              onClick={() => connectAs(`youth-web-${crypto.randomUUID().slice(0, 8)}`)}
-            >
-              Get started
-            </TapButton>
-            <button
-              type="button"
-              className="text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-              onClick={() => setShowExisting((s) => !s)}
-            >
-              I have an existing ID
-            </button>
+            <div className="flex items-center gap-2">
+              <TapButton
+                size="lg"
+                disabled={busy}
+                onClick={() => connectAs(`youth-web-${crypto.randomUUID().slice(0, 8)}`)}
+              >
+                Get started
+              </TapButton>
+              <SignInButton mode="modal">
+                <Button size="lg" variant="outline" disabled={busy}>
+                  Sign in
+                </Button>
+              </SignInButton>
+            </div>
+            <div className="flex items-center gap-4">
+              {mode === 'sandbox' && (
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+                  disabled={busy}
+                  onClick={() => connectAs('youth-sample')}
+                >
+                  Explore a sample account
+                </button>
+              )}
+              <button
+                type="button"
+                className="text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+                onClick={() => setShowExisting((s) => !s)}
+              >
+                I have an existing ID
+              </button>
+            </div>
           </motion.div>
           <AnimatePresence initial={false}>
             {showExisting && (
@@ -296,36 +380,41 @@ export default function App() {
             <h1 className="text-xl font-semibold tracking-tight">YOU(th) Wearables</h1>
             <ModeToggle mode={mode} onChange={switchMode} />
           </div>
-          <span className="flex items-center gap-1 rounded-full border bg-card py-1 pr-1.5 pl-3 text-xs">
-            <Button
-              variant="ghost"
-              size="xs"
-              className="text-brand hover:text-brand"
-              onClick={async () => {
-                setError(null)
-                try {
-                  await api.sync(user.id)
-                } catch (e) {
-                  setError(String(e))
-                }
-              }}
-            >
-              sync now
-            </Button>
-            <span className="font-mono text-foreground">{user.client_user_id}</span>
-            <Button
-              variant="ghost"
-              size="xs"
-              className="text-muted-foreground"
-              onClick={() => {
-                localStorage.removeItem(userKey(mode))
-                setSessions((s) => ({ ...s, [mode]: null }))
-                setDevices([])
-              }}
-            >
-              switch
-            </Button>
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1 rounded-full border bg-card py-1 pr-1.5 pl-3 text-xs">
+              <Button
+                variant="ghost"
+                size="xs"
+                className="text-brand hover:text-brand"
+                onClick={async () => {
+                  setError(null)
+                  try {
+                    await api.sync(user.id)
+                  } catch (e) {
+                    setError(String(e))
+                  }
+                }}
+              >
+                sync now
+              </Button>
+              <span className="font-mono text-foreground">{user.client_user_id}</span>
+              {!signedIn && (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="text-muted-foreground"
+                  onClick={() => {
+                    localStorage.removeItem(userKey(mode))
+                    setSessions((s) => ({ ...s, [mode]: null }))
+                    setDevices([])
+                  }}
+                >
+                  switch
+                </Button>
+              )}
+            </span>
+            {signedIn && <UserButton />}
+          </div>
         </header>
 
         {error && (
