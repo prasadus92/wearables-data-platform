@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import type { Device, JunctionEnv } from '@youth/health-core'
 import { springTransition, TapButton } from './motion'
+import { providerDisplayName } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -89,7 +90,7 @@ export function DevicePanel({ devices, environment, onConnect, onConnectDemo, on
                   className="flex items-center justify-between gap-3 py-2.5"
                 >
                   <div className="flex flex-wrap items-center gap-2.5">
-                    <span className="text-sm font-medium capitalize">{device.provider}</span>
+                    <span className="text-sm font-medium">{providerDisplayName(device.provider)}</span>
                     <StatusBadge status={device.status} />
                     <span className="text-xs text-muted-foreground">{lastSynced(device)}</span>
                   </div>
