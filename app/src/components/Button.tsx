@@ -1,6 +1,7 @@
-import { ActivityIndicator, Pressable, Text } from 'react-native';
+import { ActivityIndicator, Text } from 'react-native';
 
 import { colors } from '../theme/tokens';
+import { AnimatedPressable } from './AnimatedPressable';
 
 type Variant = 'primary' | 'outline' | 'ghost' | 'light';
 
@@ -35,11 +36,11 @@ export function Button({
 }: Props) {
   const inactive = disabled || busy;
   return (
-    <Pressable
+    <AnimatedPressable
       accessibilityRole="button"
       onPress={onPress}
       disabled={inactive}
-      className={`h-14 flex-row items-center justify-center rounded-full px-6 ${container[variant]} ${inactive ? 'opacity-50' : 'active:opacity-80'}`}
+      className={`h-14 flex-row items-center justify-center rounded-full px-6 ${container[variant]} ${inactive ? 'opacity-50' : ''}`}
     >
       {busy ? (
         <ActivityIndicator
@@ -52,6 +53,6 @@ export function Button({
           {label}
         </Text>
       )}
-    </Pressable>
+    </AnimatedPressable>
   );
 }

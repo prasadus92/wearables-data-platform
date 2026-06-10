@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 
 import { api } from '../api/client';
 import type { Device } from '../api/types';
+import { AnimatedPressable } from '../components/AnimatedPressable';
 import { Header } from '../components/Header';
 import { useApp } from '../lib/appContext';
 import { PROVIDERS, type ProviderInfo } from '../lib/catalog';
+import { enter } from '../lib/motion';
 import { colors } from '../theme/tokens';
 
 function Chevron() {
@@ -26,16 +29,19 @@ function Chevron() {
 function ProviderRow({
   provider,
   status,
+  index,
   onPress,
 }: {
   provider: ProviderInfo;
   status: 'none' | 'expired';
+  index: number;
   onPress: () => void;
 }) {
   return (
-    <Pressable
+    <AnimatedPressable
+      entering={enter(index)}
       onPress={onPress}
-      className="mb-3 flex-row items-center rounded-2xl bg-card p-4 active:opacity-70"
+      className="mb-3 flex-row items-center rounded-2xl bg-card p-4"
     >
       <View className="h-12 w-12 items-center justify-center rounded-full bg-paper">
         <Text className="text-[17px] font-bold text-ink">
@@ -53,7 +59,7 @@ function ProviderRow({
         </Text>
       </View>
       <Chevron />
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -92,10 +98,12 @@ export function ConnectMenuScreen() {
     <View className="flex-1 bg-paper pt-14">
       <Header title="Connect a device" onBack={nav.pop} />
       <ScrollView className="flex-1 px-5 pt-2">
-        <Text className="mb-4 text-[14px] leading-[20px] text-sub">
-          Choose your wearable. You will sign in to the brand's own account to
-          authorize data sharing.
-        </Text>
+        <Animated.View entering={enter(0)}>
+          <Text className="mb-4 text-[14px] leading-[20px] text-sub">
+            Choose your wearable. You will sign in to the brand's own account
+            to authorize data sharing.
+          </Text>
+        </Animated.View>
         {devices === null ? (
           <View className="items-center py-16">
             <ActivityIndicator color={colors.sub} />
@@ -107,11 +115,12 @@ export function ConnectMenuScreen() {
             </Text>
           </View>
         ) : (
-          available.map((p) => (
+          available.map((p, i) => (
             <ProviderRow
               key={p.slug}
               provider={p}
               status={statusFor(p.slug) === 'expired' ? 'expired' : 'none'}
+              index={i + 1}
               onPress={() => nav.push({ name: 'connectIntro', provider: p })}
             />
           ))
