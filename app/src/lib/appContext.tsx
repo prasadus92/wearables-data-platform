@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react';
 
+import type { AggregatorEnv } from '../api/types';
 import type { ProviderInfo } from './catalog';
 import type { Session } from './storage';
 
@@ -25,6 +26,10 @@ export interface Nav {
 }
 
 export interface AppState {
+  /** Active data environment. Demo maps to sandbox, Live to production. */
+  mode: AggregatorEnv;
+  /** Switch environments instantly; each keeps its own session. */
+  switchMode: (mode: AggregatorEnv) => void;
   session: Session | null;
   /** User chose "Not now" during onboarding. */
   skipped: boolean;

@@ -1,5 +1,8 @@
 export type ConnectionStatus = 'connected' | 'expired' | 'disconnected';
 
+/** Aggregator environment a session lives in. Demo maps to sandbox, Live to production. */
+export type AggregatorEnv = 'sandbox' | 'production';
+
 export type MetricKey =
   | 'heartrate'
   | 'hrv'

@@ -3,6 +3,7 @@ import Constants from 'expo-constants';
 import type {
   ApiUser,
   Device,
+  AggregatorEnv,
   LinkOut,
   MetricKey,
   Resolution,
@@ -64,7 +65,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  createUser(clientUserId: string, environment?: 'sandbox' | 'production') {
+  createUser(clientUserId: string, environment?: AggregatorEnv) {
     return request<ApiUser>('/users', {
       method: 'POST',
       body: JSON.stringify({

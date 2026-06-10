@@ -15,7 +15,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { api, ApiError } from '../api/client';
-import type { Device } from '../api/types';
+import type { Device, AggregatorEnv } from '../api/types';
 import { Button } from '../components/Button';
 import { Header } from '../components/Header';
 import { useApp } from '../lib/appContext';
@@ -28,6 +28,49 @@ import { colors } from '../theme/tokens';
 const reflow = LinearTransition.springify(300).reduceMotion(
   ReduceMotion.System,
 );
+
+/**
+ * Segmented Demo/Live control. Each environment keeps its own session, so
+ * flipping is instant; an environment without a session routes through the
+ * Welcome screen in that mode.
+ */
+function ModeSwitch({
+  mode,
+  onChange,
+}: {
+  mode: AggregatorEnv;
+  onChange: (mode: AggregatorEnv) => void;
+}) {
+  const segments: { value: AggregatorEnv; label: string }[] = [
+    { value: 'sandbox', label: 'Demo' },
+    { value: 'production', label: 'Live' },
+  ];
+  return (
+    <View
+      accessibilityRole="tablist"
+      className="flex-row rounded-full bg-paper p-1"
+    >
+      {segments.map((segment) => {
+        const active = segment.value === mode;
+        return (
+          <Pressable
+            key={segment.value}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+            onPress={() => onChange(segment.value)}
+            className={`rounded-full px-4 py-1.5 ${active ? 'bg-ink' : 'active:opacity-60'}`}
+          >
+            <Text
+              className={`text-[12px] font-sans-medium ${active ? 'text-card' : 'text-sub'}`}
+            >
+              {segment.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
 
 function StatusDot({ status }: { status: 'connected' | 'expired' }) {
   return (
@@ -61,37 +104,37 @@ function DeviceCard({
     >
       <View className="flex-row items-center">
         <View className="h-12 w-12 items-center justify-center rounded-full bg-paper">
-          <Text className="text-[17px] font-bold text-ink">
+          <Text className="text-[17px] font-sans-medium text-ink">
             {providerName(device.provider)[0]}
           </Text>
         </View>
         <View className="ml-3 flex-1">
-          <Text className="text-[16px] font-semibold text-ink">
+          <Text className="text-[16px] font-sans-medium text-ink">
             {providerName(device.provider)}
           </Text>
           <View className="mt-1 flex-row items-center">
             <StatusDot status={expired ? 'expired' : 'connected'} />
             <Text
-              className={`text-[13px] ${expired ? 'font-semibold text-amber' : 'text-leaf'}`}
+              className={`text-[13px] ${expired ? 'font-sans-medium text-amber' : 'font-sans text-leaf'}`}
             >
               {expired ? 'Connection expired' : 'Connected'}
             </Text>
           </View>
         </View>
-        <Text className="text-[12px] text-faint">
+        <Text className="text-[12px] font-sans text-faint">
           Last synced {timeAgo(device.last_data_at)}
         </Text>
       </View>
       <View className="mt-3 flex-row justify-end gap-4 border-t border-line pt-3">
         {expired ? (
           <Pressable onPress={onReconnect} className="active:opacity-60">
-            <Text className="text-[14px] font-semibold text-ink">
+            <Text className="text-[14px] font-sans-medium text-ink">
               Reconnect
             </Text>
           </Pressable>
         ) : null}
         <Pressable onPress={onDisconnect} className="active:opacity-60">
-          <Text className="text-[14px] font-semibold text-coral">
+          <Text className="text-[14px] font-sans-medium text-coral">
             Disconnect
           </Text>
         </Pressable>
@@ -101,7 +144,7 @@ function DeviceCard({
 }
 
 export function DevicesScreen() {
-  const { session, signOut, nav } = useApp();
+  const { mode, switchMode, session, signOut, nav } = useApp();
   const [devices, setDevices] = useState<Device[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -175,22 +218,22 @@ export function DevicesScreen() {
       >
         {session ? (
           <Animated.View entering={enter(0)}>
-            <View className="mb-5 flex-row items-center rounded-2xl bg-card p-4">
+            <View className="mb-3 flex-row items-center rounded-2xl bg-card p-4">
               <View className="h-12 w-12 items-center justify-center rounded-full bg-ink">
-                <Text className="text-[16px] font-bold text-card">
+                <Text className="text-[16px] font-sans-medium text-card">
                   {session.clientUserId[0]?.toUpperCase()}
                 </Text>
               </View>
               <View className="ml-3 flex-1">
-                <Text className="text-[16px] font-semibold text-ink">
+                <Text className="text-[16px] font-sans-medium text-ink">
                   {session.clientUserId}
                 </Text>
-                <Text className="mt-0.5 text-[12px] text-faint">
+                <Text className="mt-0.5 text-[12px] font-sans text-faint">
                   User id {session.userId.slice(0, 8)}
                 </Text>
               </View>
               <Pressable onPress={signOut} className="active:opacity-60">
-                <Text className="text-[13px] font-semibold text-sub">
+                <Text className="text-[13px] font-sans-medium text-sub">
                   Switch user
                 </Text>
               </Pressable>
@@ -198,15 +241,31 @@ export function DevicesScreen() {
           </Animated.View>
         ) : null}
 
+        <Animated.View entering={enter(session ? 1 : 0)}>
+          <View className="mb-5 flex-row items-center rounded-2xl bg-card p-4">
+            <View className="flex-1 pr-3">
+              <Text className="text-[14px] font-sans-medium text-ink">
+                Data mode
+              </Text>
+              <Text className="mt-0.5 text-[12px] font-sans leading-[17px] text-faint">
+                {mode === 'sandbox'
+                  ? 'Demo wearables with synthetic data'
+                  : 'Real wearables over provider sign-in'}
+              </Text>
+            </View>
+            <ModeSwitch mode={mode} onChange={switchMode} />
+          </View>
+        </Animated.View>
+
         <Animated.View entering={enter(1)}>
-          <Text className="mb-3 text-[18px] font-bold text-ink">
+          <Text className="mb-3 text-[18px] font-sans-medium text-ink">
             Your devices
           </Text>
         </Animated.View>
 
         {!session ? (
           <View className="items-center rounded-2xl bg-card px-6 py-12">
-            <Text className="mb-5 text-center text-[14px] leading-[20px] text-sub">
+            <Text className="mb-5 text-center text-[14px] font-sans leading-[20px] text-sub">
               Create your profile to connect a wearable and start syncing your
               health data.
             </Text>
@@ -219,7 +278,7 @@ export function DevicesScreen() {
         ) : active.length === 0 ? (
           <Animated.View entering={enter(2)} layout={reflow}>
             <View className="items-center rounded-2xl bg-card px-6 py-12">
-              <Text className="mb-5 text-center text-[14px] leading-[20px] text-sub">
+              <Text className="mb-5 text-center text-[14px] font-sans leading-[20px] text-sub">
                 No devices connected yet. Connect a wearable to start syncing
                 your health data.
               </Text>

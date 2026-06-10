@@ -69,10 +69,10 @@ export function ConnectResultScreen({ provider, ok, message }: Props) {
           <ResultMark ok={ok} />
         </Animated.View>
         <Animated.View entering={enter(1)} style={{ alignItems: 'center' }}>
-          <Text className="mt-7 text-center text-[24px] font-bold text-ink">
+          <Text className="mt-7 text-center text-[24px] font-sans-medium text-ink">
             {ok ? `${provider.name} connected` : 'Connection failed'}
           </Text>
-          <Text className="mt-2.5 max-w-[300px] text-center text-[14px] leading-[20px] text-sub">
+          <Text className="mt-2.5 max-w-[300px] text-center text-[14px] font-sans leading-[20px] text-sub">
             {ok
               ? 'Your data will start appearing on the timeline shortly. Pull down on the home screen to sync.'
               : (message ??

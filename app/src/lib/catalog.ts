@@ -1,5 +1,7 @@
 import type { MetricKey, Resolution } from '../api/types';
 
+import { METRIC_META } from './metrics';
+
 export interface ProviderInfo {
   slug: string;
   name: string;
@@ -46,12 +48,22 @@ export interface MetricInfo {
   dual: boolean;
 }
 
+// Tab labels come from the shared metric metadata, so the app and the web
+// dashboard speak the same plain language.
 export const METRICS: MetricInfo[] = [
-  { key: 'heartrate', label: 'Heart Rate', dual: false },
-  { key: 'hrv', label: 'HRV', dual: false },
-  { key: 'spo2', label: 'SpO2', dual: false },
-  { key: 'respiratory_rate', label: 'Resp Rate', dual: false },
-  { key: 'blood_pressure', label: 'Blood Pressure', dual: true },
+  { key: 'heartrate', label: METRIC_META.heartrate.friendlyName, dual: false },
+  { key: 'hrv', label: METRIC_META.hrv.friendlyName, dual: false },
+  { key: 'spo2', label: METRIC_META.spo2.friendlyName, dual: false },
+  {
+    key: 'respiratory_rate',
+    label: METRIC_META.respiratory_rate.friendlyName,
+    dual: false,
+  },
+  {
+    key: 'blood_pressure',
+    label: METRIC_META.blood_pressure.friendlyName,
+    dual: true,
+  },
 ];
 
 export interface RangeInfo {

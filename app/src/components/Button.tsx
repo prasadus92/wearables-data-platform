@@ -48,7 +48,7 @@ export function Button({
         />
       ) : (
         <Text
-          className={`text-[13px] font-semibold uppercase tracking-[2px] ${labelCls[variant]}`}
+          className={`text-[13px] font-sans-medium uppercase tracking-[2px] ${labelCls[variant]}`}
         >
           {label}
         </Text>

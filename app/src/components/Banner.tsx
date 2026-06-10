@@ -13,13 +13,13 @@ export function Banner({ kind, title, message, actionLabel, onAction }: Props) {
   const accent = kind === 'error' ? 'text-coral' : 'text-amber';
   return (
     <View className={`mb-3 rounded-2xl px-4 py-3 ${tint}`}>
-      <Text className={`text-[13px] font-semibold ${accent}`}>{title}</Text>
-      <Text className="mt-0.5 text-[13px] leading-[18px] text-ink">
+      <Text className={`text-[13px] font-sans-medium ${accent}`}>{title}</Text>
+      <Text className="mt-0.5 text-[13px] font-sans leading-[18px] text-ink">
         {message}
       </Text>
       {actionLabel && onAction ? (
         <Pressable onPress={onAction} className="mt-2 self-start">
-          <Text className={`text-[13px] font-semibold underline ${accent}`}>
+          <Text className={`text-[13px] font-sans-medium underline ${accent}`}>
             {actionLabel}
           </Text>
         </Pressable>

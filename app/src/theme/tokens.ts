@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 // Raw design tokens for places Tailwind classes cannot reach (SVG, native props).
 // Keep in sync with tailwind.config.js.
 export const colors = {
@@ -15,4 +17,13 @@ export const colors = {
   card: '#FFFFFF',
   line: '#E8E6E1',
   inkSoft: '#2C2C2E',
+} as const;
+
+// Brand faces, for places Tailwind classes cannot reach (native props,
+// style objects). Headings use medium, body uses book; uppercase mono-style
+// captions stay on the system mono on purpose.
+export const fonts = {
+  book: 'PPNeueMontreal',
+  medium: 'PPNeueMontreal-Medium',
+  mono: Platform.select({ ios: 'Menlo', default: 'monospace' }),
 } as const;

@@ -11,7 +11,7 @@ import { Header } from '../components/Header';
 import { useApp } from '../lib/appContext';
 import { DATA_WE_READ, type ProviderInfo } from '../lib/catalog';
 import { enter } from '../lib/motion';
-import { colors } from '../theme/tokens';
+import { colors, fonts } from '../theme/tokens';
 
 function CheckIcon() {
   return (
@@ -39,7 +39,7 @@ interface Props {
 }
 
 export function ConnectIntroScreen({ provider }: Props) {
-  const { session, nav } = useApp();
+  const { mode, session, nav } = useApp();
   const [busy, setBusy] = useState<'link' | 'demo' | null>(null);
 
   /** Webhook delivery can lag the OAuth redirect, so poll a few times. */
@@ -142,28 +142,33 @@ export function ConnectIntroScreen({ provider }: Props) {
         <Animated.View entering={enter(0)}>
           <View className="rounded-2xl bg-card p-5">
             <View className="h-14 w-14 items-center justify-center rounded-full bg-paper">
-              <Text className="text-[20px] font-bold text-ink">
+              <Text className="text-[20px] font-sans-medium text-ink">
                 {provider.name[0]}
               </Text>
             </View>
-            <Text className="mt-4 text-[20px] font-bold text-ink">
+            <Text className="mt-4 text-[20px] font-sans-medium text-ink">
               Connect your {provider.name}
             </Text>
-            <Text className="mt-1.5 text-[14px] leading-[20px] text-sub">
+            <Text className="mt-1.5 text-[14px] font-sans leading-[20px] text-sub">
               {provider.blurb}
             </Text>
 
-            <Text className="mb-2 mt-5 text-[13px] font-semibold uppercase tracking-[1.5px] text-faint">
+            <Text
+              style={{ fontFamily: fonts.mono }}
+              className="mb-2 mt-5 text-[12px] uppercase tracking-[1.5px] text-faint"
+            >
               Data we read
             </Text>
             {DATA_WE_READ.map((item) => (
               <View key={item} className="mb-2 flex-row items-center">
                 <CheckIcon />
-                <Text className="ml-2.5 text-[14px] text-ink">{item}</Text>
+                <Text className="ml-2.5 text-[14px] font-sans text-ink">
+                  {item}
+                </Text>
               </View>
             ))}
 
-            <Text className="mt-3 text-[12px] leading-[17px] text-faint">
+            <Text className="mt-3 text-[12px] font-sans leading-[17px] text-faint">
               We never see your {provider.name} password. You can disconnect at
               any time and your historical data stays yours.
             </Text>
@@ -181,13 +186,13 @@ export function ConnectIntroScreen({ provider }: Props) {
           busy={busy === 'link'}
           disabled={busy === 'demo'}
         />
-        {provider.demo ? (
+        {provider.demo && mode === 'sandbox' ? (
           <Pressable
             onPress={handleDemo}
             disabled={busy !== null}
             className="mt-3 items-center py-2 active:opacity-60"
           >
-            <Text className="text-[13px] font-semibold text-sub underline">
+            <Text className="text-[13px] font-sans-medium text-sub underline">
               {busy === 'demo' ? 'Connecting demo data...' : 'Use demo data'}
             </Text>
           </Pressable>
