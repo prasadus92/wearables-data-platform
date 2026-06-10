@@ -7,23 +7,33 @@ Working notes for the onsite presentation. Target: 15-20 minutes plus demo.
 End-to-end wearable platform on Junction, live at `api.youth.luminik.io`:
 
 - Users connect Oura / WHOOP / Garmin / Fitbit via Junction's hosted OAuth Link;
-  Apple Watch documented as an SDK-based path (it never goes through Link).
+  Apple Watch pairs through the Vital Connect app with a single-use code (HealthKit).
 - Biometrics ingested via signed webhooks: heart rate, HRV, SpO2, respiratory rate,
   blood pressure. Historical backfills pulled via REST with cursor pagination.
-- Timeline API with server-side bucketing feeds a web dashboard and an Expo app;
+- Timeline API with server-side bucketing feeds the web dashboard at
+  `app.youth.luminik.io` and an Expo app sharing one TypeScript core package;
   SSE pushes chart updates the moment a webhook lands.
-- Both Junction environments at once: sandbox demo data and real production devices
-  (a real Oura ring is connected) through one deployment.
-- AWS: ECS Fargate, RDS Postgres, ElastiCache, ALB + ACM, SSM secrets. One
-  `terraform apply`, one `deploy.sh`.
+- Real product auth: Clerk sign-in, anonymous guest sessions for the zero-friction
+  demo path, and a service key for machine callers. Ownership scoping returns 404,
+  never 403, so existence never leaks.
+- Consent ledger and GDPR erasure: device_events records every connect, disconnect,
+  and identity change with actor attribution; one service call erases a user locally
+  and at Junction.
+- Both Junction environments at once: demo data and real production devices (a real
+  Oura ring and WHOOP strap are connected) through one deployment.
+- AWS: ECS Fargate, RDS Postgres, ElastiCache, ALB + ACM, CloudFront, SSM secrets.
+  One `terraform apply`; GitHub Actions deploys on every merge to main via OIDC.
 
 ## 2. Live demo script (5 minutes)
 
-1. Dashboard: create user, connect demo Oura, watch the chart fill live (SSE).
+1. Dashboard: Try the demo as a guest, connect a demo wearable, watch the chart
+   fill live (SSE). Zero accounts, zero setup.
 2. Terminal split-screen: `aws logs tail /ecs/youth-wearables-api --follow` showing
    Junction webhooks arriving while the chart updates. This is the central moment of the demo.
-3. Real device: the production user with the real Oura ring and WHOOP strap; same charts, real data.
-4. Expo app on the phone: connect flow per the Figma, timeline chart.
+3. Real device: Filippo's morning connection of his own WHOOP and Oura; same
+   charts, real data, connected live hours earlier.
+4. Expo app on the phone: connect flow per the Figma, haptics, timeline chart.
+   Johannes' Apple Watch via the pairing code if it landed in the morning.
 5. Postman: the API contract their backend would consume.
 
 Fallback if WiFi/AWS misbehaves: identical local compose stack + simulated webhooks
@@ -45,8 +55,9 @@ Walk docs/architecture.md diagram 1, emphasizing the three invariants:
    because of this seam.
 
 Code layering: `api -> services -> models`, parsing pure and unit-tested, workers
-stateless. 33 tests: normalizers, Svix signatures (valid/tampered/cross-env), auth,
-idempotency, full webhook-to-chart integration against real Postgres.
+stateless. 70 tests: normalizers, Svix signatures (valid/tampered/cross-env), the
+three auth branches and their scoping, idempotency, erasure with cascade
+verification, full webhook-to-chart integration against real Postgres.
 
 ## 4. Scaling story (4 minutes)
 
@@ -75,9 +86,10 @@ invariants above survive every tier.
 
 ## 6. What I would do next (1 minute)
 
-Per-user JWT auth (Clerk), Apple Watch via the Junction mobile SDK, Timescale
-hypertables, webhook-event archival to S3, CI/CD via GitHub Actions deploy job,
-status page on queue depth and webhook failure rate.
+Timescale hypertables and continuous aggregates, webhook-event retention sweep and
+S3 archival, the authentication hardening queue (docs/authentication.md), native
+HealthKit via the Junction mobile SDK instead of the Vital Connect bridge app, and
+a status page on queue depth and webhook failure rate.
 
 ## Links
 
