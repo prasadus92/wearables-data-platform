@@ -1,14 +1,14 @@
-import Constants from 'expo-constants';
-
 import type {
-  ApiUser,
   Device,
   JunctionEnv,
-  LinkOut,
-  MetricKey,
+  Metric,
   Resolution,
-  TimeseriesOut,
-} from './types';
+  Timeseries,
+  User,
+} from '@youth/health-core';
+import Constants from 'expo-constants';
+
+import type { LinkOut } from './types';
 
 interface AppExtra {
   apiBaseUrl?: string;
@@ -89,7 +89,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   createUser(clientUserId: string, environment?: JunctionEnv) {
-    return request<ApiUser>('/users', {
+    return request<User>('/users', {
       method: 'POST',
       body: JSON.stringify({
         client_user_id: clientUserId,
@@ -100,7 +100,7 @@ export const api = {
 
   /** Bootstrap the signed-in identity: gets-or-creates its user per mode. */
   me(environment: JunctionEnv) {
-    return request<ApiUser>('/me', {
+    return request<User>('/me', {
       method: 'POST',
       body: JSON.stringify({ environment }),
     });
@@ -138,7 +138,7 @@ export const api = {
 
   getTimeseries(
     userId: string,
-    metric: MetricKey,
+    metric: Metric,
     opts: { start: Date; end: Date; resolution: Resolution },
   ) {
     const params = new URLSearchParams({
@@ -146,7 +146,7 @@ export const api = {
       end: opts.end.toISOString(),
       resolution: opts.resolution,
     });
-    return request<TimeseriesOut>(
+    return request<Timeseries>(
       `/users/${userId}/timeseries/${metric}?${params.toString()}`,
     );
   },

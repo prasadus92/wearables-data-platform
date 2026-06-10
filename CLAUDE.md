@@ -53,6 +53,9 @@ docs/setup-journal.md.
 ## Layout
 
 backend/app: api -> services -> models layering; parsing pure in services/ingestion.py.
-web/src: shadcn/ui + Tailwind v4 + motion; insight logic in lib/insights.ts (pure).
-app/src: Expo + NativeWind + victory-native Skia charts; mirror of web's lib/ where
-sensible. infra/terraform: full AWS stack. postman/: API collection.
+packages/health-core: shared workspace package (@youth/health-core) with metric
+metadata, pure insight math, and API contract types mirroring backend/app/schemas.py;
+plain TS source, no build step; root package.json declares the npm workspaces.
+web/src: shadcn/ui + Tailwind v4 + motion; insights/metrics come from @youth/health-core.
+app/src: Expo + NativeWind + victory-native Skia charts; shares @youth/health-core with
+web. infra/terraform: full AWS stack. postman/: API collection.

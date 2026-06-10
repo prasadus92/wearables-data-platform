@@ -24,6 +24,18 @@
     "plugins": [
       "expo-web-browser",
       "expo-secure-store"
-    ]
+    ],
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "owner": "prasad-us",
+    "extra": {
+      "eas": {
+        "projectId": "ae396b84-c8c5-4468-9053-353b1d024736"
+      }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/ae396b84-c8c5-4468-9053-353b1d024736"
+    }
   }
 }

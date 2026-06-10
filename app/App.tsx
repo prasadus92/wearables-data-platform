@@ -11,8 +11,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ReducedMotionConfig, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import type { JunctionEnv } from '@youth/health-core';
+
 import { api, ApiError, setTokenProvider } from './src/api/client';
-import type { JunctionEnv } from './src/api/types';
 import { Button } from './src/components/Button';
 import { AppContext, type AppState, type Nav, type Route } from './src/lib/appContext';
 import { storage, type Session } from './src/lib/storage';

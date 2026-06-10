@@ -1,6 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-import type { JunctionEnv } from '../api/types';
+import type { JunctionEnv } from '@youth/health-core';
 
 export interface Session {
   userId: string;

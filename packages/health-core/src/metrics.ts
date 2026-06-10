@@ -3,7 +3,7 @@
 // non-diagnostic: it describes what a signal reflects, never what a value
 // "means" for a specific person.
 
-import type { Metric } from '../api'
+import type { Metric } from './api-types';
 
 /**
  * Which direction is generally considered favorable for a metric.
@@ -12,7 +12,7 @@ import type { Metric } from '../api'
  * - 'range': values are expected to sit inside a band
  * - 'personal': only meaningful relative to your own baseline
  */
-export type GoodDirection = 'higher' | 'lower' | 'range' | 'personal'
+export type GoodDirection = 'higher' | 'lower' | 'range' | 'personal';
 
 /**
  * A reference band that is defensible from broad clinical guidance.
@@ -21,19 +21,19 @@ export type GoodDirection = 'higher' | 'lower' | 'range' | 'personal'
  * much between people that a fixed band would mislead.
  */
 export interface ClinicalBand {
-  min?: number
-  max?: number
-  label: string
+  min?: number;
+  max?: number;
+  label: string;
 }
 
 export interface MetricMeta {
-  friendlyName: string
-  shortExplanation: string
-  unitLabel: string
-  goodDirection: GoodDirection
-  clinicalBand?: ClinicalBand
+  friendlyName: string;
+  shortExplanation: string;
+  unitLabel: string;
+  goodDirection: GoodDirection;
+  clinicalBand?: ClinicalBand;
   /** For dual-series metrics (blood pressure), a band for the secondary line. */
-  clinicalBandSecondary?: ClinicalBand
+  clinicalBandSecondary?: ClinicalBand;
 }
 
 export const METRIC_META: Record<Metric, MetricMeta> = {
@@ -75,4 +75,4 @@ export const METRIC_META: Record<Metric, MetricMeta> = {
     goodDirection: 'range',
     clinicalBand: { min: 90, max: 120, label: 'typical systolic range' },
   },
-}
+};
