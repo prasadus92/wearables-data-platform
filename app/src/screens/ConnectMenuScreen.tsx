@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import { ScrollView, Text, View } from 'react-native';
+import Animated, {
+  ReduceMotion,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 
 import type { Device } from '@examplehealth/health-core';
@@ -64,6 +70,49 @@ function ProviderRow({
   );
 }
 
+/**
+ * Placeholder card shown while the device list loads, so already-connected
+ * providers never flash in the menu. A simple opacity pulse; static under
+ * Reduce Motion.
+ */
+function SkeletonRow() {
+  const pulse = useSharedValue(0.45);
+
+  useEffect(() => {
+    pulse.value = withRepeat(
+      withTiming(1, { duration: 650 }),
+      -1,
+      true,
+      undefined,
+      ReduceMotion.System,
+    );
+  }, [pulse]);
+
+  const style = useAnimatedStyle(() => ({ opacity: pulse.value }));
+
+  return (
+    <Animated.View
+      style={[
+        {
+          marginBottom: 12,
+          flexDirection: 'row',
+          alignItems: 'center',
+          borderRadius: 16,
+          backgroundColor: colors.card,
+          padding: 16,
+        },
+        style,
+      ]}
+    >
+      <View className="h-12 w-12 rounded-full bg-paper" />
+      <View className="ml-3 flex-1">
+        <View className="h-4 w-24 rounded-full bg-paper" />
+        <View className="mt-2 h-3 w-32 rounded-full bg-paper" />
+      </View>
+    </Animated.View>
+  );
+}
+
 export function ConnectMenuScreen() {
   const { session, nav } = useApp();
   const [devices, setDevices] = useState<Device[] | null>(null);
@@ -106,9 +155,13 @@ export function ConnectMenuScreen() {
           </Text>
         </Animated.View>
         {devices === null ? (
-          <View className="items-center py-16">
-            <ActivityIndicator color={colors.sub} />
-          </View>
+          // The connected set is unknown until the fetch lands; placeholder
+          // cards keep the menu from offering providers it should hide.
+          <>
+            <SkeletonRow />
+            <SkeletonRow />
+            <SkeletonRow />
+          </>
         ) : available.length === 0 ? (
           <View className="items-center rounded-2xl bg-card px-6 py-12">
             <Text className="text-center text-[14px] font-sans text-sub">

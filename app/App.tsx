@@ -308,6 +308,7 @@ function Root() {
           <ConnectResultScreen
             provider={top.provider}
             ok={top.ok}
+            already={top.already}
             message={top.message}
           />
         );

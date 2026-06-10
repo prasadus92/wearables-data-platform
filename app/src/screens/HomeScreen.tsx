@@ -33,6 +33,7 @@ import { Banner } from '../components/Banner';
 import { LineChart } from '../components/LineChart';
 import { MetricInfoSheet } from '../components/MetricInfoSheet';
 import { useApp } from '../lib/appContext';
+import { useDisplayName } from '../lib/displayName';
 import {
   METRICS,
   type MetricInfo,
@@ -246,6 +247,7 @@ function ConnectCard({
 export function HomeScreen() {
   const { session, connectCardDismissed, dismissConnectCard, signOut, nav } =
     useApp();
+  const displayName = useDisplayName(session);
   const [metric, setMetric] = useState(METRICS[0]);
   const [range, setRange] = useState(RANGES[1]);
   const [devices, setDevices] = useState<Device[]>([]);
@@ -410,7 +412,7 @@ export function HomeScreen() {
                 Welcome back
               </Text>
               <Text className="text-[24px] font-sans-medium text-ink">
-                {session ? session.clientUserId : 'Guest'}
+                {displayName}
               </Text>
             </Animated.View>
             <Pressable
@@ -419,7 +421,7 @@ export function HomeScreen() {
               className="h-11 w-11 items-center justify-center rounded-full bg-ink active:opacity-80"
             >
               <Text className="text-[15px] font-sans-medium text-card">
-                {(session?.clientUserId[0] ?? 'G').toUpperCase()}
+                {displayName[0].toUpperCase()}
               </Text>
             </Pressable>
           </View>

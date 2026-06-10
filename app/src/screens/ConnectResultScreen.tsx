@@ -111,25 +111,28 @@ function ResultMark({ ok }: { ok: boolean }) {
 interface Props {
   provider: ProviderInfo;
   ok: boolean;
+  /** Provider was connected before the flow even started: no celebration. */
+  already?: boolean;
   message?: string;
 }
 
-export function ConnectResultScreen({ provider, ok, message }: Props) {
+export function ConnectResultScreen({ provider, ok, already, message }: Props) {
   const { nav } = useApp();
+  const celebrate = ok && !already;
 
   useEffect(() => {
-    if (ok) {
+    if (celebrate) {
       // Success notification plus two light afterglow taps, timed to land
       // while the pulse rings expand.
       successCelebration();
     }
-  }, [ok]);
+  }, [celebrate]);
 
   return (
     <View className="flex-1 bg-paper px-6 pt-14">
       <View className="flex-1 items-center justify-center">
         <View className="items-center justify-center">
-          {ok ? (
+          {celebrate ? (
             <>
               <PulseRing delay={120} />
               <PulseRing delay={360} />
@@ -141,16 +144,22 @@ export function ConnectResultScreen({ provider, ok, message }: Props) {
         </View>
         <Animated.View entering={enter(1)} style={{ alignItems: 'center' }}>
           <Text className="mt-7 text-center text-[24px] font-sans-medium text-ink">
-            {ok ? `${provider.name} connected` : 'Connection failed'}
+            {already
+              ? `${provider.name} is already connected`
+              : ok
+                ? `${provider.name} connected`
+                : 'Connection failed'}
           </Text>
           <Text className="mt-2.5 max-w-[300px] text-center text-[14px] font-sans leading-[20px] text-sub">
-            {ok
-              ? 'Pull down on the home screen any time to sync on demand.'
-              : (message ??
-                'Something went wrong while connecting. Please try again.')}
+            {already
+              ? 'This device is already linked to your account and syncing. You can manage it from your profile.'
+              : ok
+                ? 'Pull down on the home screen any time to sync on demand.'
+                : (message ??
+                  'Something went wrong while connecting. Please try again.')}
           </Text>
         </Animated.View>
-        {ok ? (
+        {celebrate ? (
           <Animated.View entering={cardIn}>
             <View className="mt-7 items-center rounded-2xl bg-card px-7 py-4">
               <Text className="text-[15px] font-sans-medium text-ink">

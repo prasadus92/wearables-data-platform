@@ -62,10 +62,35 @@ export function ConnectIntroScreen({ provider }: Props) {
     return false;
   }
 
+  /**
+   * Snapshot of providers connected right now, taken BEFORE a connect flow
+   * starts. Web-connected devices on the same account would otherwise make
+   * a cancelled browser pass as success. Empty on fetch failure (best
+   * effort: an unknown baseline must not block a genuine connect).
+   */
+  async function connectedBefore(userId: string): Promise<Set<string>> {
+    try {
+      const devices = await api.getDevices(userId);
+      return new Set(
+        devices
+          .filter((d) => d.status === 'connected')
+          .map((d) => d.provider),
+      );
+    } catch {
+      return new Set();
+    }
+  }
+
   async function handleContinue() {
     if (!session) return;
     setBusy('link');
     try {
+      const before = await connectedBefore(session.userId);
+      if (before.has(provider.slug)) {
+        // The menu should not have offered this provider; guard anyway.
+        nav.replace({ name: 'connectResult', provider, ok: true, already: true });
+        return;
+      }
       const redirectUrl = Linking.createURL('connect/callback');
       const link = await api.createLink(
         session.userId,
@@ -77,13 +102,12 @@ export function ConnectIntroScreen({ provider }: Props) {
         redirectUrl,
       );
       if (result.type === 'cancel' || result.type === 'dismiss') {
-        // The user may still have finished the OAuth before closing.
-        const ok = await providerConnected(session.userId);
-        if (ok) {
-          nav.replace({ name: 'connectResult', provider, ok: true });
-        }
+        // Closing the browser is never a success. Stay on this screen so
+        // the user can retry or back out.
         return;
       }
+      // Success means newly connected: it was not connected before the
+      // browser opened and it is connected now (polling covers webhook lag).
       const ok = await providerConnected(session.userId);
       nav.replace({
         name: 'connectResult',
@@ -112,6 +136,11 @@ export function ConnectIntroScreen({ provider }: Props) {
     if (!session) return;
     setBusy('demo');
     try {
+      const before = await connectedBefore(session.userId);
+      if (before.has(provider.slug)) {
+        nav.replace({ name: 'connectResult', provider, ok: true, already: true });
+        return;
+      }
       await api.connectDemo(session.userId, provider.slug);
       const ok = await providerConnected(session.userId);
       nav.replace({
