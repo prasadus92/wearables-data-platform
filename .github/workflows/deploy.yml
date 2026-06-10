@@ -69,15 +69,12 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      # npm workspaces: the lockfile lives at the repo root and installs the
-      # web workspace plus the shared @youth/health-core package.
+      # npm's optional-deps bug (npm/cli#4828): the macOS-written lockfile
+      # omits Linux native binaries, so resolve fresh on this platform. The
+      # lockfile is regenerated properly in a follow-up; then this reverts
+      # to npm ci.
       - name: Install dependencies
-        run: npm ci --workspace web --include-workspace-root=false || npm ci
-
-      # npm's optional-deps bug (npm/cli#4828): a lockfile written on macOS
-      # can omit Rollup's Linux native binary; install it explicitly.
-      - name: Ensure Rollup linux binary
-        run: npm install @rollup/rollup-linux-x64-gnu lightningcss-linux-x64-gnu --workspace web --no-save
+        run: rm -f package-lock.json && npm install --workspace web --include-workspace-root=false
 
       # VITE_API_KEY is intentionally absent: the public bundle must never
       # contain the service key. Browser requests authenticate with Clerk
