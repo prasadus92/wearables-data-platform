@@ -22,6 +22,7 @@ import {
 import { api } from '../api'
 import { TapButton } from './motion'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatNameList } from '@/lib/utils'
 
 interface Props {
   userId: string
@@ -32,10 +33,30 @@ interface Props {
   liveVersion: number
   /** Whether the user has any active wearable connection; drives empty states. */
   hasDevices: boolean
+  /** Display names of the active connections, for the waiting empty state. */
+  providerNames: string[]
+  /** Label of the selected range ("7d"), for the out-of-range empty state. */
+  rangeLabel: string
   /** Scrolls/leads the user to the connect section. */
   onConnectDevice: () => void
+  /** Switches the range param when data exists outside the current window. */
+  onShowRange: (label: string) => void
+  /** Sync-check state lives in the page so it survives chart remounts. */
+  syncRequested: boolean
   /** Triggers a manual sync for the freshly-connected case. */
   onSync: () => void
+  /** Reports that in-range readings arrived, ending any pending sync check. */
+  onSyncResolved: () => void
+}
+
+/** Plain relative age for the out-of-range empty state: "16 days ago". */
+function relativeAge(ts: string): string {
+  const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? '' : 's'} ago`
+  const minutes = Math.max(1, Math.round((Date.now() - new Date(ts).getTime()) / 60000))
+  if (minutes < 60) return plural(minutes, 'minute')
+  const hours = Math.round(minutes / 60)
+  if (hours < 48) return plural(hours, 'hour')
+  return plural(Math.round(hours / 24), 'day')
 }
 
 /** Small arrow chip for the 7-day vs prior 7-day change. Neutral styling on
@@ -68,12 +89,22 @@ export function TimelineChart({
   resolution,
   liveVersion,
   hasDevices,
+  providerNames,
+  rangeLabel,
   onConnectDevice,
+  onShowRange,
+  syncRequested,
   onSync,
+  onSyncResolved,
 }: Props) {
   const [data, setData] = useState<Timeseries | null>(null)
   const [loading, setLoading] = useState(true)
-  const [syncRequested, setSyncRequested] = useState(false)
+  // Out-of-range probe: when the in-range query is empty but the user has
+  // devices, one wide query (90d, day buckets) checks whether data exists
+  // outside the window so the empty state can say so instead of going blank.
+  const [probe, setProbe] = useState<
+    { state: 'idle' | 'pending' | 'empty' } | { state: 'found'; latestTs: string }
+  >({ state: 'idle' })
 
   useEffect(() => {
     let cancelled = false
@@ -84,7 +115,7 @@ export function TimelineChart({
         const series = await api.timeseries(userId, metric, resolution, days)
         if (!cancelled) {
           setData(series)
-          if (series.points.length > 0) setSyncRequested(false)
+          if (series.points.length > 0) onSyncResolved()
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -99,12 +130,61 @@ export function TimelineChart({
       cancelled = true
       clearInterval(interval)
     }
-  }, [userId, metric, days, resolution, liveVersion])
+  }, [userId, metric, days, resolution, liveVersion, onSyncResolved])
+
+  const inRangeEmpty = !loading && data != null && data.points.length === 0
+
+  useEffect(() => {
+    if (!inRangeEmpty || !hasDevices || probe.state !== 'idle') return
+    let cancelled = false
+    setProbe({ state: 'pending' })
+    api
+      .timeseries(userId, metric, 'day', 90)
+      .then((wide) => {
+        if (cancelled) return
+        const last = wide.points[wide.points.length - 1]
+        setProbe(last ? { state: 'found', latestTs: last.ts } : { state: 'empty' })
+      })
+      .catch(() => {
+        // On probe failure fall back to the connected-but-waiting copy.
+        if (!cancelled) setProbe({ state: 'empty' })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [inRangeEmpty, hasDevices, probe.state, userId, metric])
 
   const meta = METRIC_META[metric]
 
   if (loading && !data) return <Skeleton className="h-[400px] w-full rounded-xl" />
-  if (!data || data.points.length === 0)
+  if (!data || data.points.length === 0) {
+    // The wide probe decides which empty state applies; hold the skeleton
+    // until it answers so the copy never flickers between explanations.
+    if (hasDevices && (probe.state === 'idle' || probe.state === 'pending'))
+      return <Skeleton className="h-[400px] w-full rounded-xl" />
+
+    if (hasDevices && probe.state === 'found') {
+      // Data exists outside the selected window: say so and offer the
+      // narrowest range that contains the latest reading.
+      const latestAge = Date.now() - new Date(probe.latestTs).getTime()
+      const target = latestAge > 30 * 24 * 3600 * 1000 ? '90d' : '30d'
+      return (
+        <div className="flex h-[400px] flex-col items-center justify-center gap-4 px-10 text-center">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium">
+              No readings in the last {rangeLabel}
+            </span>
+            <span className="text-sm text-muted-foreground">
+              Your latest data is from {relativeAge(probe.latestTs)}.
+            </span>
+          </div>
+          <TapButton size="sm" onClick={() => onShowRange(target)}>
+            Show last {target}
+          </TapButton>
+        </div>
+      )
+    }
+
     return (
       <div className="flex h-[400px] flex-col items-center justify-center gap-4 px-10 text-center">
         {hasDevices ? (
@@ -113,30 +193,21 @@ export function TimelineChart({
               <span className="text-sm font-medium">
                 No {meta.friendlyName.toLowerCase()} here yet
               </span>
-              <span className="text-sm text-muted-foreground">
-                Your device is connected. New readings usually arrive within a couple of
-                minutes, or pull them in now.
+              <span className="max-w-md text-sm text-muted-foreground">
+                {formatNameList(providerNames) || 'Your device'} connected. We are
+                waiting for the wearable to sync with its phone app; readings appear
+                here automatically the moment it does.
               </span>
             </div>
-            <TapButton
-              size="sm"
-              disabled={syncRequested}
-              onClick={() => {
-                setSyncRequested(true)
-                onSync()
-                // Re-enable if nothing arrives: the provider cloud may simply
-                // have no new readings, and a stuck button reads as a hang.
-                setTimeout(() => setSyncRequested(false), 20_000)
-              }}
-            >
+            <TapButton size="sm" disabled={syncRequested} onClick={onSync}>
               {syncRequested ? 'Checking…' : 'Sync now'}
             </TapButton>
-            {syncRequested && (
-              <span className="text-xs text-muted-foreground">
-                Asking the device's service for new readings. If nothing appears,
-                the wearable has not synced to its phone app yet.
-              </span>
-            )}
+            {/* Fixed-height slot so the explainer never shifts the layout. */}
+            <span className="flex h-12 max-w-sm items-start justify-center text-xs text-muted-foreground">
+              {syncRequested
+                ? "Asking the device's service for new readings. If nothing appears, the wearable has not synced to its phone app yet."
+                : ''}
+            </span>
           </>
         ) : (
           <>
@@ -156,6 +227,7 @@ export function TimelineChart({
         )}
       </div>
     )
+  }
 
   const isBloodPressure = metric === 'blood_pressure'
   const points = data.points.map((p) => ({
