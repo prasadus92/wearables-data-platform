@@ -74,6 +74,11 @@ jobs:
       - name: Install dependencies
         run: npm ci --workspace web --include-workspace-root=false || npm ci
 
+      # npm's optional-deps bug (npm/cli#4828): a lockfile written on macOS
+      # can omit Rollup's Linux native binary; install it explicitly.
+      - name: Ensure Rollup linux binary
+        run: npm install @rollup/rollup-linux-x64-gnu --workspace web --no-save
+
       # VITE_API_KEY is intentionally absent: the public bundle must never
       # contain the service key. Browser requests authenticate with Clerk
       # session tokens instead.
