@@ -1,5 +1,6 @@
 """Shared FastAPI dependencies."""
 
+import hashlib
 import secrets
 import uuid
 from typing import Annotated
@@ -32,14 +33,18 @@ def _provided_credential(request: Request) -> str:
     return provided
 
 
-async def require_auth(request: Request) -> None:
-    """Dual auth for the /v1 API: static service key or Clerk session JWT.
+async def require_auth(request: Request, db: AsyncSession = Depends(get_db)) -> None:
+    """Triple auth for the /v1 API: static service key, Clerk session JWT,
+    or a guest session token.
 
     Sets ``request.state.auth`` to ``{"kind": "service"}`` when the static
     API key matches (constant-time compare; an empty configured key disables
-    the check, allowed only for local development), or to ``{"kind": "user",
+    the check, allowed only for local development), to ``{"kind": "user",
     "subject": <clerk sub>}`` when the credential is a valid Clerk JWT and
-    CLERK_ISSUER is configured. Anything else is a 401.
+    CLERK_ISSUER is configured, or to ``{"kind": "guest", "user_id": <id>}``
+    when the credential's SHA-256 matches a guest token minted by
+    POST /v1/guests. Anything else is a 401. Order matters: service key
+    first, JWT shape second, guest lookup last.
 
     Webhooks are NOT covered by this: they authenticate via the Svix
     signature instead.
@@ -63,6 +68,18 @@ async def require_auth(request: Request) -> None:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
         request.state.auth = {"kind": "user", "subject": subject}
         return
+
+    # Guest session token: an opaque urlsafe secret issued once by
+    # POST /v1/guests. Only its SHA-256 is stored, so this is a single
+    # indexed lookup; a match authenticates as exactly that user.
+    if provided:
+        digest = hashlib.sha256(provided.encode()).hexdigest()
+        guest_id = (
+            await db.execute(select(User.id).where(User.guest_token_hash == digest))
+        ).scalar_one_or_none()
+        if guest_id is not None:
+            request.state.auth = {"kind": "guest", "user_id": str(guest_id)}
+            return
 
     raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing credentials")
 
@@ -106,12 +123,15 @@ async def get_user_or_404(request: Request, user_id: uuid.UUID, db: DbSession) -
     # Clerk-authenticated callers only see their own users: client_user_id
     # is `clerk:{sub}` (sandbox) or `clerk:{sub}:production`. A mismatch is
     # a 404, identical to a missing user, so existence is never leaked.
-    # Service auth keeps full access.
+    # Guest tokens are scoped even tighter: exactly the one user they were
+    # minted for. Service auth keeps full access.
     auth = getattr(request.state, "auth", None)
     if auth is not None and auth.get("kind") == "user":
         owned = f"clerk:{auth['subject']}"
         if user.client_user_id != owned and not user.client_user_id.startswith(f"{owned}:"):
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="User not found")
+    if auth is not None and auth.get("kind") == "guest" and str(user.id) != auth["user_id"]:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="User not found")
     return user
 
 

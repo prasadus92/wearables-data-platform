@@ -4,7 +4,7 @@ import { motion, MotionConfig } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import type { Device, AggregatorEnv, User } from '@examplehealth/health-core'
-import { api, streamUrl } from './api'
+import { api, setGuestToken, streamUrl } from './api'
 import { useClerkBridge } from './components/AuthBridge'
 import { springTransition, TapButton } from './components/motion'
 import { ActivityPage } from './pages/ActivityPage'
@@ -22,7 +22,13 @@ const userKey = (env: AggregatorEnv) => `wearables-user:${env}`
 
 // Sessions bootstrapped through Clerk carry a marker so anonymous and
 // signed-in identities never mix: each is ignored while the other applies.
-type StoredUser = User & { auth?: 'clerk' }
+// Guest sessions additionally persist their one-time token (issued only in
+// the POST /v1/guests response) so keyless builds stay authenticated.
+type StoredUser = User & { auth?: 'clerk'; guest_token?: string }
+
+// The shared sample account is read via the service credential, so its
+// entry point only exists when a key was configured at build time.
+const hasServiceKey = Boolean(import.meta.env.VITE_API_KEY)
 
 function loadUser(env: AggregatorEnv): StoredUser | null {
   // Migrate the pre-mode single-session key into the sandbox slot.
@@ -146,6 +152,14 @@ function AppShell() {
   // Bumped by SSE updates; charts refetch when it changes.
   const [liveVersion, setLiveVersion] = useState(0)
   const wasSignedIn = useRef(false)
+
+  // Keep the API client's guest credential in step with the active session.
+  // Declared before the data-fetching effects below so the token registers
+  // before their first request goes out. Clerk sessions and the sample
+  // account carry no guest_token, which correctly clears it.
+  useEffect(() => {
+    setGuestToken(user?.guest_token ?? null)
+  }, [user])
 
   // Signed-in identities bootstrap through POST /v1/me per environment. The
   // result lands in the same per-mode slot, replacing any stored anonymous
@@ -287,7 +301,7 @@ function AppShell() {
                 </Button>
               </SignInButton>
             </div>
-            {mode === 'sandbox' && (
+            {mode === 'sandbox' && hasServiceKey && (
               <button
                 type="button"
                 className="text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"

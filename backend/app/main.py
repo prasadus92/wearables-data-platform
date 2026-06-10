@@ -35,11 +35,13 @@ app = FastAPI(
         "Wearable data integration for the ExampleHealth app. Users connect WHOOP/Oura/"
         "Garmin/Apple Watch via Aggregator; biometrics are ingested via webhooks and "
         "served here for timeline charts.\n\n"
-        "Authentication: all `/v1` routes accept either the service API token or a "
-        "Clerk session JWT via `X-API-Key`, `Authorization: Bearer`, or an `api_key` "
-        "query parameter (the SSE stream uses the query form because EventSource "
-        "cannot send headers). Clerk-authenticated callers are scoped to their own "
-        "users and bootstrap their identity via `POST /v1/me`."
+        "Authentication: all `/v1` routes accept the service API token, a Clerk "
+        "session JWT, or a guest session token via `X-API-Key`, `Authorization: "
+        "Bearer`, or an `api_key` query parameter (the SSE stream uses the query "
+        "form because EventSource cannot send headers). Clerk-authenticated callers "
+        "are scoped to their own users and bootstrap their identity via "
+        "`POST /v1/me`. Guest tokens are minted once by the public `POST /v1/guests` "
+        "and are scoped to that single user."
     ),
     version="1.0.0",
     lifespan=lifespan,
@@ -91,6 +93,7 @@ app.add_middleware(
 v1_auth = [Depends(require_auth)]
 app.include_router(users.router, prefix="/v1", dependencies=v1_auth)
 app.include_router(users.me_router, prefix="/v1", dependencies=v1_auth)
+app.include_router(users.guest_router, prefix="/v1")  # public: see route docstring
 app.include_router(devices.router, prefix="/v1", dependencies=v1_auth)
 app.include_router(timeseries.router, prefix="/v1", dependencies=v1_auth)
 app.include_router(events.router, prefix="/v1", dependencies=v1_auth)
