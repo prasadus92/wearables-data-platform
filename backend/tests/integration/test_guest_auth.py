@@ -112,6 +112,19 @@ async def test_guest_token_rejected_on_me(with_auth, stub_aggregator, client):
     assert response.status_code == 403
 
 
+async def test_guest_token_cannot_erase_own_user(with_auth, stub_aggregator, client):
+    """Erasure is service-side in this version: the guest's own token gets a
+    403 pointing at support, and the user survives."""
+    guest = await _mint_guest(client)
+
+    response = await client.delete(f"/v1/users/{guest['id']}", headers=bearer(guest["guest_token"]))
+    assert response.status_code == 403
+    assert "support" in response.json()["detail"].lower()
+
+    still_there = await client.get(f"/v1/users/{guest['id']}", headers={"X-API-Key": SERVICE_TOKEN})
+    assert still_there.status_code == 200
+
+
 async def test_service_key_unaffected(with_auth, stub_aggregator, client):
     guest = await _mint_guest(client)
     via_service = await client.get(f"/v1/users/{guest['id']}", headers={"X-API-Key": SERVICE_TOKEN})

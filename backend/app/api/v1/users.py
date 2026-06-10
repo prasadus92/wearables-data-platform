@@ -5,7 +5,7 @@ import secrets as pysecrets
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Request, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser, DbSession, Aggregator, aggregator_client_for
@@ -162,6 +162,83 @@ async def create_guest(db: DbSession, body: GuestCreate | None = None) -> GuestO
 @router.get("/{user_id}", response_model=UserOut)
 async def get_user(user: CurrentUser) -> User:
     return user
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def erase_user(request: Request, user: CurrentUser, db: DbSession) -> None:
+    """Right to erasure (GDPR Article 17). Service credential only.
+
+    Order of operations: deregister every non-disconnected provider at
+    Aggregator (revoking the upstream data flow first), delete the Aggregator
+    user, then delete the local row. ``connections``, ``samples`` and
+    ``device_events`` go with it via FK cascade. 404s from Aggregator are
+    tolerated at both steps: already gone upstream is the desired end state.
+
+    ``webhook_events`` rows are deliberately retained. They are the raw
+    ingestion audit log, matched to users by payload rather than FK, and the
+    GDPR position is that raw inbound events carrying provider identifiers
+    are kept for N days under the retention policy before deletion (see the
+    hardening queue in docs/authentication.md).
+
+    Clerk and guest callers get a 403: in this version account deletion is
+    performed via support, which verifies the request out of band and calls
+    this endpoint with the service credential.
+    """
+    auth = getattr(request.state, "auth", None)
+    if auth is None or auth.get("kind") != "service":
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="Account deletion is performed via support in this version.",
+        )
+
+    user_id = user.id
+    providers = (
+        (
+            await db.execute(
+                select(Connection.provider).where(
+                    Connection.user_id == user_id,
+                    Connection.status != ConnectionStatus.disconnected,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    deregistered = 0
+    aggregator_deleted = False
+    if user.aggregator_user_id:
+        aggregator = aggregator_client_for(user.aggregator_environment)
+        for provider in providers:
+            try:
+                await aggregator.deregister_provider(user.aggregator_user_id, provider)
+            except AggregatorError as exc:
+                if exc.status_code != 404:  # already gone at Aggregator is fine
+                    raise HTTPException(
+                        status.HTTP_502_BAD_GATEWAY,
+                        detail=f"Aggregator provider deregistration failed: {exc.detail}",
+                    ) from exc
+            deregistered += 1
+        try:
+            await aggregator.delete_user(user.aggregator_user_id)
+            aggregator_deleted = True
+        except AggregatorError as exc:
+            if exc.status_code != 404:  # already gone at Aggregator is fine
+                raise HTTPException(
+                    status.HTTP_502_BAD_GATEWAY,
+                    detail=f"Aggregator user deletion failed: {exc.detail}",
+                ) from exc
+
+    # Core delete so the database-level ON DELETE CASCADE handles children;
+    # an ORM session.delete would try to null out connections.user_id first.
+    await db.execute(delete(User).where(User.id == user_id))
+    await db.commit()
+    logger.info(
+        "user_erased",
+        user_id=str(user_id),
+        providers_deregistered=deregistered,
+        aggregator_deleted=aggregator_deleted,
+    )
 
 
 @router.post("/{user_id}/sync", status_code=status.HTTP_202_ACCEPTED)

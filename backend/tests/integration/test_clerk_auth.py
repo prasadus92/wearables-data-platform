@@ -155,6 +155,20 @@ async def test_service_key_keeps_full_access(with_clerk, stub_aggregator, client
     assert devices.status_code == 200
 
 
+async def test_user_token_cannot_erase_even_own_user(with_clerk, stub_aggregator, client, rsa_key):
+    """Erasure is service-side in this version: a Clerk session gets a 403
+    pointing at support, and the user survives."""
+    own = await client.post("/v1/me", headers=bearer(make_jwt(rsa_key)))
+    own_id = own.json()["id"]
+
+    response = await client.delete(f"/v1/users/{own_id}", headers=bearer(make_jwt(rsa_key)))
+    assert response.status_code == 403
+    assert "support" in response.json()["detail"].lower()
+
+    still_there = await client.get(f"/v1/users/{own_id}", headers={"X-API-Key": SERVICE_TOKEN})
+    assert still_there.status_code == 200
+
+
 async def test_me_rejects_service_key(with_clerk, client):
     response = await client.post("/v1/me", headers={"X-API-Key": SERVICE_TOKEN})
     assert response.status_code == 403
