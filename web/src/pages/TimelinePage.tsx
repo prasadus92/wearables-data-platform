@@ -1,5 +1,6 @@
 import { Info } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Navigate,
   useNavigate,
@@ -12,6 +13,7 @@ import { METRIC_META, type Metric, type Resolution } from '@examplehealth/health
 import { api } from '../api'
 import { springTransition } from '../components/motion'
 import { TimelineChart } from '../components/TimelineChart'
+import { providerDisplayName } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -87,6 +89,37 @@ export function TimelinePage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
+  // Sync-check state lives here, above the chart, because the chart remounts
+  // on every metric/range switch (AnimatePresence key): the pending flag, its
+  // 20s timeout, and the explainer all survive those switches.
+  const [syncRequested, setSyncRequested] = useState(false)
+  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const requestSync = useCallback(async () => {
+    setSyncRequested(true)
+    if (syncTimer.current) clearTimeout(syncTimer.current)
+    // Re-enable if nothing arrives: the provider cloud may simply have no new
+    // readings, and a stuck button reads as a hang.
+    syncTimer.current = setTimeout(() => setSyncRequested(false), 20_000)
+    try {
+      await api.sync(user.id)
+    } catch (e) {
+      setError(String(e))
+    }
+  }, [user.id, setError])
+  const resolveSync = useCallback(() => {
+    if (syncTimer.current) {
+      clearTimeout(syncTimer.current)
+      syncTimer.current = null
+    }
+    setSyncRequested(false)
+  }, [])
+  useEffect(
+    () => () => {
+      if (syncTimer.current) clearTimeout(syncTimer.current)
+    },
+    [],
+  )
+
   // Unknown metric slugs land on heart rate, keeping any range selection.
   if (!metricParam || !(metricParam in METRIC_META)) {
     return (
@@ -101,6 +134,8 @@ export function TimelinePage() {
   const rangeParam = searchParams.get('range') ?? DEFAULT_RANGE
   const matched = RANGES.findIndex((r) => r.label === rangeParam)
   const range = matched === -1 ? RANGES.findIndex((r) => r.label === DEFAULT_RANGE) : matched
+
+  const activeDevices = devices.filter((d) => d.status !== 'disconnected')
 
   return (
     <motion.div
@@ -182,15 +217,18 @@ export function TimelinePage() {
                 days={RANGES[range].days}
                 resolution={RANGES[range].resolution}
                 liveVersion={liveVersion}
-                hasDevices={devices.some((d) => d.status !== 'disconnected')}
+                hasDevices={activeDevices.length > 0}
+                providerNames={activeDevices.map((d) => providerDisplayName(d.provider))}
+                rangeLabel={RANGES[range].label}
                 onConnectDevice={() => navigate('/devices')}
-                onSync={async () => {
-                  try {
-                    await api.sync(user.id)
-                  } catch (e) {
-                    setError(String(e))
-                  }
+                onShowRange={(label) => {
+                  const next = new URLSearchParams(searchParams)
+                  next.set('range', label)
+                  setSearchParams(next)
                 }}
+                syncRequested={syncRequested}
+                onSync={requestSync}
+                onSyncResolved={resolveSync}
               />
             </motion.div>
           </AnimatePresence>

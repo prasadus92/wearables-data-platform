@@ -2,7 +2,15 @@ import { SignInButton, UserButton } from '@clerk/react'
 import { AlertCircle } from 'lucide-react'
 import { motion, MotionConfig } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
+import {
+  Link,
+  Navigate,
+  Outlet,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom'
 import type { Device, AggregatorEnv, User } from '@examplehealth/health-core'
 import { api, setGuestToken, streamUrl } from './api'
 import { useClerkBridge } from './components/AuthBridge'
@@ -56,10 +64,13 @@ function ModeToggle({
   mode,
   onChange,
   className,
+  liveDisabled = false,
 }: {
   mode: AggregatorEnv
   onChange: (m: AggregatorEnv) => void
   className?: string
+  /** Guests are demo identities, so Live stays visible yet unclickable. */
+  liveDisabled?: boolean
 }) {
   return (
     <ToggleGroup
@@ -81,7 +92,11 @@ function ModeToggle({
       </ToggleGroupItem>
       <ToggleGroupItem
         value="production"
-        className="px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+        className={`px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground${
+          liveDisabled ? ' pointer-events-none opacity-40' : ''
+        }`}
+        title={liveDisabled ? 'Sign in to connect real devices' : undefined}
+        aria-disabled={liveDisabled || undefined}
       >
         Live
       </ToggleGroupItem>
@@ -150,6 +165,11 @@ function AppShell() {
   const stored = sessions[mode]
   const storedIsClerk = stored?.auth === 'clerk'
   const user = clerkLoaded && storedIsClerk !== signedIn ? null : stored
+  // Guests are demo-only identities; Live mode is reserved for sign-in.
+  const isGuest = Boolean(
+    user && (user.client_user_id.startsWith('guest:') || user.guest_token),
+  )
+  const navigate = useNavigate()
   const [devices, setDevices] = useState<Device[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -246,7 +266,8 @@ function AppShell() {
   }, [user, refreshDevices])
 
   // Establish a session from any identity source and store it per mode.
-  async function establishSession(create: () => Promise<User>) {
+  // Returns whether the session was created, so callers can route on success.
+  async function establishSession(create: () => Promise<User>): Promise<boolean> {
     setError(null)
     setBusy(true)
     try {
@@ -254,16 +275,22 @@ function AppShell() {
       localStorage.setItem(userKey(mode), JSON.stringify(created))
       setSessions((s) => ({ ...s, [mode]: created }))
       setDevices([])
+      return true
     } catch (e) {
       setError(String(e))
+      return false
     } finally {
       setBusy(false)
     }
   }
 
   // Guests are explicit and server-issued: the backend mints a guest:<id>
-  // identity and records the session start in the lifecycle ledger.
-  const startAsGuest = () => establishSession(() => api.guests(mode))
+  // identity and records the session start in the lifecycle ledger. A fresh
+  // guest has no data, so land on Devices where the first decision (pick a
+  // wearable) lives instead of an empty timeline.
+  const startAsGuest = async () => {
+    if (await establishSession(() => api.guests(mode))) navigate('/devices')
+  }
   // The shared sample account rides the idempotent service-side create.
   const exploreSample = () => establishSession(() => api.createUser('wearables-sample', mode))
 
@@ -297,44 +324,21 @@ function AppShell() {
             <span className="block">See it unfold.</span>
           </motion.h1>
           <motion.p variants={riseIn} className="max-w-md text-base text-muted-foreground">
-            {mode === 'sandbox'
-              ? 'A full dashboard fed by demo wearables and synthetic data. Look around freely.'
-              : 'Connect your wearables and watch heart rate, sleep, and activity arrive as they happen.'}
+            Connect your wearables and watch heart rate, sleep, and activity arrive as they
+            happen. Or look around first with demo data.
           </motion.p>
-          <motion.div variants={riseIn}>
-            <ModeToggle
-              mode={mode}
-              onChange={switchMode}
-              className="opacity-80 transition-opacity hover:opacity-100"
-            />
-          </motion.div>
           <motion.div variants={riseIn} className="flex flex-col items-center gap-3">
             <div className="flex items-center gap-2">
-              {mode === 'sandbox' ? (
-                <>
-                  <TapButton size="lg" disabled={busy} onClick={startAsGuest}>
-                    Try the demo
-                  </TapButton>
-                  <SignInButton mode="modal">
-                    <Button size="lg" variant="outline" disabled={busy}>
-                      Sign in
-                    </Button>
-                  </SignInButton>
-                </>
-              ) : (
-                <SignInButton mode="modal">
-                  <Button size="lg" disabled={busy}>
-                    Sign in
-                  </Button>
-                </SignInButton>
-              )}
+              <SignInButton mode="modal">
+                <Button size="lg" disabled={busy}>
+                  Sign in
+                </Button>
+              </SignInButton>
+              <TapButton size="lg" variant="outline" disabled={busy} onClick={startAsGuest}>
+                Try the demo
+              </TapButton>
             </div>
-            {mode === 'production' && (
-              <p className="font-mono text-xs tracking-wide text-muted-foreground">
-                Real devices connect to your account
-              </p>
-            )}
-            {mode === 'sandbox' && hasServiceKey && (
+            {hasServiceKey && (
               <button
                 type="button"
                 className="text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
@@ -374,7 +378,7 @@ function AppShell() {
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-semibold tracking-tight">ExampleHealth Wearables</h1>
-            <ModeToggle mode={mode} onChange={switchMode} />
+            <ModeToggle mode={mode} onChange={switchMode} liveDisabled={isGuest} />
           </div>
           <div className="flex items-center gap-2">
             <span className="flex items-center gap-1 rounded-full border bg-card py-1 pr-1.5 pl-3 text-xs">
