@@ -144,7 +144,10 @@ function DeviceCard({
 }
 
 export function DevicesScreen() {
-  const { mode, switchMode, session, signOut, nav } = useApp();
+  const { mode, switchMode, session, signOut, clerkSignOut, nav } = useApp();
+  // Clerk-bootstrapped sessions end via a real sign-out that clears every
+  // mode; anonymous ones just swap the per-mode identity.
+  const clerkAuthed = session?.auth === 'clerk';
   const [devices, setDevices] = useState<Device[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -232,9 +235,12 @@ export function DevicesScreen() {
                   User id {session.userId.slice(0, 8)}
                 </Text>
               </View>
-              <Pressable onPress={signOut} className="active:opacity-60">
+              <Pressable
+                onPress={clerkAuthed ? clerkSignOut : signOut}
+                className="active:opacity-60"
+              >
                 <Text className="text-[13px] font-sans-medium text-sub">
-                  Switch user
+                  {clerkAuthed ? 'Sign out' : 'Switch user'}
                 </Text>
               </Pressable>
             </View>

@@ -1,15 +1,19 @@
 import './global.css';
 
+import { ClerkProvider, useAuth, useClerk } from '@clerk/clerk-expo';
+import { tokenCache } from '@clerk/clerk-expo/token-cache';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ReducedMotionConfig, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { api, ApiError, setTokenProvider } from './src/api/client';
 import type { JunctionEnv } from './src/api/types';
+import { Button } from './src/components/Button';
 import { AppContext, type AppState, type Nav, type Route } from './src/lib/appContext';
 import { storage, type Session } from './src/lib/storage';
 import { ConnectIntroScreen } from './src/screens/ConnectIntroScreen';
@@ -18,11 +22,26 @@ import { ConnectResultScreen } from './src/screens/ConnectResultScreen';
 import { DevicesScreen } from './src/screens/DevicesScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { WelcomeScreen } from './src/screens/WelcomeScreen';
+import { colors } from './src/theme/tokens';
 
 // Completes pending auth sessions when the OAuth redirect returns (web only).
 WebBrowser.maybeCompleteAuthSession();
 
+const CLERK_PUBLISHABLE_KEY =
+  process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '';
+
 export default function App() {
+  return (
+    <ClerkProvider
+      publishableKey={CLERK_PUBLISHABLE_KEY}
+      tokenCache={tokenCache}
+    >
+      <Root />
+    </ClerkProvider>
+  );
+}
+
+function Root() {
   // Brand typography: Book is the body face, Medium carries headings.
   const [fontsLoaded] = useFonts({
     PPNeueMontreal: require('./assets/fonts/PPNeueMontreal-Book.otf'),
@@ -42,6 +61,29 @@ export default function App() {
   const [connectCardDismissed, setConnectCardDismissed] = useState(false);
   const [stack, setStack] = useState<Route[]>([{ name: 'home' }]);
 
+  // Bridges Clerk session state into the API client. While signed in, every
+  // request carries a fresh session JWT instead of the static API key.
+  // `bridged` flips to true only AFTER the token provider is registered, so
+  // no "signed in" request ever goes out with the API key. Mirrors web's
+  // AuthBridge.
+  const { isLoaded: clerkLoaded, isSignedIn, getToken } = useAuth();
+  const clerk = useClerk();
+  const [bridged, setBridged] = useState(false);
+  const [bootError, setBootError] = useState<string | null>(null);
+  const [bootAttempt, setBootAttempt] = useState(0);
+  const wasSignedIn = useRef(false);
+
+  useEffect(() => {
+    if (clerkLoaded && isSignedIn) {
+      setTokenProvider(() => getToken());
+      setBridged(true);
+    } else {
+      setTokenProvider(null);
+      setBridged(false);
+    }
+    return () => setTokenProvider(null);
+  }, [clerkLoaded, isSignedIn, getToken]);
+
   useEffect(() => {
     (async () => {
       const [savedMode, savedSessions, savedSkipped, savedDismissed] =
@@ -58,6 +100,56 @@ export default function App() {
       setReady(true);
     })();
   }, []);
+
+  // Signed-in identities bootstrap through POST /v1/me per environment. The
+  // result lands in the same per-mode slot, replacing any stored anonymous
+  // session, so the rest of the app is identity-agnostic. Re-runs on mode
+  // switch so Demo and Live each resolve their own user.
+  useEffect(() => {
+    if (!bridged || !ready) return;
+    let cancelled = false;
+    setBootError(null);
+    api
+      .me(mode)
+      .then((me) => {
+        if (cancelled) return;
+        const next: Session = {
+          userId: me.id,
+          clientUserId: me.client_user_id,
+          auth: 'clerk',
+        };
+        setSessions((s) => ({ ...s, [mode]: next }));
+        storage.saveSession(mode, next);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setBootError(
+          err instanceof ApiError && err.status > 0
+            ? err.message
+            : 'Could not reach the server. Check your connection and try again.',
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bridged, ready, mode, bootAttempt]);
+
+  // Signing out of the Clerk identity clears both mode slots and returns to
+  // onboarding, so signed-in sessions never linger as anonymous ones. Also
+  // covers external session expiry, not just the in-app Sign out control.
+  useEffect(() => {
+    if (bridged) {
+      wasSignedIn.current = true;
+      return;
+    }
+    if (!wasSignedIn.current) return;
+    wasSignedIn.current = false;
+    setSessions({ sandbox: null, production: null });
+    setSkipped(false);
+    setStack([{ name: 'home' }]);
+    setBootError(null);
+    storage.clearAllSessions();
+  }, [bridged]);
 
   const nav: Nav = useMemo(
     () => ({
@@ -92,6 +184,17 @@ export default function App() {
     storage.clearSession(mode);
   }, [mode]);
 
+  const clerkSignOut = useCallback(() => {
+    // The bridged watcher above clears local sessions once Clerk confirms.
+    clerk.signOut().catch(() => {
+      // Even if Clerk fails (offline), drop local state so the UI signs out.
+      setSessions({ sandbox: null, production: null });
+      setSkipped(false);
+      setStack([{ name: 'home' }]);
+      storage.clearAllSessions();
+    });
+  }, [clerk]);
+
   const switchMode = useCallback(
     (next: JunctionEnv) => {
       if (next === mode) return;
@@ -113,7 +216,13 @@ export default function App() {
     storage.saveConnectCardDismissed();
   }, []);
 
-  const session = sessions[mode];
+  // Once Clerk has resolved, only show sessions that match the auth state:
+  // signed in ignores stored anonymous sessions (api.me replaces them), and
+  // signed out ignores any leftover Clerk-bootstrapped session. While Clerk
+  // is still loading, trust the stored slot to avoid an onboarding flash.
+  const stored = sessions[mode];
+  const storedIsClerk = stored?.auth === 'clerk';
+  const session = clerkLoaded && storedIsClerk !== bridged ? null : stored;
 
   const value: AppState = useMemo(
     () => ({
@@ -125,6 +234,7 @@ export default function App() {
       signIn,
       skip,
       signOut,
+      clerkSignOut,
       dismissConnectCard,
       nav,
     }),
@@ -137,6 +247,7 @@ export default function App() {
       signIn,
       skip,
       signOut,
+      clerkSignOut,
       dismissConnectCard,
       nav,
     ],
@@ -149,10 +260,33 @@ export default function App() {
   }
 
   const top = stack[stack.length - 1];
-  const showWelcome = !session && !skipped;
+  const bootstrapping = bridged && !session;
+  const showWelcome = !session && !skipped && !bootstrapping;
 
   let screen;
-  if (showWelcome) {
+  if (bootstrapping) {
+    // Signed in but the per-mode user has not resolved yet (or failed).
+    screen = (
+      <View className="flex-1 items-center justify-center bg-paper px-8">
+        {bootError ? (
+          <View className="w-full items-center">
+            <Text className="mb-5 text-center text-[14px] font-sans leading-[20px] text-sub">
+              {bootError}
+            </Text>
+            <Button
+              label="Try again"
+              onPress={() => setBootAttempt((n) => n + 1)}
+            />
+            <View className="mt-3">
+              <Button label="Sign out" variant="ghost" onPress={clerkSignOut} />
+            </View>
+          </View>
+        ) : (
+          <ActivityIndicator color={colors.sub} />
+        )}
+      </View>
+    );
+  } else if (showWelcome) {
     screen = <WelcomeScreen />;
   } else {
     switch (top.name) {

@@ -19,6 +19,26 @@ const extra: AppExtra = (Constants.expoConfig?.extra as AppExtra) ?? {};
 const BASE_URL = extra.apiBaseUrl ?? 'https://api.youth.luminik.io';
 const API_KEY = extra.apiKey ?? '';
 
+// When a signed-in account session exists, App registers a provider that
+// yields a fresh session JWT; every request then authenticates as that
+// identity via Authorization: Bearer. With no provider (anonymous mode) the
+// static API key flows exactly as before. Mirrors web/src/api.ts.
+type TokenProvider = () => Promise<string | null>;
+let tokenProvider: TokenProvider | null = null;
+
+export function setTokenProvider(fn: TokenProvider | null): void {
+  tokenProvider = fn;
+}
+
+async function authToken(): Promise<string | null> {
+  if (!tokenProvider) return null;
+  try {
+    return await tokenProvider();
+  } catch {
+    return null;
+  }
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -32,6 +52,7 @@ export class ApiError extends Error {
 const TIMEOUT_MS = 20000;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = await authToken();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   let res: Response;
@@ -40,7 +61,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       ...init,
       signal: controller.signal,
       headers: {
-        'X-API-Key': API_KEY,
+        ...(token
+          ? { Authorization: `Bearer ${token}` }
+          : { 'X-API-Key': API_KEY }),
         'Content-Type': 'application/json',
         ...init?.headers,
       },
@@ -72,6 +95,14 @@ export const api = {
         client_user_id: clientUserId,
         ...(environment ? { environment } : {}),
       }),
+    });
+  },
+
+  /** Bootstrap the signed-in identity: gets-or-creates its user per mode. */
+  me(environment: JunctionEnv) {
+    return request<ApiUser>('/me', {
+      method: 'POST',
+      body: JSON.stringify({ environment }),
     });
   },
 
