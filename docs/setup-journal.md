@@ -29,7 +29,7 @@ Dashboard → team → environment → Webhooks → Add Endpoint:
 WHOOP refuses aggregator-shared credentials, so every Junction team needs its own WHOOP
 developer app before the WHOOP connect flow works at all. Steps taken:
 
-1. developer.whoop.com → signed in with the founder-provided WHOOP account.
+1. developer.whoop.com → signed in with the shared WHOOP device account.
 2. Created app "Prasad's Onsite (Test App)" with:
    - Redirect URIs (must exactly match what Junction sends):
      `https://api.eu.junction.com/v2/link/connect/whoop_v2`
@@ -48,7 +48,7 @@ developer app before the WHOOP connect flow works at all. Steps taken:
 - Connections happen via Junction's hosted Link page, never the provider dashboards:
   `./scripts/make-link.sh <provider>` prints a URL (60-minute expiry), open, sign in
   with the device account, Accept.
-- Oura: connected first try with the founder's account.
+- Oura: connected first try with the shared device account.
 - WHOOP: 401 at the OAuth exchange before BYOO was configured (expected; this verified
   the BYOO requirement), connected cleanly after step 3.
 - Garmin: skipped, no physical device available.
