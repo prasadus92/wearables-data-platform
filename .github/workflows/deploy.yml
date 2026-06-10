@@ -1,0 +1,101 @@
+# Continuous deploy on push to main. Auth is OIDC (no stored AWS keys): the
+# workflow assumes the role created in infra/terraform/cicd.tf. Repository
+# variables required: AWS_ROLE_ARN, CF_DISTRIBUTION_ID, WEB_BUCKET, plus
+# VITE_CLERK_PUBLISHABLE_KEY for the web build (publishable, not secret).
+# See infra/README.md for the one-time setup.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-central-1
+  ECS_CLUSTER: wearables-data-platform
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2.1.5
+
+      - name: Build and push backend image
+        env:
+          ECR_REPO: ${{ steps.ecr.outputs.registry }}/wearables-data-platform-backend
+        run: |
+          docker build --platform linux/amd64 \
+            -t "$ECR_REPO:latest" -t "$ECR_REPO:$GITHUB_SHA" backend/
+          docker push --all-tags "$ECR_REPO"
+
+      - name: Roll ECS services
+        run: |
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service api \
+            --force-new-deployment --no-cli-pager --query 'service.serviceName'
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service worker \
+            --force-new-deployment --no-cli-pager --query 'service.serviceName'
+
+      - name: Wait for services to stabilize
+        run: aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services api worker
+
+  web:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # VITE_API_KEY is intentionally absent: the public bundle must never
+      # contain the service key. Browser requests authenticate with Clerk
+      # session tokens instead.
+      - name: Build
+        env:
+          VITE_API_URL: https://api.examplehealth.example.com
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
+        run: npm run build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Sync to S3
+        run: aws s3 sync dist/ "s3://${{ vars.WEB_BUCKET }}" --delete --no-progress
+
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.CF_DISTRIBUTION_ID }}" \
+            --paths "/*" --no-cli-pager
