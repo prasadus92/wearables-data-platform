@@ -99,6 +99,10 @@ class User(Base):
     junction_environment: Mapped[str] = mapped_column(
         String(16), default="sandbox", server_default="sandbox"
     )
+    # SHA-256 hex of the guest session token minted at POST /v1/guests. Only
+    # guest users carry one; presenting the matching token authenticates a
+    # caller as exactly this user. Null for service-created and Clerk users.
+    guest_token_hash: Mapped[str | None] = mapped_column(String(128), unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     connections: Mapped[list["Connection"]] = relationship(back_populates="user")

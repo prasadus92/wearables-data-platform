@@ -1,5 +1,6 @@
 """User endpoints: registration, guests, Junction identity mapping, sync."""
 
+import hashlib
 import secrets as pysecrets
 from datetime import UTC, datetime, timedelta
 
@@ -11,7 +12,7 @@ from app.api.deps import CurrentUser, DbSession, Junction, junction_client_for
 from app.core.config import JunctionEnvironment, get_settings
 from app.core.logging import get_logger
 from app.models import Connection, ConnectionStatus, DeviceEventActor, DeviceEventType, User
-from app.schemas import GuestCreate, MeCreate, UserCreate, UserOut
+from app.schemas import GuestCreate, GuestOut, MeCreate, UserCreate, UserOut
 from app.services.ingestion import (
     RESOURCE_TO_METRIC,
     ConnectionChange,
@@ -24,9 +25,14 @@ from app.workers.queue import enqueue_backfill
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/users", tags=["users"])
-# /me and /guests live outside the /users prefix; included in main.py with
+# /me lives outside the /users prefix; included in main.py with
 # the same auth.
 me_router = APIRouter(tags=["users"])
+# Guest creation is public by design: it mints a fresh sandbox-scoped
+# identity and grants access to nothing else. Production-hardening note:
+# add per-IP rate limiting before wide distribution (documented in
+# docs/authentication.md).
+guest_router = APIRouter(tags=["users"])
 
 # Server-issued anonymous identities. The prefix is the contract: everything
 # downstream (ownership checks, UI labels) recognizes a guest by it.
@@ -38,6 +44,7 @@ async def get_or_create_user(
     client_user_id: str,
     environment: JunctionEnvironment,
     actor: DeviceEventActor = DeviceEventActor.service,
+    guest_token_hash: str | None = None,
 ) -> User:
     """Look up a user by ``client_user_id``, creating and registering them
     with Junction when absent. Idempotent: re-running with the same id
@@ -50,7 +57,11 @@ async def get_or_create_user(
         return existing
 
     junction = junction_client_for(environment)
-    user = User(client_user_id=client_user_id, junction_environment=str(environment))
+    user = User(
+        client_user_id=client_user_id,
+        junction_environment=str(environment),
+        guest_token_hash=guest_token_hash,
+    )
 
     try:
         junction_user = await junction.create_user(client_user_id)
@@ -98,10 +109,11 @@ async def create_user(body: UserCreate, db: DbSession, _junction: Junction) -> U
 async def create_me(request: Request, db: DbSession, body: MeCreate | None = None) -> User:
     """Bootstrap the signed-in caller's identity (Demo/Live mode).
 
-    Requires Clerk user auth; the service API key gets a 403 because it has
-    no single identity to bind. Get-or-creates the user whose client_user_id
-    is `clerk:{sub}` (sandbox) or `clerk:{sub}:production` (production),
-    registering with Junction exactly like POST /v1/users.
+    Requires Clerk user auth; the service API key and guest tokens get a 403
+    because neither carries a Clerk subject to bind. Get-or-creates the user
+    whose client_user_id is `clerk:{sub}` (sandbox) or
+    `clerk:{sub}:production` (production), registering with Junction exactly
+    like POST /v1/users.
     """
     auth = getattr(request.state, "auth", None)
     if auth is None or auth.get("kind") != "user":
@@ -119,19 +131,32 @@ async def create_me(request: Request, db: DbSession, body: MeCreate | None = Non
     return await get_or_create_user(db, client_user_id, environment, actor=DeviceEventActor.user)
 
 
-@me_router.post("/guests", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-async def create_guest(db: DbSession, body: GuestCreate | None = None) -> User:
+@guest_router.post("/guests", response_model=GuestOut, status_code=status.HTTP_201_CREATED)
+async def create_guest(db: DbSession, body: GuestCreate | None = None) -> GuestOut:
     """Start an explicit guest session: mint a server-side ``guest:<random>``
     identity, register it with Junction, and record ``guest_created``.
 
     Guests are first-class: same Junction registration and data pipeline as
     any user, just an anonymous identity. Signing in later moves their
     devices via the identity remap endpoint.
+
+    The response carries ``guest_token`` exactly once. Only its SHA-256 is
+    stored server-side, so it cannot be retrieved again; the client must
+    persist it. Presenting the token (X-API-Key, Bearer, or api_key query)
+    authenticates as this user and scopes access to this user only.
     """
     requested = body.environment if body is not None else None
     environment = JunctionEnvironment(requested or get_settings().junction_environment)
     client_user_id = f"{GUEST_PREFIX}{pysecrets.token_hex(8)}"
-    return await get_or_create_user(db, client_user_id, environment, actor=DeviceEventActor.user)
+    guest_token = pysecrets.token_urlsafe(32)
+    user = await get_or_create_user(
+        db,
+        client_user_id,
+        environment,
+        actor=DeviceEventActor.user,
+        guest_token_hash=hashlib.sha256(guest_token.encode()).hexdigest(),
+    )
+    return GuestOut(**UserOut.model_validate(user).model_dump(), guest_token=guest_token)
 
 
 @router.get("/{user_id}", response_model=UserOut)
