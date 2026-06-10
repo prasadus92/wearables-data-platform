@@ -42,7 +42,13 @@ async function authToken(): Promise<string | null> {
   if (tokenProvider) {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const token = await tokenProvider()
+        // getToken can hang during the Clerk handshake on a hard page load;
+        // an unbounded await here freezes every chart on a skeleton. Bound
+        // each attempt and fall through, the caller surfaces a retry.
+        const token = await Promise.race<string | null>([
+          tokenProvider(),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500)),
+        ])
         if (token) return token
       } catch {
         // fall through to retry

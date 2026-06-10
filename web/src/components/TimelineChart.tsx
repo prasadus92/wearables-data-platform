@@ -338,8 +338,12 @@ export function TimelineChart({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-        <div className="flex flex-col gap-0.5">
-          {status && <span className="text-sm font-medium">{status}</span>}
+        <div className="flex flex-col gap-1">
+          {status && (
+            <span className="font-mono text-[11px] font-medium tracking-widest text-muted-foreground uppercase">
+              {status}
+            </span>
+          )}
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.span
               key={latestDisplay}
