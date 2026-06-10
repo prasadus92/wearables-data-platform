@@ -13,6 +13,7 @@ import {
 import { api, type Metric, type Resolution, type Timeseries } from '../api'
 import { baseline, latestStatus, weekDelta } from '../lib/insights'
 import { METRIC_META } from '../lib/metrics'
+import { TapButton } from './motion'
 import { Skeleton } from '@/components/ui/skeleton'
 
 interface Props {
@@ -22,6 +23,12 @@ interface Props {
   resolution: Resolution
   /** Bumped by the SSE stream when new samples land; triggers a refetch. */
   liveVersion: number
+  /** Whether the user has any active wearable connection; drives empty states. */
+  hasDevices: boolean
+  /** Scrolls/leads the user to the connect section. */
+  onConnectDevice: () => void
+  /** Triggers a manual sync for the freshly-connected case. */
+  onSync: () => void
 }
 
 /** Small arrow chip for the 7-day vs prior 7-day change. Neutral styling on
@@ -47,9 +54,19 @@ function DeltaChip({ delta }: { delta: number }) {
   )
 }
 
-export function TimelineChart({ userId, metric, days, resolution, liveVersion }: Props) {
+export function TimelineChart({
+  userId,
+  metric,
+  days,
+  resolution,
+  liveVersion,
+  hasDevices,
+  onConnectDevice,
+  onSync,
+}: Props) {
   const [data, setData] = useState<Timeseries | null>(null)
   const [loading, setLoading] = useState(true)
+  const [syncRequested, setSyncRequested] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -58,7 +75,10 @@ export function TimelineChart({ userId, metric, days, resolution, liveVersion }:
     async function load() {
       try {
         const series = await api.timeseries(userId, metric, resolution, days)
-        if (!cancelled) setData(series)
+        if (!cancelled) {
+          setData(series)
+          if (series.points.length > 0) setSyncRequested(false)
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -74,17 +94,54 @@ export function TimelineChart({ userId, metric, days, resolution, liveVersion }:
     }
   }, [userId, metric, days, resolution, liveVersion])
 
+  const meta = METRIC_META[metric]
+
   if (loading && !data) return <Skeleton className="h-[400px] w-full rounded-xl" />
   if (!data || data.points.length === 0)
     return (
-      <div className="flex h-[400px] items-center justify-center px-10 text-center text-sm text-muted-foreground">
-        No {metric.replace('_', ' ')} data in this range yet. Connect a device and data will
-        appear as Junction delivers it.
+      <div className="flex h-[400px] flex-col items-center justify-center gap-4 px-10 text-center">
+        {hasDevices ? (
+          <>
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-medium">
+                No {meta.friendlyName.toLowerCase()} here yet
+              </span>
+              <span className="text-sm text-muted-foreground">
+                Your device is connected. New readings usually arrive within a couple of
+                minutes, or pull them in now.
+              </span>
+            </div>
+            <TapButton
+              size="sm"
+              disabled={syncRequested}
+              onClick={() => {
+                setSyncRequested(true)
+                onSync()
+              }}
+            >
+              {syncRequested ? 'Syncing…' : 'Sync now'}
+            </TapButton>
+          </>
+        ) : (
+          <>
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-medium">
+                Your {meta.friendlyName.toLowerCase()} will live here
+              </span>
+              <span className="text-sm text-muted-foreground">
+                Connect a wearable once and your readings flow in automatically, day and
+                night.
+              </span>
+            </div>
+            <TapButton size="sm" onClick={onConnectDevice}>
+              Connect a device
+            </TapButton>
+          </>
+        )}
       </div>
     )
 
   const isBloodPressure = metric === 'blood_pressure'
-  const meta = METRIC_META[metric]
   const points = data.points.map((p) => ({
     ...p,
     label: new Date(p.ts).toLocaleString(undefined, {

@@ -1,6 +1,6 @@
 import { AlertCircle, Info } from 'lucide-react'
 import { AnimatePresence, motion, MotionConfig } from 'motion/react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   api,
   streamUrl,
@@ -159,6 +159,7 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   // Bumped by SSE updates; charts refetch when it changes.
   const [liveVersion, setLiveVersion] = useState(0)
+  const devicesRef = useRef<HTMLDivElement>(null)
 
   const refreshDevices = useCallback(async () => {
     if (!user) return
@@ -344,7 +345,7 @@ export default function App() {
           animate="show"
           className="flex flex-col gap-4"
         >
-          <motion.div variants={riseIn}>
+          <motion.div variants={riseIn} ref={devicesRef}>
             <DevicePanel
               devices={devices}
               environment={mode}
@@ -445,6 +446,17 @@ export default function App() {
                       days={RANGES[range].days}
                       resolution={RANGES[range].resolution}
                       liveVersion={liveVersion}
+                      hasDevices={devices.some((d) => d.status !== 'disconnected')}
+                      onConnectDevice={() =>
+                        devicesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                      }
+                      onSync={async () => {
+                        try {
+                          await api.sync(user.id)
+                        } catch (e) {
+                          setError(String(e))
+                        }
+                      }}
                     />
                   </motion.div>
                 </AnimatePresence>
