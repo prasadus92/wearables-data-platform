@@ -390,9 +390,18 @@ function AppShell() {
       <div className="mx-auto flex max-w-[880px] flex-col gap-4 px-5 pt-6 pb-16">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <h1 className="flex items-baseline gap-2">
-              <img src="/youth-logo.svg" alt="YOU(th)" className="h-4 w-auto" />
-              <span className="text-xl leading-none font-semibold tracking-tight">Wearables</span>
+            <h1>
+              <button
+                type="button"
+                className="flex cursor-pointer items-baseline gap-2"
+                aria-label="Go to your timeline"
+                onClick={() => navigate('/metrics/heartrate')}
+              >
+                <img src="/youth-logo.svg" alt="YOU(th)" className="h-4 w-auto" />
+                <span className="text-xl leading-none font-semibold tracking-tight">
+                  Wearables
+                </span>
+              </button>
             </h1>
             <span
               className="rounded-full border bg-card px-2.5 py-0.5 font-mono text-xs tracking-wide text-muted-foreground uppercase"

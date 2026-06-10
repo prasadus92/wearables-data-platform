@@ -49,10 +49,12 @@ export function latestStatus(
     base.mean !== 0
       ? Math.round(((latest - base.mean) / Math.abs(base.mean)) * 100)
       : 0;
+  // A value can sit just outside the band while rounding to 0% from the
+  // mean; a "(+0%)" callout reads as a bug, so omit it.
   if (latest > base.high) {
-    return `Above your typical range (+${pct}%)`;
+    return pct > 0 ? `Above your typical range (+${pct}%)` : 'Above your typical range';
   }
-  return `Below your typical range (${pct}%)`;
+  return pct < 0 ? `Below your typical range (${pct}%)` : 'Below your typical range';
 }
 
 /**

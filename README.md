@@ -44,4 +44,4 @@ Junction ──webhooks──▶ FastAPI /webhooks/junction ──▶ queue ─�
 Web / Expo app ◀──── REST /v1/timeseries, /v1/devices, /v1/link ─────────────┘
 ```
 
-See [docs/architecture.md](docs/architecture.md) for the full system diagrams and the 10k to 50M user scaling strategy, [docs/authentication.md](docs/authentication.md) for the auth model and its production hardening queue, and [docs/demo-runbook.md](docs/demo-runbook.md) for every manual step.
+See [docs/architecture.md](docs/architecture.md) for the full system diagrams and the 10k to 50M user scaling strategy, [docs/authentication.md](docs/authentication.md) for the auth model and its production hardening queue, [docs/insights.md](docs/insights.md) for how the typical range and insight sentences are computed, and [docs/demo-runbook.md](docs/demo-runbook.md) for every manual step.
