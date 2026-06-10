@@ -1,24 +1,22 @@
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, Info } from 'lucide-react'
 import { AnimatePresence, motion, MotionConfig } from 'motion/react'
 import { useCallback, useEffect, useState } from 'react'
 import { api, streamUrl, type Device, type Metric, type Resolution, type User } from './api'
 import { DevicePanel } from './components/DevicePanel'
 import { springTransition, TapButton } from './components/motion'
 import { TimelineChart } from './components/TimelineChart'
+import { METRIC_META } from './lib/metrics'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
-const METRICS: { key: Metric; label: string }[] = [
-  { key: 'heartrate', label: 'Heart Rate' },
-  { key: 'hrv', label: 'HRV' },
-  { key: 'spo2', label: 'SpO₂' },
-  { key: 'respiratory_rate', label: 'Respiratory Rate' },
-  { key: 'blood_pressure', label: 'Blood Pressure' },
-]
+const METRICS: { key: Metric; label: string }[] = (
+  ['heartrate', 'hrv', 'spo2', 'respiratory_rate', 'blood_pressure'] as Metric[]
+).map((key) => ({ key, label: METRIC_META[key].friendlyName }))
 
 const RANGES: { label: string; days: number; resolution: Resolution }[] = [
   { label: '24h', days: 1, resolution: 'hour' },
@@ -38,6 +36,34 @@ const staggerParent = {
 const riseIn = {
   hidden: { opacity: 0, y: 8 },
   show: { opacity: 1, y: 0, transition: springTransition },
+}
+
+/** Info button that explains the selected metric in plain language. */
+function MetricInfoPopover({ metric }: { metric: Metric }) {
+  const meta = METRIC_META[metric]
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="xs"
+          className="size-6 rounded-full p-0 text-muted-foreground hover:text-foreground"
+          aria-label={`What is ${meta.friendlyName}?`}
+        >
+          <Info className="size-3.5" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="flex w-80 flex-col gap-2">
+        <span className="text-sm font-medium">{meta.friendlyName}</span>
+        <p className="text-sm leading-relaxed text-popover-foreground/90">
+          {meta.shortExplanation}
+        </p>
+        <p className="border-t pt-2 text-xs text-muted-foreground">
+          This is informational, and no substitute for medical advice.
+        </p>
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 /** Tiny dot beside the Timeline title; pings once per SSE update. */
@@ -284,8 +310,9 @@ export default function App() {
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 <div className="flex flex-wrap items-center justify-between gap-2.5">
-                  <Tabs value={metric} onValueChange={(v) => setMetric(v as Metric)}>
-                    <TabsList className="h-auto flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <Tabs value={metric} onValueChange={(v) => setMetric(v as Metric)}>
+                      <TabsList className="h-auto flex-wrap">
                       {METRICS.map((m) => (
                         <TabsTrigger
                           key={m.key}
@@ -302,8 +329,10 @@ export default function App() {
                           <span className="relative z-10">{m.label}</span>
                         </TabsTrigger>
                       ))}
-                    </TabsList>
-                  </Tabs>
+                      </TabsList>
+                    </Tabs>
+                    <MetricInfoPopover metric={metric} />
+                  </div>
                   <ToggleGroup
                     type="single"
                     variant="outline"
