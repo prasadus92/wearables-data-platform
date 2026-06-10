@@ -102,6 +102,13 @@ export const api = {
       body: JSON.stringify({ client_user_id: clientUserId, environment }),
     }),
 
+  /** Start an explicit guest session; the identity is minted server-side. */
+  guests: (environment: JunctionEnv = 'sandbox') =>
+    request<User>('/v1/guests', {
+      method: 'POST',
+      body: JSON.stringify({ environment }),
+    }),
+
   /** Bootstrap the signed-in identity: gets-or-creates its user per mode. */
   me: (environment: JunctionEnv = 'sandbox') =>
     request<User>('/v1/me', {
