@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated, {
   ReduceMotion,
@@ -9,10 +9,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 
-import type { Device } from '@examplehealth/health-core';
-
-import { api } from '../api/client';
 import { AnimatedPressable } from '../components/AnimatedPressable';
+import { ProviderLogo } from '../components/ProviderLogo';
 import { SheetHandle, SheetTitle, sheetIn } from '../components/Sheet';
 import { useApp } from '../lib/appContext';
 import { PROVIDERS, type ProviderInfo } from '../lib/catalog';
@@ -32,17 +30,6 @@ function Chevron() {
   );
 }
 
-/** 20pt monochrome stand-in for the brand glyphs in the design. */
-function ProviderGlyph({ name }: { name: string }) {
-  return (
-    <View className="h-5 w-5 items-center justify-center rounded-full border border-ink">
-      <Text className="text-[10px] font-sans-medium leading-[12px] text-ink">
-        {name[0]}
-      </Text>
-    </View>
-  );
-}
-
 function ProviderRow({
   provider,
   status,
@@ -58,7 +45,7 @@ function ProviderRow({
       className="mb-2 w-full flex-row items-center gap-1.5 rounded-2xl bg-grey px-5 py-3.5"
     >
       <View className="flex-1 flex-row items-start gap-1.5">
-        <ProviderGlyph name={provider.name} />
+        <ProviderLogo slug={provider.slug} name={provider.name} size={20} />
         <View className="gap-0.5">
           <Text className="text-[16px] font-sans-medium leading-[22px] text-ink">
             {provider.name}
@@ -144,27 +131,20 @@ function Disclaimer() {
 }
 
 export function ConnectMenuScreen() {
-  const { session, nav } = useApp();
-  const [devices, setDevices] = useState<Device[] | null>(null);
+  const { session, devices, refreshDevices, nav } = useApp();
 
-  const load = useCallback(async () => {
-    if (!session) {
-      setDevices([]);
-      return;
-    }
-    try {
-      setDevices(await api.getDevices(session.userId));
-    } catch {
-      setDevices([]);
-    }
-  }, [session]);
-
+  // The shared cache usually knows the list already; revalidate quietly so
+  // a provider connected elsewhere does not get offered again.
   useEffect(() => {
-    load();
-  }, [load]);
+    refreshDevices();
+  }, [refreshDevices]);
+
+  // Without a session there is nothing connected; with one, null means the
+  // list is still unknown and the skeleton rows hold the menu.
+  const list = session ? devices : [];
 
   const statusFor = (slug: string): 'connected' | 'expired' | 'none' => {
-    const device = devices?.find(
+    const device = list?.find(
       (d) => d.provider === slug && d.status !== 'disconnected',
     );
     if (!device) return 'none';
@@ -192,7 +172,7 @@ export function ConnectMenuScreen() {
           <View className="mb-4">
             <SheetTitle>Select a device</SheetTitle>
           </View>
-          {devices === null ? (
+          {list === null ? (
             // The connected set is unknown until the fetch lands;
             // placeholder rows keep the menu from offering providers it
             // should hide.
