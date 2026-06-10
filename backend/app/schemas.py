@@ -6,7 +6,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models import ConnectionStatus, Metric
+from app.models import ConnectionStatus, Metric, WebhookEventStatus
 
 
 class Resolution(StrEnum):
@@ -98,6 +98,20 @@ class TimeseriesOut(BaseModel):
     start: datetime
     end: datetime
     points: list[TimeseriesPoint]
+
+
+# --- Activity ---
+
+
+class EventOut(BaseModel):
+    """One ingestion event in a user's activity feed."""
+
+    id: uuid.UUID
+    event_type: str
+    status: WebhookEventStatus
+    received_at: datetime
+    processed_at: datetime | None
+    summary: str = Field(description="Human-readable description of the event, built server-side.")
 
 
 # --- Health ---

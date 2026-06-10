@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import webhooks
 from app.api.deps import close_junction_clients, require_auth
-from app.api.v1 import devices, stream, timeseries, users
+from app.api.v1 import devices, events, stream, timeseries, users
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.schemas import HealthOut
@@ -54,6 +54,10 @@ app = FastAPI(
             "description": "Biometric timelines with server-side bucketing (raw/hour/day/week).",
         },
         {
+            "name": "events",
+            "description": "Recent ingestion activity per user, summarized for display.",
+        },
+        {
             "name": "stream",
             "description": "Server-sent events pushing live updates as new samples are ingested.",
         },
@@ -89,6 +93,7 @@ app.include_router(users.router, prefix="/v1", dependencies=v1_auth)
 app.include_router(users.me_router, prefix="/v1", dependencies=v1_auth)
 app.include_router(devices.router, prefix="/v1", dependencies=v1_auth)
 app.include_router(timeseries.router, prefix="/v1", dependencies=v1_auth)
+app.include_router(events.router, prefix="/v1", dependencies=v1_auth)
 app.include_router(stream.router, prefix="/v1", dependencies=v1_auth)
 app.include_router(webhooks.router)
 
