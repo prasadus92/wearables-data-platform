@@ -60,8 +60,15 @@ Notes:
 
 - Expo SDK 56, React Native 0.85, TypeScript (strict)
 - NativeWind v4 (Tailwind for RN) with raw tokens in `src/theme/tokens.ts`
-  for SVG and native props
-- Hand-rolled SVG line chart (`react-native-svg`), no chart libraries
+  for Skia and native props
+- Skia-rendered timeline chart (`victory-native` CartesianChart on
+  `@shopify/react-native-skia` and `react-native-reanimated`): smooth
+  curved lines with gradient area fills, animated metric and range
+  transitions, a press-and-drag scrub cursor with a floating value tooltip
+  and a light haptic tick (`expo-haptics`), plus a MIN/AVG/MAX stats strip.
+  Series over 400 points are downsampled with largest-triangle-three-buckets
+  before rendering. Blood pressure draws systolic (coral) and diastolic
+  (blue) as separate lines.
 - Tiny state-based stack navigator in `App.tsx` (no router dependency)
 - `@react-native-async-storage/async-storage` for session and UI persistence
 

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -155,11 +154,6 @@ export function HomeScreen() {
   const showConnectCard =
     !connectCardDismissed && (!session || active.length === 0);
 
-  const latest =
-    series && series.points.length > 0
-      ? series.points[series.points.length - 1]
-      : null;
-
   return (
     <ScrollView
       className="flex-1 bg-paper"
@@ -255,33 +249,17 @@ export function HomeScreen() {
             <Text className="text-[15px] font-semibold text-ink">
               {metric.label}
             </Text>
-            {latest ? (
-              <Text className="text-[13px] text-sub">
-                Latest{' '}
-                <Text className="font-bold text-ink">
-                  {metric.dual && latest.value_secondary != null
-                    ? `${Math.round(latest.value)}/${Math.round(latest.value_secondary)}`
-                    : `${Math.round(latest.value * 10) / 10}`}
-                </Text>{' '}
-                {series?.unit}
-              </Text>
+            {metric.dual ? (
+              <View className="flex-row items-center">
+                <View className="mr-1.5 h-2 w-2 rounded-full bg-coral" />
+                <Text className="mr-4 text-[12px] text-sub">Systolic</Text>
+                <View className="mr-1.5 h-2 w-2 rounded-full bg-blue" />
+                <Text className="text-[12px] text-sub">Diastolic</Text>
+              </View>
             ) : null}
           </View>
 
-          {metric.dual ? (
-            <View className="mt-2 flex-row items-center">
-              <View className="mr-1.5 h-2 w-2 rounded-full bg-coral" />
-              <Text className="mr-4 text-[12px] text-sub">Systolic</Text>
-              <View className="mr-1.5 h-2 w-2 rounded-full bg-ink" />
-              <Text className="text-[12px] text-sub">Diastolic</Text>
-            </View>
-          ) : null}
-
-          {loading ? (
-            <View className="h-[220px] items-center justify-center">
-              <ActivityIndicator color={colors.sub} />
-            </View>
-          ) : error ? (
+          {error ? (
             <View className="h-[220px] items-center justify-center px-6">
               <Text className="text-center text-[13px] text-sub">{error}</Text>
             </View>
@@ -292,19 +270,14 @@ export function HomeScreen() {
                 here.
               </Text>
             </View>
-          ) : !series || series.points.length === 0 ? (
-            <View className="h-[220px] items-center justify-center px-6">
-              <Text className="text-center text-[13px] leading-[19px] text-sub">
-                No {metric.label.toLowerCase()} data for this range yet.
-                Connect a device or pull down to sync.
-              </Text>
-            </View>
           ) : (
             <LineChart
-              points={series.points}
-              unit={series.unit}
+              points={series?.points ?? []}
+              unit={series?.unit ?? ''}
               dual={metric.dual}
               rangeHours={range.hours}
+              loading={loading}
+              emptyMessage={`No ${metric.label.toLowerCase()} data for this range yet. Connect a device or pull down to sync.`}
             />
           )}
         </View>

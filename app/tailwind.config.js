@@ -10,6 +10,7 @@ module.exports = {
         sub: '#6B6A66',
         faint: '#9C9A94',
         coral: '#E8554D',
+        blue: '#4D7CE8',
         leaf: '#1E7E3E',
         amber: '#B7791F',
         card: '#FFFFFF',
