@@ -109,6 +109,7 @@ export function TimelineChart({
 }: Props) {
   const [data, setData] = useState<Timeseries | null>(null)
   const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
   // Out-of-range probe: when the in-range query is empty but the user has
   // devices, one wide query (90d, day buckets) checks whether data exists
   // outside the window so the empty state can say so instead of going blank.
@@ -125,8 +126,13 @@ export function TimelineChart({
         const series = await api.timeseries(userId, metric, resolution, days)
         if (!cancelled) {
           setData(series)
+          setFailed(false)
           if (series.points.length > 0) onSyncResolved()
         }
+      } catch {
+        // A failed request must surface as a retryable error, never as an
+        // eternal skeleton. Keep any previously loaded series on screen.
+        if (!cancelled) setFailed(true)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -173,6 +179,35 @@ export function TimelineChart({
   const meta = METRIC_META[metric]
 
   if (loading && !data) return <Skeleton className="h-[400px] w-full rounded-xl" />
+  if (failed && !data) {
+    return (
+      <div className="flex h-[400px] flex-col items-center justify-center gap-4 px-10 text-center">
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium">Could not load this chart</span>
+          <span className="text-sm text-muted-foreground">
+            The connection hiccuped. Your data is safe; try again.
+          </span>
+        </div>
+        <TapButton
+          size="sm"
+          onClick={() => {
+            setFailed(false)
+            setLoading(true)
+            api
+              .timeseries(userId, metric, resolution, days)
+              .then((series) => {
+                setData(series)
+                if (series.points.length > 0) onSyncResolved()
+              })
+              .catch(() => setFailed(true))
+              .finally(() => setLoading(false))
+          }}
+        >
+          Retry
+        </TapButton>
+      </div>
+    )
+  }
   if (!data || data.points.length === 0) {
     // The wide probe decides which empty state applies; hold the skeleton
     // until it answers so the copy never flickers between explanations.
