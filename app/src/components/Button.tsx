@@ -1,5 +1,6 @@
 import { ActivityIndicator, Text } from 'react-native';
 
+import { actionMedium, tapLight } from '../lib/haptics';
 import { colors } from '../theme/tokens';
 import { AnimatedPressable } from './AnimatedPressable';
 
@@ -38,7 +39,13 @@ export function Button({
   return (
     <AnimatedPressable
       accessibilityRole="button"
-      onPress={onPress}
+      onPress={() => {
+        // Single home for button haptics: primary actions land with a
+        // medium impact, secondary variants stay on the light tap.
+        if (variant === 'primary') actionMedium();
+        else tapLight();
+        onPress();
+      }}
       disabled={inactive}
       className={`h-14 flex-row items-center justify-center rounded-full px-6 ${container[variant]} ${inactive ? 'opacity-50' : ''}`}
     >
