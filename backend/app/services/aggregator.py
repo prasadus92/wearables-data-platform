@@ -13,7 +13,7 @@ from typing import Any
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from app.core.config import Settings, get_settings
+from app.core.config import AggregatorEnvironment, Settings, get_settings
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -31,11 +31,17 @@ class AggregatorError(Exception):
 
 
 class AggregatorClient:
-    def __init__(self, settings: Settings | None = None, client: httpx.AsyncClient | None = None):
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        client: httpx.AsyncClient | None = None,
+        environment: "AggregatorEnvironment | None" = None,
+    ):
         self._settings = settings or get_settings()
+        self.environment = environment or self._settings.aggregator_environment
         self._client = client or httpx.AsyncClient(
-            base_url=self._settings.aggregator_base_url,
-            headers={API_KEY_HEADER: self._settings.aggregator_api_key},
+            base_url=self._settings.aggregator_base_url_for(self.environment),
+            headers={API_KEY_HEADER: self._settings.aggregator_api_key_for(self.environment)},
             timeout=httpx.Timeout(15.0),
         )
 

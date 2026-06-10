@@ -5,7 +5,8 @@ from datetime import UTC, datetime, timedelta
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
-from app.api.deps import CurrentUser, DbSession, Aggregator
+from app.api.deps import CurrentUser, DbSession, Aggregator, aggregator_client_for
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models import Connection, ConnectionStatus, User
 from app.schemas import UserCreate, UserOut
@@ -30,7 +31,9 @@ async def create_user(body: UserCreate, db: DbSession, aggregator: Aggregator) -
     if existing is not None:
         return existing
 
-    user = User(client_user_id=body.client_user_id)
+    environment = body.environment or get_settings().aggregator_environment
+    aggregator = aggregator_client_for(environment)
+    user = User(client_user_id=body.client_user_id, aggregator_environment=str(environment))
 
     try:
         aggregator_user = await aggregator.create_user(body.client_user_id)
@@ -59,7 +62,7 @@ async def get_user(user: CurrentUser) -> User:
 
 
 @router.post("/{user_id}/sync", status_code=status.HTTP_202_ACCEPTED)
-async def sync_user(user: CurrentUser, db: DbSession, aggregator: Aggregator) -> dict:
+async def sync_user(user: CurrentUser, db: DbSession, _default: Aggregator) -> dict:
     """Manual sync (pull-to-refresh): ask Aggregator for fresh data and enqueue
     a reconciliation backfill for every connected provider and metric.
 
@@ -71,6 +74,7 @@ async def sync_user(user: CurrentUser, db: DbSession, aggregator: Aggregator) ->
     if not user.aggregator_user_id:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="User not registered with Aggregator")
 
+    aggregator = aggregator_client_for(user.aggregator_environment)
     try:
         await aggregator.refresh_user(user.aggregator_user_id)
     except AggregatorError as exc:

@@ -39,6 +39,20 @@ variable "aggregator_environment" {
   default     = "sandbox"
 }
 
+variable "aggregator_prod_api_key" {
+  description = "Aggregator production API key (real-device flows); empty disables the second environment"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "aggregator_prod_webhook_secret" {
+  description = "Svix signing secret of the production webhook endpoint"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 variable "api_auth_token" {
   description = "Static token required by the /v1 API (X-API-Key / Bearer)"
   type        = string

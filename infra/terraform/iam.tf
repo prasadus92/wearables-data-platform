@@ -29,6 +29,8 @@ data "aws_iam_policy_document" "read_secrets" {
       aws_ssm_parameter.database_url.arn,
       aws_ssm_parameter.aggregator_api_key.arn,
       aws_ssm_parameter.aggregator_webhook_secret.arn,
+      aws_ssm_parameter.aggregator_prod_api_key.arn,
+      aws_ssm_parameter.aggregator_prod_webhook_secret.arn,
       aws_ssm_parameter.api_auth_token.arn,
     ]
   }

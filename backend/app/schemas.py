@@ -21,8 +21,18 @@ class Resolution(StrEnum):
 # --- Users ---
 
 
+class AggregatorEnv(StrEnum):
+    sandbox = "sandbox"
+    production = "production"
+
+
 class UserCreate(BaseModel):
     client_user_id: str = Field(min_length=1, max_length=255, examples=["wearables-app-user-42"])
+    environment: AggregatorEnv | None = Field(
+        default=None,
+        description="Aggregator environment for this user (default: the service's primary one). "
+        "sandbox = demo data, production = real devices.",
+    )
 
 
 class UserOut(BaseModel):
@@ -31,6 +41,7 @@ class UserOut(BaseModel):
     id: uuid.UUID
     client_user_id: str
     aggregator_user_id: str | None
+    aggregator_environment: str
     created_at: datetime
 
 

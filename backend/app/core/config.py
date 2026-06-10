@@ -8,6 +8,7 @@ secret) must never be committed (see `.env.example` at the repo root).
 from enum import StrEnum
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,12 +26,52 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # --- Aggregator ---
+    # Primary (default) environment, used for new users unless they request
+    # another one. The challenge demo defaults to sandbox.
     aggregator_api_key: str = ""
     aggregator_environment: AggregatorEnvironment = AggregatorEnvironment.sandbox
     aggregator_region: AggregatorRegion = AggregatorRegion.eu
     # Svix signing secret for inbound webhooks (per webhook endpoint, from the
     # Aggregator dashboard). Empty disables verification, allowed only in tests.
     aggregator_webhook_secret: str = ""
+
+    # Optional second environment (production) so real devices and sandbox
+    # demo data can flow through one deployment at the same time. Each
+    # Aggregator environment has its own API key and webhook signing secret.
+    aggregator_prod_api_key: str = ""
+    aggregator_prod_webhook_secret: str = ""
+
+    @field_validator(
+        "aggregator_api_key",
+        "aggregator_webhook_secret",
+        "aggregator_prod_api_key",
+        "aggregator_prod_webhook_secret",
+        "api_auth_token",
+        mode="before",
+    )
+    @classmethod
+    def _normalize_unset(cls, value: str) -> str:
+        # SSM SecureString parameters cannot be empty, so absent secrets are
+        # stored as the literal placeholder "unset".
+        return "" if value == "unset" else value
+
+    def aggregator_api_key_for(self, environment: "AggregatorEnvironment") -> str:
+        if environment == AggregatorEnvironment.production and (
+            self.aggregator_environment != AggregatorEnvironment.production
+        ):
+            return self.aggregator_prod_api_key
+        return self.aggregator_api_key
+
+    def aggregator_base_url_for(self, environment: "AggregatorEnvironment") -> str:
+        env_prefix = "sandbox." if environment == AggregatorEnvironment.sandbox else ""
+        return f"https://api.{env_prefix}{self.aggregator_region}.aggregator.com"
+
+    @property
+    def webhook_secrets(self) -> list[str]:
+        """All configured signing secrets. Inbound events may originate from
+        any registered environment, so verification tries each one."""
+        secrets = [self.aggregator_webhook_secret, self.aggregator_prod_webhook_secret]
+        return [s for s in secrets if s]
 
     # --- Storage ---
     database_url: str = "postgresql+asyncpg://wearables:wearables@localhost:5432/wearables"

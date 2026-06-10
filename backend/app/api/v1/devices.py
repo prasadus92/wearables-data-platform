@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
-from app.api.deps import CurrentUser, DbSession, Aggregator
+from app.api.deps import CurrentUser, DbSession, aggregator_client_for
 from app.core.logging import get_logger
 from app.models import Connection, ConnectionStatus
 from app.schemas import ConnectionOut, LinkOut, LinkRequest
@@ -20,7 +20,7 @@ def _require_aggregator_id(user) -> str:
 
 
 @router.post("/link", response_model=LinkOut)
-async def create_link(body: LinkRequest, user: CurrentUser, aggregator: Aggregator) -> LinkOut:
+async def create_link(body: LinkRequest, user: CurrentUser) -> LinkOut:
     """Start the connect flow: returns a hosted Aggregator Link URL.
 
     The app opens it in a browser/webview; the user OAuths into their
@@ -29,6 +29,7 @@ async def create_link(body: LinkRequest, user: CurrentUser, aggregator: Aggregat
     expires in 60 minutes.
     """
     aggregator_user_id = _require_aggregator_id(user)
+    aggregator = aggregator_client_for(user.aggregator_environment)
     try:
         token = await aggregator.create_link_token(
             aggregator_user_id, provider=body.provider, redirect_url=body.redirect_url
@@ -40,12 +41,11 @@ async def create_link(body: LinkRequest, user: CurrentUser, aggregator: Aggregat
 
 
 @router.post("/demo", response_model=dict, tags=["sandbox"])
-async def connect_demo(
-    body: LinkRequest, user: CurrentUser, db: DbSession, aggregator: Aggregator
-) -> dict:
+async def connect_demo(body: LinkRequest, user: CurrentUser, db: DbSession) -> dict:
     """Sandbox only: attach a demo provider (oura / fitbit / apple_health_kit)
     with 30 days of synthetic data and a simulated webhook lifecycle."""
     aggregator_user_id = _require_aggregator_id(user)
+    aggregator = aggregator_client_for(user.aggregator_environment)
     try:
         result = await aggregator.connect_demo_provider(aggregator_user_id, body.provider)
     except AggregatorError as exc:
@@ -87,9 +87,7 @@ async def list_devices(user: CurrentUser, db: DbSession) -> list[Connection]:
 
 
 @router.delete("/{provider}", status_code=status.HTTP_204_NO_CONTENT)
-async def disconnect_device(
-    provider: str, user: CurrentUser, db: DbSession, aggregator: Aggregator
-) -> None:
+async def disconnect_device(provider: str, user: CurrentUser, db: DbSession) -> None:
     """Disconnect flow: deregister at Aggregator, mark locally. Historical
     samples are retained (product decision: data belongs to the user)."""
     connection = (
@@ -100,6 +98,7 @@ async def disconnect_device(
     if connection is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Device not connected")
 
+    aggregator = aggregator_client_for(user.aggregator_environment)
     try:
         await aggregator.deregister_provider(_require_aggregator_id(user), provider)
     except AggregatorError as exc:

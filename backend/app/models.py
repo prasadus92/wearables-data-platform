@@ -69,6 +69,12 @@ class User(Base):
     client_user_id: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     # Aggregator's id for this user; set after we register them with Aggregator.
     aggregator_user_id: Mapped[str | None] = mapped_column(String(255), unique=True, index=True)
+    # Which Aggregator environment this user lives in (sandbox demo data or
+    # production real devices). Selects the API key and base URL for every
+    # outbound call made on behalf of this user.
+    aggregator_environment: Mapped[str] = mapped_column(
+        String(16), default="sandbox", server_default="sandbox"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     connections: Mapped[list["Connection"]] = relationship(back_populates="user")

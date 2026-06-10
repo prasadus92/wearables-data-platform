@@ -25,3 +25,15 @@ resource "aws_ssm_parameter" "aggregator_webhook_secret" {
   type  = "SecureString"
   value = var.aggregator_webhook_secret == "" ? "unset" : var.aggregator_webhook_secret
 }
+
+resource "aws_ssm_parameter" "aggregator_prod_api_key" {
+  name  = "/${var.app_name}/aggregator-prod-api-key"
+  type  = "SecureString"
+  value = var.aggregator_prod_api_key == "" ? "unset" : var.aggregator_prod_api_key
+}
+
+resource "aws_ssm_parameter" "aggregator_prod_webhook_secret" {
+  name  = "/${var.app_name}/aggregator-prod-webhook-secret"
+  type  = "SecureString"
+  value = var.aggregator_prod_webhook_secret == "" ? "unset" : var.aggregator_prod_webhook_secret
+}

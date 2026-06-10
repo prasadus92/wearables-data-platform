@@ -130,7 +130,6 @@ async def process_backfill(
     Triggered by ``historical.data.{resource}.created`` events, which are
     data-less notifications. Pages through the cursor until exhausted.
     """
-    aggregator: AggregatorClient = ctx["aggregator"]
     total = 0
     cursor: str | None = None
 
@@ -140,6 +139,9 @@ async def process_backfill(
         ).scalar_one_or_none()
         if user is None or not user.aggregator_user_id:
             return "missing-user"
+
+        # Pull from the Aggregator environment this user lives in.
+        aggregator: AggregatorClient = ctx["aggregator_clients"][user.aggregator_environment]
 
         while True:
             page = await aggregator.get_timeseries(
@@ -180,12 +182,17 @@ async def process_backfill(
 
 async def startup(ctx: dict[str, Any]) -> None:
     configure_logging()
-    ctx["aggregator"] = AggregatorClient()
+    from app.core.config import AggregatorEnvironment
+
+    ctx["aggregator_clients"] = {
+        str(env): AggregatorClient(environment=env) for env in AggregatorEnvironment
+    }
     logger.info("worker_started", environment=get_settings().environment)
 
 
 async def shutdown(ctx: dict[str, Any]) -> None:
-    await ctx["aggregator"].aclose()
+    for client in ctx["aggregator_clients"].values():
+        await client.aclose()
 
 
 class WorkerSettings:

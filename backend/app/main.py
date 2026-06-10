@@ -6,7 +6,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import webhooks
-from app.api.deps import get_aggregator_client, require_api_key
+from app.api.deps import close_aggregator_clients, require_api_key
 from app.api.v1 import devices, stream, timeseries, users
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
         aggregator_base=settings.aggregator_base_url,
     )
     yield
-    await get_aggregator_client().aclose()
+    await close_aggregator_clients()
 
 
 app = FastAPI(

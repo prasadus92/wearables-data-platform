@@ -30,17 +30,22 @@ router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 def verify_signature(raw_body: bytes, headers) -> None:
     """Svix HMAC-SHA256 verification. Raises 401 on bad/missing signature.
 
-    Verification is skipped only when no secret is configured (local tests).
+    Aggregator signs per webhook endpoint, and each environment (sandbox,
+    production) registers its own endpoint with its own secret. Both point
+    at this route, so verification accepts a signature from any configured
+    secret. Skipped only when no secret is configured (local tests).
     """
-    secret = get_settings().aggregator_webhook_secret
-    if not secret:
+    secrets = get_settings().webhook_secrets
+    if not secrets:
         return
-    try:
-        Webhook(secret).verify(raw_body, dict(headers))
-    except WebhookVerificationError as exc:
-        raise HTTPException(
-            status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature"
-        ) from exc
+    header_dict = dict(headers)
+    for secret in secrets:
+        try:
+            Webhook(secret).verify(raw_body, header_dict)
+            return
+        except WebhookVerificationError:
+            continue
+    raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature")
 
 
 @router.post("/aggregator", status_code=status.HTTP_202_ACCEPTED)

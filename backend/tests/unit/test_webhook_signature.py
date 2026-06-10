@@ -64,3 +64,22 @@ def test_no_secret_configured_skips_verification(monkeypatch):
     get_settings.cache_clear()
     verify_signature(b"{}", {})  # should not raise
     get_settings.cache_clear()
+
+
+def test_second_environment_secret_also_accepted(monkeypatch):
+    """Sandbox and production endpoints both target this route; a signature
+    from either configured secret must verify."""
+    monkeypatch.setenv("AGGREGATOR_WEBHOOK_SECRET", "whsec_" + base64.b64encode(b"a" * 32).decode())
+    monkeypatch.setenv("AGGREGATOR_PROD_WEBHOOK_SECRET", SECRET)
+    get_settings.cache_clear()
+    try:
+        body = b'{"event_type": "daily.data.heartrate.created"}'
+        msg_id, ts = "msg_prod", int(time.time())
+        headers = {
+            "svix-id": msg_id,
+            "svix-timestamp": str(ts),
+            "svix-signature": _sign(msg_id, ts, body),  # signed with the PROD secret
+        }
+        verify_signature(body, headers)  # should not raise
+    finally:
+        get_settings.cache_clear()

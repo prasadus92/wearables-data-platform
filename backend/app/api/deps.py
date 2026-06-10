@@ -8,7 +8,7 @@ from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
+from app.core.config import AggregatorEnvironment, get_settings
 from app.db.session import get_db
 from app.models import User
 from app.services.aggregator import AggregatorClient
@@ -44,15 +44,26 @@ async def require_api_key(request: Request) -> None:
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
-_aggregator_client: AggregatorClient | None = None
+_aggregator_clients: dict[str, AggregatorClient] = {}
+
+
+def aggregator_client_for(environment: str | AggregatorEnvironment) -> AggregatorClient:
+    """Process-wide Aggregator client per environment (shared connection pools)."""
+    env = AggregatorEnvironment(environment)
+    if env not in _aggregator_clients:
+        _aggregator_clients[env] = AggregatorClient(environment=env)
+    return _aggregator_clients[env]
 
 
 def get_aggregator_client() -> AggregatorClient:
-    """Process-wide Aggregator client (shared connection pool)."""
-    global _aggregator_client
-    if _aggregator_client is None:
-        _aggregator_client = AggregatorClient()
-    return _aggregator_client
+    """Client for the default environment (used at user creation)."""
+    return aggregator_client_for(get_settings().aggregator_environment)
+
+
+async def close_aggregator_clients() -> None:
+    for client in _aggregator_clients.values():
+        await client.aclose()
+    _aggregator_clients.clear()
 
 
 Aggregator = Annotated[AggregatorClient, Depends(get_aggregator_client)]
