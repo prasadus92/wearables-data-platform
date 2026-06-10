@@ -10,7 +10,12 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models import Connection, ConnectionStatus, User
 from app.schemas import UserCreate, UserOut
-from app.services.ingestion import RESOURCE_TO_METRIC
+from app.services.ingestion import (
+    RESOURCE_TO_METRIC,
+    ConnectionChange,
+    IngestPlan,
+    apply_plan,
+)
 from app.services.junction import JunctionError
 from app.workers.queue import enqueue_backfill
 
@@ -82,6 +87,41 @@ async def sync_user(user: CurrentUser, db: DbSession, _default: Junction) -> dic
         # proceed to backfill either way.
         if exc.status_code != 429:
             logger.warning("sync_refresh_failed", user_id=str(user.id), detail=exc.detail)
+
+    # Reconcile connections from Junction first. A device may have been
+    # linked while webhooks were not yet registered (or were missed); sync
+    # is the recovery path, so Junction's view wins over local state.
+    try:
+        remote = await junction.get_user_connections(user.junction_user_id)
+        for item in remote.get("providers", []):
+            slug = item.get("slug")
+            if not slug:
+                continue
+            status_str = item.get("status", "connected")
+            change = ConnectionChange(
+                provider=slug,
+                status=ConnectionStatus.expired
+                if status_str == "error"
+                else ConnectionStatus.connected,
+                device_meta={
+                    "name": item.get("name"),
+                    "logo": item.get("logo"),
+                    "resource_availability": item.get("resource_availability"),
+                },
+            )
+            await apply_plan(
+                db,
+                user.id,
+                IngestPlan(
+                    event_type="local.sync.reconcile",
+                    junction_user_id=user.junction_user_id,
+                    client_user_id=user.client_user_id,
+                    connection_change=change,
+                ),
+            )
+        await db.commit()
+    except JunctionError as exc:
+        logger.warning("sync_reconcile_failed", user_id=str(user.id), detail=exc.detail)
 
     providers = (
         (
