@@ -59,6 +59,10 @@ interface Props {
   rangeHours: number;
   height?: number;
   loading?: boolean;
+  /** Renders the Figma dark-card palette (white type, green series). */
+  dark?: boolean;
+  /** Optional bold first line above the empty message. */
+  emptyTitle?: string;
   emptyMessage?: string;
   /** Optional call to action rendered under the empty message. */
   emptyAction?: { label: string; onPress: () => void };
@@ -86,6 +90,85 @@ type PressState = ChartPressState<{
 
 const MAX_POINTS = 400;
 const MONO = Platform.select({ ios: 'Menlo', default: 'monospace' });
+
+/** Color sets for the light card and the Figma dark biomarkers card. */
+interface Theme {
+  axisLabel: string;
+  grid: string;
+  line1: string;
+  line2: string;
+  area1: [string, string];
+  area2: [string, string];
+  bandClinical: string;
+  bandClinicalOpacity: number;
+  bandBaseline: string;
+  bandBaselineOpacity: number;
+  bandLabel: string;
+  cursor: string;
+  markerCore: string;
+  spinner: string;
+  caption: string;
+  body: string;
+  strong: string;
+  tooltipBg: string;
+  tooltipValue: string;
+  tooltipTs: string;
+  chipBorder: string;
+  ctaBg: string;
+  ctaText: string;
+}
+
+const LIGHT: Theme = {
+  axisLabel: colors.faint,
+  grid: colors.line,
+  line1: colors.coral,
+  line2: colors.blue,
+  area1: ['rgba(232, 85, 77, 0.18)', 'rgba(232, 85, 77, 0)'],
+  area2: ['rgba(77, 124, 232, 0.14)', 'rgba(77, 124, 232, 0)'],
+  bandClinical: colors.blue,
+  bandClinicalOpacity: 0.05,
+  bandBaseline: colors.ink,
+  bandBaselineOpacity: 0.06,
+  bandLabel: colors.faint,
+  cursor: colors.faint,
+  markerCore: colors.card,
+  spinner: colors.sub,
+  caption: colors.faint,
+  body: colors.sub,
+  strong: colors.ink,
+  tooltipBg: colors.ink,
+  tooltipValue: colors.card,
+  tooltipTs: '#B9B7B2',
+  chipBorder: colors.line,
+  ctaBg: colors.ink,
+  ctaText: colors.card,
+};
+
+const DARK: Theme = {
+  axisLabel: 'rgba(255, 255, 255, 0.55)',
+  grid: 'rgba(255, 255, 255, 0.14)',
+  line1: colors.good,
+  line2: colors.pink,
+  area1: ['rgba(14, 209, 135, 0.22)', 'rgba(14, 209, 135, 0)'],
+  area2: ['rgba(245, 78, 240, 0.16)', 'rgba(245, 78, 240, 0)'],
+  bandClinical: '#FFFFFF',
+  bandClinicalOpacity: 0.05,
+  bandBaseline: '#FFFFFF',
+  bandBaselineOpacity: 0.08,
+  bandLabel: 'rgba(255, 255, 255, 0.55)',
+  cursor: 'rgba(255, 255, 255, 0.6)',
+  markerCore: colors.tealBottom,
+  spinner: '#FFFFFF',
+  caption: 'rgba(255, 255, 255, 0.55)',
+  body: 'rgba(255, 255, 255, 0.65)',
+  strong: '#FFFFFF',
+  tooltipBg: '#FFFFFF',
+  tooltipValue: colors.ink,
+  tooltipTs: colors.mute,
+  chipBorder: 'rgba(255, 255, 255, 0.25)',
+  ctaBg: '#FFFFFF',
+  ctaText: colors.ink,
+};
 
 const axisFont = matchFont({
   fontFamily: Platform.select({ ios: 'Helvetica', default: 'sans-serif' }),
@@ -173,19 +256,25 @@ function statText(lo: number, dual: boolean, loSec: number): string {
 /** Small arrow chip for the 7-day vs prior 7-day change. Neutral styling on
  * purpose: a rising heart rate is not "bad" and a rising HRV is not "good"
  * enough to color-code without misleading. */
-function DeltaChip({ delta }: { delta: number }) {
+function DeltaChip({ delta, t }: { delta: number; t: Theme }) {
   const rising = delta >= 0;
   return (
-    <View className="flex-row items-center rounded-full border border-line bg-paper px-2.5 py-1">
+    <View
+      style={{ borderColor: t.chipBorder }}
+      className="flex-row items-center rounded-full border px-2.5 py-1"
+    >
       <Svg
         width={10}
         height={10}
         viewBox="0 0 12 12"
         style={rising ? undefined : { transform: [{ rotate: '180deg' }] }}
       >
-        <Path d="M6 2.5 L10 8 H2 Z" fill={colors.sub} />
+        <Path d="M6 2.5 L10 8 H2 Z" fill={t.body} />
       </Svg>
-      <Text className="ml-1.5 text-[11px] font-sans-medium text-sub">
+      <Text
+        style={{ color: t.body }}
+        className="ml-1.5 text-[11px] font-sans-medium"
+      >
         {rising ? '+' : ''}
         {delta.toFixed(1)}% vs prior week
       </Text>
@@ -211,6 +300,7 @@ function BandRect({
   color,
   opacity,
   label,
+  labelColor,
   labelPosition,
   chartBounds,
   yScale,
@@ -220,6 +310,7 @@ function BandRect({
   color: string;
   opacity: number;
   label: string;
+  labelColor: string;
   labelPosition: 'top' | 'bottom';
   chartBounds: BandBounds;
   yScale: (value: number) => number;
@@ -251,23 +342,28 @@ function BandRect({
           text={label}
           x={chartBounds.right - labelWidth - 6}
           y={labelY}
-          color={colors.faint}
+          color={labelColor}
         />
       ) : null}
     </>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, t }: { label: string; value: string; t: Theme }) {
   return (
     <View className="ml-5 items-end">
       <Text
-        style={{ fontFamily: MONO }}
-        className="text-[9px] uppercase tracking-[1px] text-faint"
+        style={{ fontFamily: MONO, color: t.caption }}
+        className="text-[9px] uppercase tracking-[1px]"
       >
         {label}
       </Text>
-      <Text className="mt-0.5 text-[13px] font-sans-medium text-ink">{value}</Text>
+      <Text
+        style={{ color: t.strong }}
+        className="mt-0.5 text-[13px] font-sans-medium"
+      >
+        {value}
+      </Text>
     </View>
   );
 }
@@ -278,37 +374,39 @@ function Cursor({
   top,
   bottom,
   dual,
+  t,
 }: {
   state: PressState;
   top: number;
   bottom: number;
   dual: boolean;
+  t: Theme;
 }) {
   const p1 = useDerivedValue(() => vec(state.x.position.value, top));
   const p2 = useDerivedValue(() => vec(state.x.position.value, bottom));
   return (
     <>
-      <SkiaLine p1={p1} p2={p2} color={colors.faint} strokeWidth={1}>
+      <SkiaLine p1={p1} p2={p2} color={t.cursor} strokeWidth={1}>
         <DashPathEffect intervals={[3, 3]} />
       </SkiaLine>
       <Circle
         cx={state.x.position}
         cy={state.y.value.position}
         r={6}
-        color={colors.coral}
+        color={t.line1}
         opacity={0.25}
       />
       <Circle
         cx={state.x.position}
         cy={state.y.value.position}
         r={4}
-        color={colors.coral}
+        color={t.line1}
       />
       <Circle
         cx={state.x.position}
         cy={state.y.value.position}
         r={1.8}
-        color={colors.card}
+        color={t.markerCore}
       />
       {dual ? (
         <>
@@ -316,20 +414,20 @@ function Cursor({
             cx={state.x.position}
             cy={state.y.secondary.position}
             r={6}
-            color={colors.blue}
+            color={t.line2}
             opacity={0.25}
           />
           <Circle
             cx={state.x.position}
             cy={state.y.secondary.position}
             r={4}
-            color={colors.blue}
+            color={t.line2}
           />
           <Circle
             cx={state.x.position}
             cy={state.y.secondary.position}
             r={1.8}
-            color={colors.card}
+            color={t.markerCore}
           />
         </>
       ) : null}
@@ -348,11 +446,13 @@ function Tooltip({
   dual,
   unit,
   containerWidth,
+  t,
 }: {
   state: PressState;
   dual: boolean;
   unit: string;
   containerWidth: SharedValue<number>;
+  t: Theme;
 }) {
   const tooltipWidth = useSharedValue(96);
 
@@ -386,22 +486,22 @@ function Tooltip({
       onLayout={(e) => {
         tooltipWidth.value = e.nativeEvent.layout.width;
       }}
-      style={boxStyle}
-      className="absolute left-0 top-0 items-center rounded-xl bg-ink px-3 py-1.5 shadow-sm"
+      style={[boxStyle, { backgroundColor: t.tooltipBg }]}
+      className="absolute left-0 top-0 items-center rounded-xl px-3 py-1.5 shadow-sm"
     >
       <AnimatedTextInput
         editable={false}
         underlineColorAndroid="transparent"
         animatedProps={valueProps}
-        style={{ padding: 0, margin: 0 }}
-        className="text-[14px] font-sans-medium text-card"
+        style={{ padding: 0, margin: 0, color: t.tooltipValue }}
+        className="text-[14px] font-sans-medium"
       />
       <AnimatedTextInput
         editable={false}
         underlineColorAndroid="transparent"
         animatedProps={tsProps}
-        style={{ padding: 0, margin: 0 }}
-        className="text-[10px] font-sans text-[#B9B7B2]"
+        style={{ padding: 0, margin: 0, color: t.tooltipTs }}
+        className="text-[10px] font-sans"
       />
     </Animated.View>
   );
@@ -414,6 +514,8 @@ export function LineChart({
   rangeHours,
   height = 220,
   loading = false,
+  dark = false,
+  emptyTitle,
   emptyMessage = 'No data for this range yet.',
   emptyAction,
   status,
@@ -421,6 +523,7 @@ export function LineChart({
   baselineBand,
   clinicalBand,
 }: Props) {
+  const t = dark ? DARK : LIGHT;
   const containerWidth = useSharedValue(0);
   const { state, isActive } = useChartPressState({
     x: 0,
@@ -486,21 +589,36 @@ export function LineChart({
   if (loading) {
     body = (
       <View className="flex-1 items-center justify-center">
-        <ActivityIndicator color={colors.sub} />
+        <ActivityIndicator color={t.spinner} />
       </View>
     );
   } else if (!hasData) {
     body = (
-      <View className="flex-1 items-center justify-center gap-4 px-6">
-        <Text className="text-center text-[13px] font-sans leading-[19px] text-sub">
+      <View className="flex-1 items-center justify-center gap-3 px-6">
+        {emptyTitle ? (
+          <Text
+            style={{ color: t.strong }}
+            className="text-center text-[15px] font-sans-medium"
+          >
+            {emptyTitle}
+          </Text>
+        ) : null}
+        <Text
+          style={{ color: t.body }}
+          className="text-center text-[13px] font-sans leading-[19px]"
+        >
           {emptyMessage}
         </Text>
         {emptyAction ? (
           <Pressable
             onPress={emptyAction.onPress}
-            className="h-10 items-center justify-center rounded-full bg-ink px-5"
+            style={{ backgroundColor: t.ctaBg }}
+            className="mt-1 h-10 items-center justify-center rounded-full px-5"
           >
-            <Text className="text-[12px] font-sans-medium uppercase tracking-[2px] text-card">
+            <Text
+              style={{ fontFamily: MONO, color: t.ctaText }}
+              className="text-[12px] uppercase tracking-[0.5px]"
+            >
               {emptyAction.label}
             </Text>
           </Pressable>
@@ -519,17 +637,17 @@ export function LineChart({
         chartPressState={state}
         xAxis={{
           font: axisFont,
-          labelColor: colors.faint,
+          labelColor: t.axisLabel,
           lineWidth: 0,
           tickCount: 4,
           labelOffset: 6,
-          formatXLabel: (t) => xLabel(t),
+          formatXLabel: (ts) => xLabel(ts),
         }}
         yAxis={[
           {
             font: axisFont,
-            labelColor: colors.faint,
-            lineColor: colors.line,
+            labelColor: t.axisLabel,
+            lineColor: t.grid,
             lineWidth: 1,
             tickCount: 4,
             labelOffset: 8,
@@ -543,9 +661,10 @@ export function LineChart({
               <BandRect
                 low={clinicalBand.min}
                 high={clinicalBand.max}
-                color={colors.blue}
-                opacity={0.05}
+                color={t.bandClinical}
+                opacity={t.bandClinicalOpacity}
                 label={clinicalBand.label}
+                labelColor={t.bandLabel}
                 labelPosition="top"
                 chartBounds={chartBounds}
                 yScale={yScale}
@@ -555,9 +674,10 @@ export function LineChart({
               <BandRect
                 low={baselineBand.low}
                 high={baselineBand.high}
-                color={colors.ink}
-                opacity={0.06}
+                color={t.bandBaseline}
+                opacity={t.bandBaselineOpacity}
                 label="your typical range"
+                labelColor={t.bandLabel}
                 labelPosition="bottom"
                 chartBounds={chartBounds}
                 yScale={yScale}
@@ -572,7 +692,7 @@ export function LineChart({
               <LinearGradient
                 start={vec(0, chartBounds.top)}
                 end={vec(0, chartBounds.bottom)}
-                colors={['rgba(232, 85, 77, 0.18)', 'rgba(232, 85, 77, 0)']}
+                colors={[...t.area1]}
               />
             </Area>
             {dual ? (
@@ -585,13 +705,13 @@ export function LineChart({
                 <LinearGradient
                   start={vec(0, chartBounds.top)}
                   end={vec(0, chartBounds.bottom)}
-                  colors={['rgba(77, 124, 232, 0.14)', 'rgba(77, 124, 232, 0)']}
+                  colors={[...t.area2]}
                 />
               </Area>
             ) : null}
             <ChartLine
               points={pts.value}
-              color={colors.coral}
+              color={t.line1}
               strokeWidth={2.5}
               strokeCap="round"
               curveType="natural"
@@ -600,7 +720,7 @@ export function LineChart({
             {dual ? (
               <ChartLine
                 points={pts.secondary}
-                color={colors.blue}
+                color={t.line2}
                 strokeWidth={2.5}
                 strokeCap="round"
                 curveType="natural"
@@ -613,14 +733,14 @@ export function LineChart({
                   points={pts.value}
                   radius={4.5}
                   style="fill"
-                  color={colors.coral}
+                  color={t.line1}
                 />
                 {dual ? (
                   <Scatter
                     points={pts.secondary}
                     radius={4.5}
                     style="fill"
-                    color={colors.blue}
+                    color={t.line2}
                   />
                 ) : null}
               </>
@@ -631,6 +751,7 @@ export function LineChart({
                 top={chartBounds.top}
                 bottom={chartBounds.bottom}
                 dual={dual}
+                t={t}
               />
             ) : null}
           </>
@@ -645,10 +766,15 @@ export function LineChart({
         <>
           {status ? (
             <View className="mt-3 flex-row items-center justify-between">
-              <Text className="flex-1 pr-2 text-[13px] font-sans-medium text-ink">
+              <Text
+                style={{ color: t.strong }}
+                className="flex-1 pr-2 text-[13px] font-sans-medium"
+              >
                 {status}
               </Text>
-              {weekDeltaPct != null ? <DeltaChip delta={weekDeltaPct} /> : null}
+              {weekDeltaPct != null ? (
+                <DeltaChip delta={weekDeltaPct} t={t} />
+              ) : null}
             </View>
           ) : null}
           <View
@@ -656,26 +782,36 @@ export function LineChart({
           >
             <View>
               <Text
-                style={{ fontFamily: MONO }}
-                className="text-[9px] uppercase tracking-[1px] text-faint"
+                style={{ fontFamily: MONO, color: t.caption }}
+                className="text-[9px] uppercase tracking-[1px]"
               >
                 Latest
               </Text>
               <View className="flex-row items-baseline">
-                <Text className="text-[28px] font-sans-medium leading-[32px] text-ink">
+                <Text
+                  style={{ color: t.strong }}
+                  className={
+                    dark
+                      ? 'text-[36px] font-sans leading-[42px]'
+                      : 'text-[28px] font-sans-medium leading-[32px]'
+                  }
+                >
                   {stats.latest}
                 </Text>
                 {unit ? (
-                  <Text className="ml-1.5 text-[13px] font-sans-medium text-sub">
+                  <Text
+                    style={{ color: t.body }}
+                    className="ml-1.5 text-[13px] font-sans-medium"
+                  >
                     {unit}
                   </Text>
                 ) : null}
               </View>
             </View>
             <View className="flex-row pb-1">
-              <Stat label="Min" value={stats.min} />
-              <Stat label="Avg" value={stats.avg} />
-              <Stat label="Max" value={stats.max} />
+              <Stat label="Min" value={stats.min} t={t} />
+              <Stat label="Avg" value={stats.avg} t={t} />
+              <Stat label="Max" value={stats.max} t={t} />
             </View>
           </View>
         </>
@@ -702,6 +838,7 @@ export function LineChart({
             dual={dual}
             unit={unit}
             containerWidth={containerWidth}
+            t={t}
           />
         ) : null}
       </View>

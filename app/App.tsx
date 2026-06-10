@@ -320,11 +320,13 @@ function Root() {
     }
   }
 
-  // Connect-flow sheets sit on a dark scrim, so their status bar flips light.
+  // Connect-flow sheets sit on a dark scrim, and home sits on the dark
+  // backdrop, so their status bars flip light.
   const onScrim =
     !bootstrapping &&
     !showWelcome &&
-    (top.name === 'connectMenu' ||
+    (top.name === 'home' ||
+      top.name === 'connectMenu' ||
       top.name === 'connectIntro' ||
       top.name === 'connectResult' ||
       top.name === 'connectSync');
