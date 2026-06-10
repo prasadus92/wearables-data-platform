@@ -84,9 +84,10 @@ export const METRIC_META: Record<Metric, MetricMeta> = {
  * metric, the UI says so and points at a device that does, instead of
  * offering a sync that can never produce data.
  *
- * Demo wearables are narrower than their real counterparts: Junction's
- * synthetic data covers heart rate, HRV, and blood oxygen only, so demo
- * connections use the `demo` entry regardless of provider slug.
+ * Demo mode covers all five biomarkers: the demo wearable streams heart
+ * rate, HRV, and blood oxygen, and the platform seeds synthetic breathing
+ * rate and blood pressure at demo connect, so demo connections use the
+ * `demo` entry regardless of provider slug.
  */
 export const PROVIDER_METRICS: Record<string, readonly Metric[]> = {
   oura: ['heartrate', 'hrv', 'spo2', 'respiratory_rate'],
@@ -94,7 +95,7 @@ export const PROVIDER_METRICS: Record<string, readonly Metric[]> = {
   garmin: ['heartrate', 'hrv', 'spo2', 'respiratory_rate'],
   fitbit: ['heartrate', 'hrv', 'spo2', 'respiratory_rate'],
   apple_health_kit: ['heartrate', 'hrv', 'spo2', 'respiratory_rate', 'blood_pressure'],
-  demo: ['heartrate', 'hrv', 'spo2'],
+  demo: ['heartrate', 'hrv', 'spo2', 'respiratory_rate', 'blood_pressure'],
 };
 
 /** True when at least one of the given providers can deliver the metric. */

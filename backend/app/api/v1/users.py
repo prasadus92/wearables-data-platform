@@ -138,6 +138,9 @@ async def attach_demo_wearable(db: AsyncSession, user: User, provider: str = "ou
         junction_user_id=user.junction_user_id,
     )
     await db.commit()
+    from app.services.demo_seed import seed_demo_extras
+
+    await seed_demo_extras(db, user.id, user.client_user_id)
     logger.info("demo_autoconnected", user_id=str(user.id), provider=provider)
 
 

@@ -158,3 +158,23 @@ async def test_guest_creation_still_writes_ledger(with_auth, stub_junction, clie
         ("guest_created", "user"),
         ("connected", "service"),
     ]
+
+
+async def test_guest_demo_includes_synthetic_extras(with_auth, stub_junction, client):
+    """Demo mode covers all five biomarkers: the wearable streams three and
+    the seeder fills breathing rate and blood pressure."""
+    created = await client.post("/v1/guests", json={})
+    assert created.status_code == 201
+    body = created.json()
+    token = body["guest_token"]
+
+    for metric, expects_secondary in (("respiratory_rate", False), ("blood_pressure", True)):
+        series = await client.get(
+            f"/v1/users/{body['id']}/timeseries/{metric}?resolution=day&start=2020-01-01T00:00:00Z",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert series.status_code == 200
+        points = series.json()["points"]
+        assert len(points) >= 25
+        if expects_secondary:
+            assert points[-1]["value_secondary"] is not None

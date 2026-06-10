@@ -80,6 +80,11 @@ async def connect_demo(body: LinkRequest, user: CurrentUser, db: DbSession) -> d
         junction_user_id=junction_user_id,
     )
     await db.commit()
+    # Demo wearables never deliver breathing rate or blood pressure; demo
+    # mode is synthetic end to end, so those two come from our own seeder.
+    from app.services.demo_seed import seed_demo_extras
+
+    await seed_demo_extras(db, user.id, user.client_user_id)
     logger.info("demo_connected", user_id=str(user.id), provider=body.provider)
     return {"connected": True, "provider": body.provider, "junction_response": result}
 
