@@ -323,12 +323,18 @@ function AppShell() {
           animate="show"
           className="mx-auto flex min-h-dvh max-w-4xl flex-col items-center justify-center gap-6 px-6 py-16 text-center"
         >
-          <motion.p
+          <motion.div
             variants={riseIn}
-            className="font-mono text-xs font-medium tracking-[0.25em] text-muted-foreground uppercase"
+            className="flex items-baseline gap-2.5"
+            initial={{ opacity: 0, scale: 0.94, y: 6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
           >
-            YOU(th) Wearables
-          </motion.p>
+            <img src="/youth-logo.svg" alt="YOU(th)" className="h-6 w-auto" />
+            <span className="font-mono text-xs font-medium tracking-[0.25em] text-muted-foreground uppercase">
+              Wearables
+            </span>
+          </motion.div>
           <motion.h1
             variants={riseIn}
             className="text-[clamp(2.5rem,6vw,4.5rem)] leading-[1.04] font-medium tracking-[-0.02em] text-balance"
@@ -391,17 +397,22 @@ function AppShell() {
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <h1>
-              <button
+              <motion.button
                 type="button"
                 className="flex cursor-pointer items-baseline gap-2"
                 aria-label="Go to your timeline"
                 onClick={() => navigate('/metrics/heartrate')}
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
+                transition={springTransition}
               >
                 <img src="/youth-logo.svg" alt="YOU(th)" className="h-4 w-auto" />
                 <span className="text-xl leading-none font-semibold tracking-tight">
                   Wearables
                 </span>
-              </button>
+              </motion.button>
             </h1>
             <span
               className="rounded-full border bg-card px-2.5 py-0.5 font-mono text-xs tracking-wide text-muted-foreground uppercase"
