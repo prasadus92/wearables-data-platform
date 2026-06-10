@@ -21,7 +21,7 @@ End-to-end wearable platform on Aggregator, live at `api.examplehealth.example.c
 
 1. Dashboard: create user, connect demo Oura, watch the chart fill live (SSE).
 2. Terminal split-screen: `aws logs tail /ecs/wearables-data-platform-api --follow` showing
-   Aggregator's webhooks arriving while the chart updates. This is the money shot.
+   Aggregator webhooks arriving while the chart updates. This is the central moment of the demo.
 3. Real device: the production user with the real Oura ring and WHOOP strap; same charts, real data.
 4. Expo app on the phone: connect flow per the Figma, timeline chart.
 5. Postman: the API contract their backend would consume.
