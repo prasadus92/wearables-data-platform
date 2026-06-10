@@ -26,12 +26,20 @@ Aggregator event reference (see docs/aggregator-notes.md):
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
-from app.models import Connection, ConnectionStatus, Metric, Sample
+from app.models import (
+    Connection,
+    ConnectionStatus,
+    DeviceEventActor,
+    DeviceEventType,
+    Metric,
+    Sample,
+)
+from app.services.ledger import record_device_event
 
 logger = get_logger(__name__)
 
@@ -257,6 +265,38 @@ async def apply_plan(session: AsyncSession, user_id, plan: IngestPlan) -> int:
     if plan.connection_change is not None:
         change = plan.connection_change
         now = datetime.now(UTC)
+
+        # Aggregator-delivered connection events go into the lifecycle ledger
+        # (actor: webhook). Local event types (demo connect, sync reconcile)
+        # are excluded here; the endpoints that own those transitions write
+        # their own entries with the right actor.
+        ledger_event: DeviceEventType | None = None
+        if plan.event_type == "provider.connection.created":
+            prior = (
+                await session.execute(
+                    select(Connection.status).where(
+                        Connection.user_id == user_id,
+                        Connection.provider == change.provider,
+                    )
+                )
+            ).scalar_one_or_none()
+            ledger_event = (
+                DeviceEventType.reconnected
+                if prior in (ConnectionStatus.expired, ConnectionStatus.disconnected)
+                else DeviceEventType.connected
+            )
+        elif plan.event_type == "provider.connection.error":
+            ledger_event = DeviceEventType.expired
+        if ledger_event is not None:
+            record_device_event(
+                session,
+                user_id,
+                ledger_event,
+                DeviceEventActor.webhook,
+                provider=change.provider,
+                aggregator_user_id=plan.aggregator_user_id,
+            )
+
         stmt = pg_insert(Connection).values(
             user_id=user_id,
             provider=change.provider,

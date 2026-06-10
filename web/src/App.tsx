@@ -1,6 +1,6 @@
 import { SignInButton, UserButton } from '@clerk/react'
 import { AlertCircle } from 'lucide-react'
-import { AnimatePresence, motion, MotionConfig } from 'motion/react'
+import { motion, MotionConfig } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { api, streamUrl, type Device, type AggregatorEnv, type User } from './api'
@@ -11,7 +11,6 @@ import { DevicesPage } from './pages/DevicesPage'
 import { TimelinePage } from './pages/TimelinePage'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 // One session per environment, so Demo and Live coexist and switching is
@@ -142,8 +141,6 @@ function AppShell() {
   const user = clerkLoaded && storedIsClerk !== signedIn ? null : stored
   const [devices, setDevices] = useState<Device[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [showExisting, setShowExisting] = useState(false)
-  const [existingId, setExistingId] = useState('')
   const [busy, setBusy] = useState(false)
   // Bumped by SSE updates; charts refetch when it changes.
   const [liveVersion, setLiveVersion] = useState(0)
@@ -229,13 +226,12 @@ function AppShell() {
     }
   }, [user, refreshDevices])
 
-  // Identity is an implementation detail: generate it silently, or attach to
-  // a known client_user_id (backend create is idempotent and returns it).
-  async function connectAs(clientUserId: string) {
+  // Establish a session from any identity source and store it per mode.
+  async function establishSession(create: () => Promise<User>) {
     setError(null)
     setBusy(true)
     try {
-      const created = await api.createUser(clientUserId, mode)
+      const created = await create()
       localStorage.setItem(userKey(mode), JSON.stringify(created))
       setSessions((s) => ({ ...s, [mode]: created }))
       setDevices([])
@@ -245,6 +241,12 @@ function AppShell() {
       setBusy(false)
     }
   }
+
+  // Guests are explicit and server-issued: the backend mints a guest:<id>
+  // identity and records the session start in the lifecycle ledger.
+  const startAsGuest = () => establishSession(() => api.guests(mode))
+  // The shared sample account rides the idempotent service-side create.
+  const exploreSample = () => establishSession(() => api.createUser('wearables-sample', mode))
 
   function switchMode(next: AggregatorEnv) {
     setMode(next)
@@ -275,11 +277,7 @@ function AppShell() {
           </motion.div>
           <motion.div variants={riseIn} className="flex flex-col items-center gap-3">
             <div className="flex items-center gap-2">
-              <TapButton
-                size="lg"
-                disabled={busy}
-                onClick={() => connectAs(`wearables-web-${crypto.randomUUID().slice(0, 8)}`)}
-              >
+              <TapButton size="lg" disabled={busy} onClick={startAsGuest}>
                 Get started
               </TapButton>
               <SignInButton mode="modal">
@@ -288,53 +286,17 @@ function AppShell() {
                 </Button>
               </SignInButton>
             </div>
-            <div className="flex items-center gap-4">
-              {mode === 'sandbox' && (
-                <button
-                  type="button"
-                  className="text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-                  disabled={busy}
-                  onClick={() => connectAs('wearables-sample')}
-                >
-                  Explore a sample account
-                </button>
-              )}
+            {mode === 'sandbox' && (
               <button
                 type="button"
                 className="text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-                onClick={() => setShowExisting((s) => !s)}
+                disabled={busy}
+                onClick={exploreSample}
               >
-                I have an existing ID
+                Explore a sample account
               </button>
-            </div>
-          </motion.div>
-          <AnimatePresence initial={false}>
-            {showExisting && (
-              <motion.form
-                key="existing-id"
-                initial={{ opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0, transition: springTransition }}
-                exit={{ opacity: 0, y: -6, transition: { duration: 0.15 } }}
-                className="flex w-full gap-2"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  connectAs(existingId.trim())
-                }}
-              >
-                <Input
-                  value={existingId}
-                  onChange={(e) => setExistingId(e.target.value)}
-                  placeholder="Existing ID, e.g. wearables-web-1a2b3c4d"
-                  required
-                  autoFocus
-                  className="bg-card"
-                />
-                <TapButton type="submit" disabled={busy}>
-                  Connect
-                </TapButton>
-              </motion.form>
             )}
-          </AnimatePresence>
+          </motion.div>
           {error && (
             <Alert variant="destructive" className="text-left">
               <AlertCircle />
@@ -380,7 +342,9 @@ function AppShell() {
               >
                 sync now
               </Button>
-              <span className="font-mono text-foreground">{user.client_user_id}</span>
+              <span className="font-mono text-foreground">
+                {user.client_user_id.startsWith('guest:') ? 'Guest' : user.client_user_id}
+              </span>
               {!signedIn && (
                 <Button
                   variant="ghost"

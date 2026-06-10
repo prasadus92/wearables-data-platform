@@ -1,13 +1,14 @@
-"""Human-readable summaries of raw ingestion events for the activity feed.
+"""Human-readable summaries of activity feed entries.
 
-Pure functions: take one raw webhook payload and return a short sentence
-describing what happened. Copy stays vendor-free (no platform names),
-except wearable provider names, which users recognize.
+Pure functions: take one raw webhook payload (or one lifecycle ledger row)
+and return a short sentence describing what happened. Copy stays
+vendor-free (no platform names), except wearable provider names, which
+users recognize.
 """
 
 from datetime import date
 
-from app.models import Metric
+from app.models import DeviceEventType, Metric
 from app.services.ingestion import RESOURCE_TO_METRIC
 
 METRIC_FRIENDLY: dict[Metric, str] = {
@@ -95,3 +96,28 @@ def summarize_event(payload: dict) -> str:
         return "Connection issue reported"
 
     return "Update received"
+
+
+def summarize_device_event(event: str, provider: str | None) -> str:
+    """Describe one lifecycle ledger entry in plain language.
+
+    Examples: "Oura connected", "WHOOP disconnected", "Identity migrated",
+    "Guest session started". Unknown transitions fall back to a generic
+    line, never an error.
+    """
+    name = _provider_name(provider) or "Device"
+    if event == DeviceEventType.connected:
+        return f"{name} connected"
+    if event == DeviceEventType.reconnected:
+        return f"{name} reconnected"
+    if event == DeviceEventType.disconnected:
+        return f"{name} disconnected"
+    if event == DeviceEventType.expired:
+        return f"{name} connection expired"
+    if event == DeviceEventType.identity_remapped:
+        return "Identity migrated"
+    if event == DeviceEventType.guest_created:
+        return "Guest session started"
+    if event == DeviceEventType.user_created:
+        return "Account created"
+    return "Account update"

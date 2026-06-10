@@ -43,6 +43,16 @@ class MeCreate(BaseModel):
     )
 
 
+class GuestCreate(BaseModel):
+    """Optional body for POST /v1/guests. The identity itself is always
+    minted server-side; only the environment is selectable."""
+
+    environment: AggregatorEnv | None = Field(
+        default=None,
+        description="Aggregator environment for the guest (default: the service's primary one).",
+    )
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

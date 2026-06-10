@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core import clerk
 from app.core.config import get_settings
-from app.models import User, WebhookEvent, WebhookEventStatus
+from app.models import DeviceEvent, User, WebhookEvent, WebhookEventStatus
 
 pytestmark = pytest.mark.integration
 
@@ -190,6 +190,91 @@ async def test_matches_on_client_user_id_alone(client, engine):
     body = response.json()
     assert len(body) == 1
     assert body[0]["summary"] == "1 heart rate reading received from Oura"
+
+
+# --- Lifecycle ledger entries merged into the feed ---
+
+
+async def _seed_ledger(engine, user_id, entries: list[tuple[str, str | None, datetime]]) -> None:
+    """Insert (event, provider, occurred_at) ledger rows for a user."""
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as session:
+        for event, provider, occurred_at in entries:
+            session.add(
+                DeviceEvent(
+                    user_id=user_id,
+                    event=event,
+                    actor="webhook",
+                    provider=provider,
+                    occurred_at=occurred_at,
+                )
+            )
+        await session.commit()
+
+
+async def test_ledger_entries_merge_in_time_order(client, engine):
+    """Lifecycle rows interleave with webhook events by timestamp, rendered
+    in the same EventOut shape with lifecycle.* event types."""
+    user_id, _ = await _seed(engine)  # webhook events at 12:00 .. 12:04
+    await _seed_ledger(
+        engine,
+        user_id,
+        [
+            ("connected", "oura", datetime(2026, 6, 9, 12, 2, 30, tzinfo=UTC)),
+            ("identity_remapped", None, datetime(2026, 6, 9, 12, 10, tzinfo=UTC)),
+        ],
+    )
+
+    response = await client.get(f"/v1/users/{user_id}/events")
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 7
+
+    received = [item["received_at"] for item in body]
+    assert received == sorted(received, reverse=True)
+
+    types = [item["event_type"] for item in body]
+    assert types[0] == "lifecycle.identity_remapped"  # newest overall
+    assert types.index("lifecycle.connected") == 3  # slots between 12:03 and 12:02
+
+    remap = body[0]
+    assert remap["summary"] == "Identity migrated"
+    assert remap["status"] == "processed"
+
+    connected = body[3]
+    assert connected["summary"] == "Oura connected"
+
+
+async def test_limit_applies_to_merged_feed(client, engine):
+    user_id, _ = await _seed(engine)
+    await _seed_ledger(
+        engine,
+        user_id,
+        [("identity_remapped", None, datetime(2026, 6, 9, 12, 10, tzinfo=UTC))],
+    )
+
+    response = await client.get(f"/v1/users/{user_id}/events", params={"limit": 2})
+    body = response.json()
+    assert len(body) == 2
+    assert [item["event_type"] for item in body] == [
+        "lifecycle.identity_remapped",
+        "some.future.event",
+    ]
+
+
+async def test_ledger_entries_scoped_to_owner(client, engine):
+    user_id, _ = await _seed(engine)
+    other_id, _ = await _seed(
+        engine, client_user_id="someone-else", aggregator_user_id=str(uuid.uuid4())
+    )
+    await _seed_ledger(
+        engine,
+        other_id,
+        [("connected", "oura", datetime(2026, 6, 9, 12, 10, tzinfo=UTC))],
+    )
+
+    mine = (await client.get(f"/v1/users/{user_id}/events")).json()
+    assert all(not item["event_type"].startswith("lifecycle.") for item in mine)
 
 
 # --- Ownership scoping under Clerk auth ---

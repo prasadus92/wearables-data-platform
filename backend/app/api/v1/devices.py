@@ -5,9 +5,10 @@ from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession, aggregator_client_for
 from app.core.logging import get_logger
-from app.models import Connection, ConnectionStatus
+from app.models import Connection, ConnectionStatus, DeviceEventActor, DeviceEventType
 from app.schemas import ConnectionOut, LinkOut, LinkRequest
 from app.services.aggregator import AggregatorError
+from app.services.ledger import record_device_event
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/users/{user_id}/devices", tags=["devices"])
@@ -54,7 +55,6 @@ async def connect_demo(body: LinkRequest, user: CurrentUser, db: DbSession) -> d
     # Record the connection immediately. The provider.connection.created
     # webhook will arrive too (and idempotently upsert the same row), but the
     # UI should reflect the device without waiting on webhook delivery.
-    from app.models import ConnectionStatus
     from app.services.ingestion import ConnectionChange, IngestPlan, apply_plan
 
     await apply_plan(
@@ -68,6 +68,16 @@ async def connect_demo(body: LinkRequest, user: CurrentUser, db: DbSession) -> d
                 provider=body.provider, status=ConnectionStatus.connected
             ),
         ),
+    )
+    # The user asked for this connection, so the ledger entry is theirs;
+    # the webhook that follows logs its own entry as the delivery channel.
+    record_device_event(
+        db,
+        user.id,
+        DeviceEventType.connected,
+        DeviceEventActor.user,
+        provider=body.provider,
+        aggregator_user_id=aggregator_user_id,
     )
     await db.commit()
     logger.info("demo_connected", user_id=str(user.id), provider=body.provider)
@@ -109,5 +119,13 @@ async def disconnect_device(provider: str, user: CurrentUser, db: DbSession) -> 
 
     connection.status = ConnectionStatus.disconnected
     connection.disconnected_at = datetime.now(UTC)
+    record_device_event(
+        db,
+        user.id,
+        DeviceEventType.disconnected,
+        DeviceEventActor.user,
+        provider=provider,
+        aggregator_user_id=user.aggregator_user_id,
+    )
     await db.commit()
     logger.info("device_disconnected", user_id=str(user.id), provider=provider)
