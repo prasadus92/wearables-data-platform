@@ -32,11 +32,19 @@ export function setTokenProvider(fn: TokenProvider | null): void {
 
 async function authToken(): Promise<string | null> {
   if (!tokenProvider) return null;
-  try {
-    return await tokenProvider();
-  } catch {
-    return null;
+  // Clerk's getToken can transiently return null while a session
+  // revalidates; a naked request would 401 and the UI would misread the
+  // failure as missing data. Retry briefly before giving up.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const token = await tokenProvider();
+      if (token) return token;
+    } catch {
+      // fall through to retry
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
   }
+  return null;
 }
 
 export class ApiError extends Error {
