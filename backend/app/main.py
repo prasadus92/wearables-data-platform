@@ -2,11 +2,11 @@
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import webhooks
-from app.api.deps import get_junction_client
+from app.api.deps import get_junction_client, require_api_key
 from app.api.v1 import devices, stream, timeseries, users
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
@@ -48,10 +48,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(users.router, prefix="/v1")
-app.include_router(devices.router, prefix="/v1")
-app.include_router(timeseries.router, prefix="/v1")
-app.include_router(stream.router, prefix="/v1")
+# All /v1 routes require the API token. Webhooks authenticate via the
+# Svix signature instead, and /health stays open for load balancer checks.
+v1_auth = [Depends(require_api_key)]
+app.include_router(users.router, prefix="/v1", dependencies=v1_auth)
+app.include_router(devices.router, prefix="/v1", dependencies=v1_auth)
+app.include_router(timeseries.router, prefix="/v1", dependencies=v1_auth)
+app.include_router(stream.router, prefix="/v1", dependencies=v1_auth)
 app.include_router(webhooks.router)
 
 

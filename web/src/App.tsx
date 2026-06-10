@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { api, type Device, type Metric, type Resolution, type User } from './api'
+import { api, streamUrl, type Device, type Metric, type Resolution, type User } from './api'
 import { DevicePanel } from './components/DevicePanel'
 import { TimelineChart } from './components/TimelineChart'
 
@@ -54,7 +54,7 @@ export default function App() {
   // ingested, so charts refresh the moment a Junction webhook is processed.
   useEffect(() => {
     if (!user) return
-    const source = new EventSource(`${import.meta.env.VITE_API_URL ?? ''}/v1/users/${user.id}/stream`)
+    const source = new EventSource(streamUrl(user.id))
     source.addEventListener('update', () => {
       setLiveVersion((v) => v + 1)
       refreshDevices()
@@ -98,6 +98,19 @@ export default function App() {
       <header>
         <h1>YOU(th) Wearables</h1>
         <span className="user-chip">
+          <button
+            className="link-button"
+            onClick={async () => {
+              setError(null)
+              try {
+                await api.sync(user.id)
+              } catch (e) {
+                setError(String(e))
+              }
+            }}
+          >
+            sync now
+          </button>
           {user.client_user_id}
           <button
             className="link-button"

@@ -3,6 +3,13 @@
 // URL comes from VITE_API_URL.
 
 const BASE = import.meta.env.VITE_API_URL ?? ''
+const API_KEY = import.meta.env.VITE_API_KEY ?? ''
+
+/** EventSource cannot set headers, so the stream URL carries the key. */
+export function streamUrl(userId: string): string {
+  const suffix = API_KEY ? `?api_key=${encodeURIComponent(API_KEY)}` : ''
+  return `${BASE}/v1/users/${userId}/stream${suffix}`
+}
 
 export type Metric = 'heartrate' | 'hrv' | 'spo2' | 'respiratory_rate' | 'blood_pressure'
 export type Resolution = 'raw' | 'hour' | 'day' | 'week'
@@ -36,7 +43,10 @@ export interface Timeseries {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(API_KEY ? { 'X-API-Key': API_KEY } : {}),
+    },
     ...init,
   })
   if (!response.ok) {
@@ -70,6 +80,9 @@ export const api = {
 
   disconnect: (userId: string, provider: string) =>
     request<void>(`/v1/users/${userId}/devices/${provider}`, { method: 'DELETE' }),
+
+  sync: (userId: string) =>
+    request<{ status: string; jobs: number }>(`/v1/users/${userId}/sync`, { method: 'POST' }),
 
   timeseries: (userId: string, metric: Metric, resolution: Resolution, days: number) => {
     const end = new Date()

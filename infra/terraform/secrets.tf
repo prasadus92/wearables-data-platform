@@ -14,6 +14,12 @@ resource "aws_ssm_parameter" "junction_api_key" {
   value = var.junction_api_key
 }
 
+resource "aws_ssm_parameter" "api_auth_token" {
+  name  = "/${var.app_name}/api-auth-token"
+  type  = "SecureString"
+  value = var.api_auth_token
+}
+
 resource "aws_ssm_parameter" "junction_webhook_secret" {
   name  = "/${var.app_name}/junction-webhook-secret"
   type  = "SecureString"
