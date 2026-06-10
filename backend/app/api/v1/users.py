@@ -182,3 +182,46 @@ async def sync_user(user: CurrentUser, db: DbSession, _default: Aggregator) -> d
 
     logger.info("sync_requested", user_id=str(user.id), providers=list(providers), jobs=jobs)
     return {"status": "syncing", "providers": list(providers), "jobs": jobs}
+
+
+@router.post("/admin/remap-aggregator-identity", status_code=status.HTTP_200_OK, tags=["ops"])
+async def remap_aggregator_identity(request: Request, body: dict, db: DbSession) -> dict:
+    """Move a Aggregator identity (and with it all provider connections held at
+    Aggregator) from one of our users to another. Service credential only.
+
+    This exists for identity migrations: e.g. devices were linked under a
+    bootstrap identity and the person later signs in properly. Aggregator has
+    no connection-transfer API; the Aggregator user IS the unit of ownership,
+    so re-pointing our alias is the correct move. Follow with a sync on the
+    target user to reconcile connections and pull history.
+    """
+    auth = getattr(request.state, "auth", None)
+    if auth is None or auth.get("kind") != "service":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Service credential required")
+
+    from_id, to_id = body.get("from_client_user_id"), body.get("to_client_user_id")
+    if not from_id or not to_id:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="from_client_user_id and to_client_user_id are required",
+        )
+
+    source = (
+        await db.execute(select(User).where(User.client_user_id == from_id))
+    ).scalar_one_or_none()
+    target = (
+        await db.execute(select(User).where(User.client_user_id == to_id))
+    ).scalar_one_or_none()
+    if source is None or target is None or not source.aggregator_user_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="User or mapping not found")
+
+    aggregator_user_id = source.aggregator_user_id
+    environment = source.aggregator_environment
+    source.aggregator_user_id = None
+    await db.flush()  # release the unique index before re-assigning
+    target.aggregator_user_id = aggregator_user_id
+    target.aggregator_environment = environment
+    await db.commit()
+
+    logger.info("aggregator_identity_remapped", source=from_id, target=to_id)
+    return {"remapped": True, "aggregator_user_id": aggregator_user_id, "environment": environment}
