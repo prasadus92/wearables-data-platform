@@ -1,4 +1,4 @@
-import type { JunctionEnv } from '@youth/health-core';
+import type { Device, JunctionEnv } from '@youth/health-core';
 import { createContext, useContext } from 'react';
 
 import type { ProviderInfo } from './catalog';
@@ -47,6 +47,17 @@ export interface AppState {
    */
   clerkSignOut: () => void;
   dismissConnectCard: () => void;
+  /**
+   * Device list for the active session, shared across screens. Null means
+   * unknown (nothing fetched successfully yet); screens must treat null as
+   * loading and never as "no devices". A real empty account is [].
+   */
+  devices: Device[] | null;
+  /**
+   * Refetches the device list with retries. Resolves with the fresh list,
+   * or null when every attempt failed (the cached list is kept as is).
+   */
+  refreshDevices: () => Promise<Device[] | null>;
   nav: Nav;
 }
 

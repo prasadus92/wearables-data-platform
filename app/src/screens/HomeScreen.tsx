@@ -11,11 +11,14 @@ import {
 import Animated, {
   Extrapolation,
   interpolate,
+  ReduceMotion,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withRepeat,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 
 import Svg, {
@@ -34,7 +37,6 @@ import {
   METRIC_META,
   metricSupported,
   weekDelta,
-  type Device,
   type Timeseries,
 } from '@youth/health-core';
 
@@ -337,6 +339,43 @@ function ConnectCard({
   );
 }
 
+/**
+ * Pulsing placeholder in the connect card's slot while the device list is
+ * still unknown, so the connect pitch never flashes at someone who already
+ * has devices. Static under Reduce Motion.
+ */
+function ConnectCardSkeleton() {
+  const pulse = useSharedValue(0.55);
+
+  useEffect(() => {
+    pulse.value = withRepeat(
+      withTiming(1, { duration: 650 }),
+      -1,
+      true,
+      undefined,
+      ReduceMotion.System,
+    );
+  }, [pulse]);
+
+  const style = useAnimatedStyle(() => ({ opacity: pulse.value }));
+
+  return (
+    <Animated.View
+      style={style}
+      className="mb-4 rounded-[18px] border-[0.5px] border-[rgba(255,255,255,0.2)] bg-[rgba(27,27,27,0.3)] p-4"
+    >
+      <View className="flex-row items-start">
+        <View className="h-12 w-12 rounded-[20px] bg-[rgba(255,255,255,0.12)]" />
+        <View className="ml-3 flex-1 gap-2 pt-1">
+          <View className="h-4 w-40 rounded-full bg-[rgba(255,255,255,0.12)]" />
+          <View className="h-3 w-56 rounded-full bg-[rgba(255,255,255,0.08)]" />
+        </View>
+      </View>
+      <View className="mt-4 h-[46px] w-full rounded-[9px] bg-[rgba(255,255,255,0.08)]" />
+    </Animated.View>
+  );
+}
+
 type Probe =
   | { state: 'idle' | 'pending' | 'empty' }
   | { state: 'found'; latestTs: string };
@@ -348,12 +387,13 @@ export function HomeScreen() {
     connectCardDismissed,
     dismissConnectCard,
     signOut,
+    devices,
+    refreshDevices,
     nav,
   } = useApp();
   const displayName = useDisplayName(session);
   const [metric, setMetric] = useState(METRICS[0]);
   const [range, setRange] = useState(RANGES[1]);
-  const [devices, setDevices] = useState<Device[]>([]);
   const [series, setSeries] = useState<Timeseries | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -410,15 +450,6 @@ export function HomeScreen() {
     };
   });
 
-  const loadDevices = useCallback(async () => {
-    if (!session) return;
-    try {
-      setDevices(await api.getDevices(session.userId));
-    } catch {
-      // banner state is best effort, keep last known devices
-    }
-  }, [session]);
-
   const loadSeries = useCallback(async (): Promise<Timeseries | null> => {
     if (!session) {
       setSeries(null);
@@ -457,9 +488,12 @@ export function HomeScreen() {
     }
   }, [session, metric, range]);
 
+  // Revalidate the shared device list every time home gains focus (this
+  // screen mounts fresh per navigation) and when the session or auth state
+  // resolves, so connect-state UI never trusts a stale snapshot.
   useEffect(() => {
-    loadDevices();
-  }, [loadDevices]);
+    refreshDevices();
+  }, [refreshDevices]);
 
   useEffect(() => {
     loadSeries();
@@ -485,7 +519,7 @@ export function HomeScreen() {
         // Pull-to-refresh asks the backend to pull fresh provider data.
         await api.syncUser(session.userId).catch(() => undefined);
       }
-      const [, next] = await Promise.all([loadDevices(), loadSeries()]);
+      const [, next] = await Promise.all([refreshDevices(), loadSeries()]);
       const nextLatest = next?.points.at(-1)?.ts ?? null;
       const gotNewData =
         nextLatest !== null && (prevLatest === null || nextLatest > prevLatest);
@@ -495,9 +529,12 @@ export function HomeScreen() {
     } finally {
       setRefreshing(false);
     }
-  }, [session, series, metric.key, loadDevices, loadSeries]);
+  }, [session, series, metric.key, refreshDevices, loadSeries]);
 
-  const active = devices.filter((d) => d.status !== 'disconnected');
+  // Null means the device list is not known yet (still fetching, or every
+  // fetch failed); only a confirmed list may drive connect-state UI.
+  const devicesKnown = devices !== null;
+  const active = (devices ?? []).filter((d) => d.status !== 'disconnected');
   const expired = active.filter((d) => d.status === 'expired');
   // A device that never delivered data only counts as stale once it has
   // been connected for over a day; brand new connections get grace time.
@@ -506,8 +543,12 @@ export function HomeScreen() {
       d.status === 'connected' &&
       isOlderThan(d.last_data_at ?? d.connected_at, 24),
   );
+  // The connect pitch only shows when devices are confidently known to be
+  // absent. While unknown, a skeleton holds the slot instead.
   const showConnectCard =
-    !connectCardDismissed && (!session || active.length === 0);
+    !connectCardDismissed && (!session || (devicesKnown && active.length === 0));
+  const showConnectSkeleton =
+    !connectCardDismissed && !!session && !devicesKnown;
 
   const providerSlugs = active.map((d) => d.provider);
   const supported = metricSupported(metric.key, providerSlugs, {
@@ -569,6 +610,10 @@ export function HomeScreen() {
     active.length > 0 &&
     supported &&
     (probe.state === 'idle' || probe.state === 'pending');
+
+  // An empty chart cannot pick its empty-state copy until the device list
+  // is known; hold the spinner rather than guess.
+  const devicesPending = !!session && !devicesKnown && inRangeEmpty;
 
   const friendly = meta.friendlyName.toLowerCase();
   const empty = useMemo(() => {
@@ -710,7 +755,11 @@ export function HomeScreen() {
             </Animated.View>
           ) : null}
 
-          {showConnectCard ? (
+          {showConnectSkeleton ? (
+            <Animated.View entering={enter(1)}>
+              <ConnectCardSkeleton />
+            </Animated.View>
+          ) : showConnectCard ? (
             <Animated.View entering={enter(1)}>
               <ConnectCard
                 hasSession={!!session}
@@ -790,7 +839,7 @@ export function HomeScreen() {
                     unit={series?.unit ?? ''}
                     dual={metric.dual}
                     rangeHours={range.hours}
-                    loading={loading || probePending}
+                    loading={loading || probePending || devicesPending}
                     dark
                     emptyTitle={empty.title}
                     emptyMessage={empty.message}

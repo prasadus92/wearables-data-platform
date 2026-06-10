@@ -19,6 +19,7 @@ import type { Device, JunctionEnv } from '@youth/health-core';
 import { api } from '../api/client';
 import { Button } from '../components/Button';
 import { Header } from '../components/Header';
+import { deviceLogoUrl, ProviderLogo } from '../components/ProviderLogo';
 import {
   SheetBody,
   SheetCaption,
@@ -158,6 +159,14 @@ function DeviceCard({
         alignItems: 'center',
       }}
     >
+      <View className="mr-3">
+        <ProviderLogo
+          slug={device.provider}
+          name={providerName(device.provider)}
+          logoUrl={deviceLogoUrl(device.device_meta)}
+          size={36}
+        />
+      </View>
       <View className="flex-1 gap-0.5 pr-3">
         <Text className="text-[16px] font-sans-medium leading-[22px] text-ink">
           {providerName(device.provider)}
@@ -191,36 +200,27 @@ interface DisconnectState {
 }
 
 export function DevicesScreen() {
-  const { mode, switchMode, session, signOut, clerkSignOut, nav } = useApp();
+  const { mode, switchMode, session, signOut, clerkSignOut, devices, refreshDevices, nav } =
+    useApp();
   // Clerk-bootstrapped sessions end via a real sign-out that clears every
   // mode; anonymous ones just swap the per-mode identity.
   const clerkAuthed = session?.auth === 'clerk';
   const displayName = useDisplayName(session);
-  const [devices, setDevices] = useState<Device[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [disconnect, setDisconnect] = useState<DisconnectState | null>(null);
 
-  const load = useCallback(async () => {
-    if (!session) {
-      setDevices([]);
-      return;
-    }
-    try {
-      setDevices(await api.getDevices(session.userId));
-    } catch {
-      setDevices((prev) => prev ?? []);
-    }
-  }, [session]);
-
+  // Revalidate on focus (this screen mounts per navigation). The shared
+  // cache renders the last known list instantly while the refresh runs, and
+  // a failed refresh keeps it rather than pretending the list is empty.
   useEffect(() => {
-    load();
-  }, [load]);
+    refreshDevices();
+  }, [refreshDevices]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await load();
+    await refreshDevices();
     setRefreshing(false);
-  }, [load]);
+  }, [refreshDevices]);
 
   async function runDisconnect(device: Device) {
     if (!session) return;
@@ -231,7 +231,7 @@ export function DevicesScreen() {
     } catch {
       setDisconnect({ device, phase: 'error' });
     }
-    await load();
+    await refreshDevices();
   }
 
   function reconnect(device: Device) {

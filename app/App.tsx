@@ -11,7 +11,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ReducedMotionConfig, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import type { JunctionEnv } from '@youth/health-core';
+import type { Device, JunctionEnv } from '@youth/health-core';
 
 import { api, ApiError, setTokenProvider } from './src/api/client';
 import { Button } from './src/components/Button';
@@ -226,6 +226,51 @@ function Root() {
   const storedIsClerk = stored?.auth === 'clerk';
   const session = clerkLoaded && storedIsClerk !== bridged ? null : stored;
 
+  // Shared device list, keyed to the user it was fetched for so a mode or
+  // identity switch never shows another account's devices. Null means
+  // unknown; a failed fetch keeps the last known list instead of faking [].
+  const [deviceCache, setDeviceCache] = useState<{
+    userId: string;
+    list: Device[];
+  } | null>(null);
+  const deviceFetchSeq = useRef(0);
+  const devices =
+    session && deviceCache?.userId === session.userId
+      ? deviceCache.list
+      : null;
+
+  const refreshDevices = useCallback(async (): Promise<Device[] | null> => {
+    if (!session) return null;
+    // A Clerk-backed session cannot authenticate until the token bridge is
+    // registered; a request now would 401 and read as "no devices".
+    if (session.auth === 'clerk' && !bridged) return null;
+    const { userId } = session;
+    const seq = ++deviceFetchSeq.current;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const list = await api.getDevices(userId);
+        // Only the newest in-flight fetch may write, so a slow stale
+        // response never overwrites fresher data.
+        if (deviceFetchSeq.current === seq) setDeviceCache({ userId, list });
+        return list;
+      } catch {
+        if (attempt < 2) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, 600 * (attempt + 1)),
+          );
+        }
+      }
+    }
+    return null;
+  }, [session, bridged]);
+
+  // Fetch whenever the session identity or auth readiness changes: covers
+  // cold start, sign in, mode switch, and the moment the Clerk token bridge
+  // resolves after a stored session rendered the UI first.
+  useEffect(() => {
+    refreshDevices();
+  }, [refreshDevices]);
+
   const value: AppState = useMemo(
     () => ({
       mode,
@@ -238,6 +283,8 @@ function Root() {
       signOut,
       clerkSignOut,
       dismissConnectCard,
+      devices,
+      refreshDevices,
       nav,
     }),
     [
@@ -251,6 +298,8 @@ function Root() {
       signOut,
       clerkSignOut,
       dismissConnectCard,
+      devices,
+      refreshDevices,
       nav,
     ],
   );

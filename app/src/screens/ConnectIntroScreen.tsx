@@ -83,7 +83,7 @@ interface Props {
 }
 
 export function ConnectIntroScreen({ provider }: Props) {
-  const { mode, session, nav } = useApp();
+  const { mode, session, refreshDevices, nav } = useApp();
   const [busy, setBusy] = useState<'link' | 'demo' | null>(null);
 
   /** Webhook delivery can lag the OAuth redirect, so poll a few times. */
@@ -153,6 +153,9 @@ export function ConnectIntroScreen({ provider }: Props) {
       // Success means newly connected: it was not connected before the
       // browser opened and it is connected now (polling covers webhook lag).
       const ok = await providerConnected(session.userId);
+      // Warm the shared device cache so home reflects the new connection
+      // immediately instead of briefly trusting the pre-connect snapshot.
+      if (ok) refreshDevices();
       nav.replace({
         name: 'connectResult',
         provider,
@@ -187,6 +190,7 @@ export function ConnectIntroScreen({ provider }: Props) {
       }
       await api.connectDemo(session.userId, provider.slug);
       const ok = await providerConnected(session.userId);
+      if (ok) refreshDevices();
       nav.replace({
         name: 'connectResult',
         provider,
