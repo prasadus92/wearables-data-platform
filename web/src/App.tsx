@@ -7,6 +7,7 @@ import type { Device, JunctionEnv, User } from '@youth/health-core'
 import { api, setGuestToken, streamUrl } from './api'
 import { useClerkBridge } from './components/AuthBridge'
 import { springTransition, TapButton } from './components/motion'
+import { PulseBand } from './components/PulseBand'
 import { ActivityPage } from './pages/ActivityPage'
 import { DevicesPage } from './pages/DevicesPage'
 import { TimelinePage } from './pages/TimelinePage'
@@ -54,15 +55,18 @@ export interface DashboardContext {
 function ModeToggle({
   mode,
   onChange,
+  className,
 }: {
   mode: JunctionEnv
   onChange: (m: JunctionEnv) => void
+  className?: string
 }) {
   return (
     <ToggleGroup
       type="single"
       size="sm"
       variant="outline"
+      className={className}
       value={mode}
       onValueChange={(v) => {
         if (v) onChange(v as JunctionEnv)
@@ -277,30 +281,59 @@ function AppShell() {
           variants={staggerParent}
           initial="hidden"
           animate="show"
-          className="mx-auto mt-[18vh] flex max-w-md flex-col items-center gap-4 px-5 text-center"
+          className="mx-auto flex min-h-dvh max-w-4xl flex-col items-center justify-center gap-6 px-6 py-16 text-center"
         >
-          <motion.h1 variants={riseIn} className="text-2xl font-semibold tracking-tight">
+          <motion.p
+            variants={riseIn}
+            className="font-mono text-xs font-medium tracking-[0.25em] text-muted-foreground uppercase"
+          >
             YOU(th) Wearables
+          </motion.p>
+          <motion.h1
+            variants={riseIn}
+            className="text-[clamp(2.5rem,6vw,4.5rem)] leading-[1.04] font-medium tracking-[-0.02em] text-balance"
+          >
+            <span className="block">Your body has a story.</span>
+            <span className="block">See it unfold.</span>
           </motion.h1>
-          <motion.p variants={riseIn} className="text-sm text-muted-foreground">
+          <motion.p variants={riseIn} className="max-w-md text-base text-muted-foreground">
             {mode === 'sandbox'
-              ? 'Explore with demo wearables and synthetic data.'
-              : 'Connect your real wearables and see your biometrics on a timeline.'}
+              ? 'A full dashboard fed by demo wearables and synthetic data. Look around freely.'
+              : 'Connect your wearables and watch heart rate, sleep, and activity arrive as they happen.'}
           </motion.p>
           <motion.div variants={riseIn}>
-            <ModeToggle mode={mode} onChange={switchMode} />
+            <ModeToggle
+              mode={mode}
+              onChange={switchMode}
+              className="opacity-80 transition-opacity hover:opacity-100"
+            />
           </motion.div>
           <motion.div variants={riseIn} className="flex flex-col items-center gap-3">
             <div className="flex items-center gap-2">
-              <TapButton size="lg" disabled={busy} onClick={startAsGuest}>
-                Get started
-              </TapButton>
-              <SignInButton mode="modal">
-                <Button size="lg" variant="outline" disabled={busy}>
-                  Sign in
-                </Button>
-              </SignInButton>
+              {mode === 'sandbox' ? (
+                <>
+                  <TapButton size="lg" disabled={busy} onClick={startAsGuest}>
+                    Try the demo
+                  </TapButton>
+                  <SignInButton mode="modal">
+                    <Button size="lg" variant="outline" disabled={busy}>
+                      Sign in
+                    </Button>
+                  </SignInButton>
+                </>
+              ) : (
+                <SignInButton mode="modal">
+                  <Button size="lg" disabled={busy}>
+                    Sign in
+                  </Button>
+                </SignInButton>
+              )}
             </div>
+            {mode === 'production' && (
+              <p className="font-mono text-xs tracking-wide text-muted-foreground">
+                Real devices connect to your account
+              </p>
+            )}
             {mode === 'sandbox' && hasServiceKey && (
               <button
                 type="button"
@@ -311,6 +344,9 @@ function AppShell() {
                 Explore a sample account
               </button>
             )}
+          </motion.div>
+          <motion.div variants={riseIn} className="mt-6 w-full">
+            <PulseBand />
           </motion.div>
           {error && (
             <Alert variant="destructive" className="text-left">
