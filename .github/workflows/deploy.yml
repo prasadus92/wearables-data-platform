@@ -60,10 +60,6 @@ jobs:
   web:
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: web
-
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
@@ -71,10 +67,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: package-lock.json
 
+      # npm workspaces: the lockfile lives at the repo root and installs the
+      # web workspace plus the shared @youth/health-core package.
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --workspace web --include-workspace-root=false || npm ci
 
       # VITE_API_KEY is intentionally absent: the public bundle must never
       # contain the service key. Browser requests authenticate with Clerk
@@ -83,7 +81,7 @@ jobs:
         env:
           VITE_API_URL: https://api.youth.luminik.io
           VITE_CLERK_PUBLISHABLE_KEY: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
-        run: npm run build
+        run: npm run build --workspace web
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
@@ -92,7 +90,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Sync to S3
-        run: aws s3 sync dist/ "s3://${{ vars.WEB_BUCKET }}" --delete --no-progress
+        run: aws s3 sync web/dist/ "s3://${{ vars.WEB_BUCKET }}" --delete --no-progress
 
       - name: Invalidate CloudFront
         run: |
