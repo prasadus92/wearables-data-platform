@@ -153,6 +153,8 @@ function AppShell() {
   const [devices, setDevices] = useState<Device[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // Header sync chip feedback: idle -> busy -> asked (5s) -> idle.
+  const [headerSync, setHeaderSync] = useState<'idle' | 'busy' | 'asked'>('idle')
   // Bumped by SSE updates; charts refetch when it changes.
   const [liveVersion, setLiveVersion] = useState(0)
   const wasSignedIn = useRef(false)
@@ -405,21 +407,34 @@ function AppShell() {
           </div>
           <div className="flex items-center gap-2">
             <span className="flex items-center gap-1 rounded-full border bg-card py-1 pr-1.5 pl-3 text-xs">
-              <Button
-                variant="ghost"
-                size="xs"
-                className="text-brand hover:text-brand"
-                onClick={async () => {
-                  setError(null)
-                  try {
-                    await api.sync(user.id)
-                  } catch (e) {
-                    setError(String(e))
-                  }
-                }}
-              >
-                sync now
-              </Button>
+              {mode === 'production' && (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="text-brand hover:text-brand disabled:opacity-70"
+                  disabled={headerSync !== 'idle'}
+                  onClick={async () => {
+                    setError(null)
+                    setHeaderSync('busy')
+                    try {
+                      await api.sync(user.id)
+                      // New readings arrive over SSE; the chip just confirms
+                      // the ask went out, then resets.
+                      setHeaderSync('asked')
+                      setTimeout(() => setHeaderSync('idle'), 5000)
+                    } catch (e) {
+                      setError(String(e))
+                      setHeaderSync('idle')
+                    }
+                  }}
+                >
+                  {headerSync === 'busy'
+                    ? 'syncing'
+                    : headerSync === 'asked'
+                      ? 'sync requested'
+                      : 'sync now'}
+                </Button>
+              )}
               <span className="text-foreground" title={user.client_user_id}>
                 {displayName}
               </span>
