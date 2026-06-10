@@ -40,7 +40,9 @@ async def create_link(body: LinkRequest, user: CurrentUser, junction: Junction) 
 
 
 @router.post("/demo", response_model=dict, tags=["sandbox"])
-async def connect_demo(body: LinkRequest, user: CurrentUser, junction: Junction) -> dict:
+async def connect_demo(
+    body: LinkRequest, user: CurrentUser, db: DbSession, junction: Junction
+) -> dict:
     """Sandbox only: attach a demo provider (oura / fitbit / apple_health_kit)
     with 30 days of synthetic data and a simulated webhook lifecycle."""
     junction_user_id = _require_junction_id(user)
@@ -48,6 +50,26 @@ async def connect_demo(body: LinkRequest, user: CurrentUser, junction: Junction)
         result = await junction.connect_demo_provider(junction_user_id, body.provider)
     except JunctionError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=exc.detail) from exc
+
+    # Record the connection immediately. The provider.connection.created
+    # webhook will arrive too (and idempotently upsert the same row), but the
+    # UI should reflect the device without waiting on webhook delivery.
+    from app.models import ConnectionStatus
+    from app.services.ingestion import ConnectionChange, IngestPlan, apply_plan
+
+    await apply_plan(
+        db,
+        user.id,
+        IngestPlan(
+            event_type="local.demo.connected",
+            junction_user_id=junction_user_id,
+            client_user_id=user.client_user_id,
+            connection_change=ConnectionChange(
+                provider=body.provider, status=ConnectionStatus.connected
+            ),
+        ),
+    )
+    await db.commit()
     logger.info("demo_connected", user_id=str(user.id), provider=body.provider)
     return {"connected": True, "provider": body.provider, "junction_response": result}
 
