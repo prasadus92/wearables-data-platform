@@ -16,6 +16,7 @@ export TF_VAR_aggregator_webhook_secret="$AGGREGATOR_WEBHOOK_SECRET"
 export TF_VAR_api_auth_token="$(grep '^API_AUTH_TOKEN=' .env | cut -d= -f2)"
 export TF_VAR_aggregator_prod_api_key="$(grep '^AGGREGATOR_PROD_API_KEY=' .env | cut -d= -f2)"
 export TF_VAR_aggregator_prod_webhook_secret="$(grep '^AGGREGATOR_PROD_WEBHOOK_SECRET=' .env | cut -d= -f2)"
+export TF_VAR_clerk_issuer="$(grep '^CLERK_ISSUER=' .env | cut -d= -f2)"
 
 if [[ "${APPLY:-0}" == "1" ]]; then
   terraform -chdir=infra/terraform init -upgrade -input=false

@@ -55,6 +55,7 @@ locals {
     { name = "REDIS_URL", value = "redis://${aws_elasticache_cluster.main.cache_nodes[0].address}:6379/0" },
     { name = "AGGREGATOR_ENVIRONMENT", value = var.aggregator_environment },
     { name = "AGGREGATOR_REGION", value = "eu" },
+    { name = "CLERK_ISSUER", value = var.clerk_issuer },
     { name = "ENVIRONMENT", value = "staging" },
     { name = "LOG_LEVEL", value = "INFO" },
   ]

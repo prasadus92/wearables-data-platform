@@ -6,7 +6,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import webhooks
-from app.api.deps import close_aggregator_clients, require_api_key
+from app.api.deps import close_aggregator_clients, require_auth
 from app.api.v1 import devices, stream, timeseries, users
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
@@ -35,9 +35,11 @@ app = FastAPI(
         "Wearable data integration for the ExampleHealth app. Users connect WHOOP/Oura/"
         "Garmin/Apple Watch via Aggregator; biometrics are ingested via webhooks and "
         "served here for timeline charts.\n\n"
-        "Authentication: all `/v1` routes require the API token via `X-API-Key`, "
-        "`Authorization: Bearer`, or an `api_key` query parameter (the SSE stream "
-        "uses the query form because EventSource cannot send headers)."
+        "Authentication: all `/v1` routes accept either the service API token or a "
+        "Clerk session JWT via `X-API-Key`, `Authorization: Bearer`, or an `api_key` "
+        "query parameter (the SSE stream uses the query form because EventSource "
+        "cannot send headers). Clerk-authenticated callers are scoped to their own "
+        "users and bootstrap their identity via `POST /v1/me`."
     ),
     version="1.0.0",
     lifespan=lifespan,
@@ -79,10 +81,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# All /v1 routes require the API token. Webhooks authenticate via the
-# Svix signature instead, and /health stays open for load balancer checks.
-v1_auth = [Depends(require_api_key)]
+# All /v1 routes require either the service API key or a Clerk session JWT.
+# Webhooks authenticate via the Svix signature instead, and /health stays
+# open for load balancer checks.
+v1_auth = [Depends(require_auth)]
 app.include_router(users.router, prefix="/v1", dependencies=v1_auth)
+app.include_router(users.me_router, prefix="/v1", dependencies=v1_auth)
 app.include_router(devices.router, prefix="/v1", dependencies=v1_auth)
 app.include_router(timeseries.router, prefix="/v1", dependencies=v1_auth)
 app.include_router(stream.router, prefix="/v1", dependencies=v1_auth)

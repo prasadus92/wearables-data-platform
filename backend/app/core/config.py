@@ -47,6 +47,7 @@ class Settings(BaseSettings):
         "aggregator_prod_api_key",
         "aggregator_prod_webhook_secret",
         "api_auth_token",
+        "clerk_issuer",
         mode="before",
     )
     @classmethod
@@ -81,9 +82,13 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     environment: str = "local"  # local | staging | production
     # Static bearer token for the /v1 API (app/Postman traffic). Empty
-    # disables auth (local development only). Production replaces this
-    # with per-user JWTs; see docs/architecture.md security notes.
+    # disables auth (local development only). Signed-in clients use Clerk
+    # session JWTs instead; either credential is accepted on /v1 routes.
     api_auth_token: str = ""
+    # Clerk instance issuer, e.g. https://xxx.clerk.accounts.dev (no trailing
+    # slash). JWKS is fetched from {issuer}/.well-known/jwks.json. Empty
+    # disables Clerk JWT auth, leaving only the static API key.
+    clerk_issuer: str = ""
 
     @property
     def aggregator_base_url(self) -> str:
