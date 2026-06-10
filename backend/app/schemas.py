@@ -43,6 +43,16 @@ class MeCreate(BaseModel):
     )
 
 
+class GuestCreate(BaseModel):
+    """Optional body for POST /v1/guests. The identity itself is always
+    minted server-side; only the environment is selectable."""
+
+    environment: JunctionEnv | None = Field(
+        default=None,
+        description="Junction environment for the guest (default: the service's primary one).",
+    )
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

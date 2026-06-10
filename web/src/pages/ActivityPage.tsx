@@ -17,7 +17,16 @@ function relativeTime(iso: string): string {
   return `${Math.round(hours / 24)}d ago`
 }
 
-function StatusBadge({ status }: { status: ActivityEvent['status'] }) {
+function StatusBadge({ status, eventType }: { status: ActivityEvent['status']; eventType: string }) {
+  // Lifecycle ledger entries (connects, disconnects, identity changes) carry
+  // their own badge: they are transitions, never pipeline states.
+  if (eventType.startsWith('lifecycle.')) {
+    return (
+      <Badge className="border-violet-200 bg-violet-50 tracking-wide text-violet-700 uppercase">
+        lifecycle
+      </Badge>
+    )
+  }
   if (status === 'processed') {
     return (
       <Badge className="border-emerald-200 bg-emerald-50 tracking-wide text-emerald-700 uppercase">
@@ -119,7 +128,7 @@ export function ActivityPage() {
                   >
                     <div className="flex flex-wrap items-center gap-2.5">
                       <span className="text-sm">{event.summary}</span>
-                      <StatusBadge status={event.status} />
+                      <StatusBadge status={event.status} eventType={event.event_type} />
                     </div>
                     <span className="shrink-0 text-xs text-muted-foreground">
                       {relativeTime(event.received_at)}

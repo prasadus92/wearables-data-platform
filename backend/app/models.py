@@ -1,11 +1,14 @@
 """Database schema.
 
-Four tables, designed for write-heavy ingestion and range-scan reads:
+Five tables, designed for write-heavy ingestion and range-scan reads:
 
 - ``users``: app users mapped 1:1 to a Junction user.
 - ``connections``: a user's link to one wearable provider (whoop, oura…).
 - ``webhook_events``: raw inbound Junction events. Source of truth for
   idempotency (unique event id) and replay/debugging.
+- ``device_events``: append-only ledger of device and identity lifecycle
+  transitions (connects are consent grants in a health product, so every
+  one is recorded with who triggered it).
 - ``samples``: normalized biometric time series. One row per
   (user, metric, timestamp, provider); webhook retries and overlapping
   backfills upsert harmlessly.
@@ -59,6 +62,27 @@ class WebhookEventStatus(enum.StrEnum):
     processed = "processed"
     failed = "failed"
     skipped = "skipped"  # not a data event we care about
+
+
+class DeviceEventType(enum.StrEnum):
+    """Lifecycle transitions recorded in the ``device_events`` ledger."""
+
+    connected = "connected"
+    disconnected = "disconnected"
+    expired = "expired"
+    reconnected = "reconnected"
+    identity_remapped = "identity_remapped"
+    guest_created = "guest_created"
+    user_created = "user_created"
+
+
+class DeviceEventActor(enum.StrEnum):
+    """Who triggered a lifecycle transition."""
+
+    user = "user"
+    service = "service"
+    webhook = "webhook"
+    system = "system"
 
 
 class User(Base):
@@ -132,6 +156,34 @@ class WebhookEvent(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class DeviceEvent(Base):
+    """One row per device/identity lifecycle transition. Append-only.
+
+    This is the consent and provenance ledger: who connected what, when,
+    and through which channel (the user, the service, a webhook, or the
+    system itself). Rows are never updated or deleted; corrections are new
+    entries. ``detail`` carries transition-specific context, e.g. the
+    from/to identities of a remap.
+    """
+
+    __tablename__ = "device_events"
+    __table_args__ = (
+        # Serves the activity feed query: a user's transitions, newest first.
+        Index("ix_device_events_user_time", "user_id", "occurred_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    provider: Mapped[str | None] = mapped_column(String(64))
+    event: Mapped[str] = mapped_column(String(32))  # DeviceEventType values
+    actor: Mapped[str] = mapped_column(String(16))  # DeviceEventActor values
+    junction_user_id: Mapped[str | None] = mapped_column(String(255))
+    detail: Mapped[dict | None] = mapped_column(JSONB)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class Sample(Base):

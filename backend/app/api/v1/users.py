@@ -1,5 +1,6 @@
-"""User endpoints: registration, Junction identity mapping, manual sync."""
+"""User endpoints: registration, guests, Junction identity mapping, sync."""
 
+import secrets as pysecrets
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Request, status
@@ -9,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import CurrentUser, DbSession, Junction, junction_client_for
 from app.core.config import JunctionEnvironment, get_settings
 from app.core.logging import get_logger
-from app.models import Connection, ConnectionStatus, User
-from app.schemas import MeCreate, UserCreate, UserOut
+from app.models import Connection, ConnectionStatus, DeviceEventActor, DeviceEventType, User
+from app.schemas import GuestCreate, MeCreate, UserCreate, UserOut
 from app.services.ingestion import (
     RESOURCE_TO_METRIC,
     ConnectionChange,
@@ -18,20 +19,30 @@ from app.services.ingestion import (
     apply_plan,
 )
 from app.services.junction import JunctionError
+from app.services.ledger import record_device_event
 from app.workers.queue import enqueue_backfill
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/users", tags=["users"])
-# /me lives outside the /users prefix; included in main.py with the same auth.
+# /me and /guests live outside the /users prefix; included in main.py with
+# the same auth.
 me_router = APIRouter(tags=["users"])
+
+# Server-issued anonymous identities. The prefix is the contract: everything
+# downstream (ownership checks, UI labels) recognizes a guest by it.
+GUEST_PREFIX = "guest:"
 
 
 async def get_or_create_user(
-    db: AsyncSession, client_user_id: str, environment: JunctionEnvironment
+    db: AsyncSession,
+    client_user_id: str,
+    environment: JunctionEnvironment,
+    actor: DeviceEventActor = DeviceEventActor.service,
 ) -> User:
     """Look up a user by ``client_user_id``, creating and registering them
     with Junction when absent. Idempotent: re-running with the same id
-    returns the existing user."""
+    returns the existing user. First creation is recorded in the lifecycle
+    ledger (``guest_created`` or ``user_created``)."""
     existing = (
         await db.execute(select(User).where(User.client_user_id == client_user_id))
     ).scalar_one_or_none()
@@ -56,6 +67,16 @@ async def get_or_create_user(
             ) from exc
 
     db.add(user)
+    await db.flush()  # assign user.id so the ledger entry can reference it
+    record_device_event(
+        db,
+        user.id,
+        DeviceEventType.guest_created
+        if client_user_id.startswith(GUEST_PREFIX)
+        else DeviceEventType.user_created,
+        actor,
+        junction_user_id=user.junction_user_id,
+    )
     await db.commit()
     await db.refresh(user)
     logger.info("user_created", user_id=str(user.id), junction_user_id=user.junction_user_id)
@@ -95,7 +116,22 @@ async def create_me(request: Request, db: DbSession, body: MeCreate | None = Non
     client_user_id = f"clerk:{auth['subject']}"
     if environment == JunctionEnvironment.production:
         client_user_id = f"{client_user_id}:production"
-    return await get_or_create_user(db, client_user_id, environment)
+    return await get_or_create_user(db, client_user_id, environment, actor=DeviceEventActor.user)
+
+
+@me_router.post("/guests", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+async def create_guest(db: DbSession, body: GuestCreate | None = None) -> User:
+    """Start an explicit guest session: mint a server-side ``guest:<random>``
+    identity, register it with Junction, and record ``guest_created``.
+
+    Guests are first-class: same Junction registration and data pipeline as
+    any user, just an anonymous identity. Signing in later moves their
+    devices via the identity remap endpoint.
+    """
+    requested = body.environment if body is not None else None
+    environment = JunctionEnvironment(requested or get_settings().junction_environment)
+    client_user_id = f"{GUEST_PREFIX}{pysecrets.token_hex(8)}"
+    return await get_or_create_user(db, client_user_id, environment, actor=DeviceEventActor.user)
 
 
 @router.get("/{user_id}", response_model=UserOut)
@@ -221,6 +257,14 @@ async def remap_junction_identity(request: Request, body: dict, db: DbSession) -
     await db.flush()  # release the unique index before re-assigning
     target.junction_user_id = junction_user_id
     target.junction_environment = environment
+    record_device_event(
+        db,
+        target.id,
+        DeviceEventType.identity_remapped,
+        DeviceEventActor.service,
+        junction_user_id=junction_user_id,
+        detail={"from": from_id, "to": to_id},
+    )
     await db.commit()
 
     logger.info("junction_identity_remapped", source=from_id, target=to_id)
