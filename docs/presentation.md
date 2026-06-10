@@ -22,7 +22,7 @@ End-to-end wearable platform on Aggregator, live at `api.examplehealth.example.c
 1. Dashboard: create user, connect demo Oura, watch the chart fill live (SSE).
 2. Terminal split-screen: `aws logs tail /ecs/wearables-data-platform-api --follow` showing
    Aggregator's webhooks arriving while the chart updates. This is the money shot.
-3. Real device: the production user with Filippo's Oura ring; same charts, real data.
+3. Real device: the production user with the real Oura ring and WHOOP strap; same charts, real data.
 4. Expo app on the phone: connect flow per the Figma, timeline chart.
 5. Postman: the API contract their backend would consume.
 
@@ -56,7 +56,7 @@ architecture. Key beats per tier: Timescale hypertables + continuous aggregates 
 multi-region with a dedicated TSDB and precomputed aggregates at 50M. The four
 invariants above survive every tier.
 
-## 5. Criticalities and edge cases found (their bonus question, 3 minutes)
+## 5. Criticalities and edge cases found (3 minutes)
 
 - The challenge API key was dead (401 from Aggregator): probed and reported day one.
 - WHOOP is BYOO-only: no aggregator-shared OAuth. Verified live (the consent exchange
