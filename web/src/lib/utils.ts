@@ -9,6 +9,7 @@ export function cn(...inputs: ClassValue[]) {
 // Slugs outside the product list fall back to a simple capitalization.
 const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   whoop_v2: 'WHOOP',
+  apple_health_kit: 'Apple Watch',
   oura: 'Oura',
   garmin: 'Garmin',
   fitbit: 'Fitbit',
