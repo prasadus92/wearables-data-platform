@@ -83,7 +83,8 @@ class Settings(BaseSettings):
     environment: str = "local"  # local | staging | production
     # Static bearer token for the /v1 API (app/Postman traffic). Empty
     # disables auth (local development only). Signed-in clients use Clerk
-    # session JWTs instead; either credential is accepted on /v1 routes.
+    # session JWTs and anonymous clients use guest session tokens instead;
+    # any of the three credentials is accepted on /v1 routes.
     api_auth_token: str = ""
     # Clerk instance issuer, e.g. https://xxx.clerk.accounts.dev (no trailing
     # slash). JWKS is fetched from {issuer}/.well-known/jwks.json. Empty

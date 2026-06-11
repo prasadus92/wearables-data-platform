@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Metric, Sample
 from app.schemas import Resolution, TimeseriesPoint
+from app.services.ingestion import DEFAULT_UNITS
 
 _TRUNC = {Resolution.hour: "hour", Resolution.day: "day", Resolution.week: "week"}
 
@@ -49,7 +50,7 @@ async def query_timeseries(
             TimeseriesPoint(ts=ts, value=value, value_secondary=secondary)
             for ts, value, secondary, _unit in rows
         ]
-        unit = rows[0][3] if rows else _default_unit(metric)
+        unit = rows[0][3] if rows else DEFAULT_UNITS[metric]
         return points, unit
 
     bucket = func.date_trunc(_TRUNC[resolution], Sample.ts).label("bucket")
@@ -73,11 +74,5 @@ async def query_timeseries(
         )
         for ts, value, secondary, _unit in rows
     ]
-    unit = rows[0][3] if rows else _default_unit(metric)
+    unit = rows[0][3] if rows else DEFAULT_UNITS[metric]
     return points, unit
-
-
-def _default_unit(metric: Metric) -> str:
-    from app.services.ingestion import DEFAULT_UNITS
-
-    return DEFAULT_UNITS[metric]

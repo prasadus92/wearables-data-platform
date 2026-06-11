@@ -31,8 +31,9 @@ export function baseline(points: TimeseriesPoint[]): Baseline | null {
 
 /**
  * One short neutral sentence placing the latest reading against the personal
- * baseline. Direction context only changes which deviations get a percentage
- * callout; the wording never implies a value is good or bad.
+ * baseline. The wording never implies a value is good or bad. The direction
+ * parameter is accepted to keep the call signature stable for both clients;
+ * the current copy is direction-neutral and does not read it.
  */
 export function latestStatus(
   points: TimeseriesPoint[],

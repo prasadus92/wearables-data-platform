@@ -84,13 +84,9 @@ async def require_auth(request: Request, db: AsyncSession = Depends(get_db)) -> 
     raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing credentials")
 
 
-# Backwards-compatible name for the pre-Clerk dependency.
-require_api_key = require_auth
-
-
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
-_junction_clients: dict[str, JunctionClient] = {}
+_junction_clients: dict[JunctionEnvironment, JunctionClient] = {}
 
 
 def junction_client_for(environment: str | JunctionEnvironment) -> JunctionClient:

@@ -2,29 +2,24 @@ import { SignInButton, UserButton, useUser } from '@clerk/react'
 import { AlertCircle } from 'lucide-react'
 import { motion, MotionConfig } from 'motion/react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import {
-  Link,
-  Navigate,
-  Outlet,
-  Route,
-  Routes,
-  useLocation,
-  useNavigate,
-} from 'react-router-dom'
+import { Navigate, Outlet, Route, Routes, useNavigate } from 'react-router-dom'
 import type { Device, JunctionEnv, User } from '@youth/health-core'
 import { api, setGuestToken, streamUrl } from './api'
 import { useClerkBridge } from './components/AuthBridge'
 import { springTransition, TapButton } from './components/motion'
 import { PulseBand } from './components/PulseBand'
+import { SectionNav } from './components/SectionNav'
 import { ActivityPage } from './pages/ActivityPage'
 import { DevicesPage } from './pages/DevicesPage'
 import { TimelinePage } from './pages/TimelinePage'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 
-// One session per environment, so Demo and Live coexist and switching is
-// instant. Demo (sandbox) offers synthetic wearables; Live (production)
-// connects real devices over real provider OAuth.
+// One session per environment, so Demo and Live each keep their own session
+// across reloads. Demo (sandbox) offers synthetic wearables; Live (production)
+// connects real devices over real provider OAuth. The active mode follows the
+// auth state (sign-in is Live, anonymous is Demo); MODE_KEY remembers the last
+// mode so a reload renders the right world before Clerk resolves.
 const MODE_KEY = 'youth-wearables-mode'
 const userKey = (env: JunctionEnv) => `youth-wearables-user:${env}`
 
@@ -68,34 +63,6 @@ const staggerParent = {
 const riseIn = {
   hidden: { opacity: 0, y: 8 },
   show: { opacity: 1, y: 0, transition: springTransition },
-}
-
-/** Section switcher styled after the card titles: mono, uppercase, quiet. */
-function SectionNav() {
-  const { pathname } = useLocation()
-  const links = [
-    { to: '/metrics/heartrate', label: 'Timeline', active: pathname.startsWith('/metrics') },
-    { to: '/devices', label: 'Devices', active: pathname.startsWith('/devices') },
-    { to: '/activity', label: 'Activity', active: pathname.startsWith('/activity') },
-  ]
-  return (
-    <nav aria-label="Dashboard sections" className="flex items-center gap-4 border-b pb-2">
-      {links.map((link) => (
-        <Link
-          key={link.to}
-          to={link.to}
-          aria-current={link.active ? 'page' : undefined}
-          className={`font-mono text-xs font-medium tracking-widest uppercase transition-colors ${
-            link.active
-              ? 'text-foreground'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          {link.label}
-        </Link>
-      ))}
-    </nav>
-  )
 }
 
 /**
@@ -322,9 +289,7 @@ function AppShell() {
   }
 
   // Guests are explicit and server-issued: the backend mints a guest:<id>
-  // identity and records the session start in the lifecycle ledger. A fresh
-  // guest has no data, so land on Devices where the first decision (pick a
-  // wearable) lives instead of an empty timeline.
+  // identity and records the session start in the lifecycle ledger.
   const startAsGuest = async () => {
     // Guests get a demo wearable attached server-side, so the timeline is
     // the right first impression: readings stream in within a couple of

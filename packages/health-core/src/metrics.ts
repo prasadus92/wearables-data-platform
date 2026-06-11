@@ -32,8 +32,6 @@ export interface MetricMeta {
   unitLabel: string;
   goodDirection: GoodDirection;
   clinicalBand?: ClinicalBand;
-  /** For dual-series metrics (blood pressure), a band for the secondary line. */
-  clinicalBandSecondary?: ClinicalBand;
 }
 
 export const METRIC_META: Record<Metric, MetricMeta> = {
