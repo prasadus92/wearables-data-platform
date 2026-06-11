@@ -163,6 +163,11 @@ async def test_guest_demo_includes_synthetic_extras(with_auth, stub_junction, cl
         )
         assert series.status_code == 200
         points = series.json()["points"]
-        assert len(points) >= 25
+        # The seeder drops roughly 8 percent of daily points as non-wear
+        # gaps, hash-keyed on the guest's random identity, so the count is
+        # binomial around 27 or 28 of 30. A bound of 20 is over five
+        # standard deviations below the mean: realism stays tested, the
+        # tail stops flaking.
+        assert len(points) >= 20
         if expects_secondary:
             assert points[-1]["value_secondary"] is not None
