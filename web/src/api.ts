@@ -147,6 +147,21 @@ export const api = {
   events: (userId: string, limit = 50) =>
     request<ActivityEvent[]>(`/v1/users/${userId}/events?limit=${limit}`),
 
+  timeseriesDay: (userId: string, metric: Metric, dayIso: string, provider?: string) => {
+    // One anchored calendar day, hour buckets: the drill-down behind any
+    // aggregated point.
+    const start = new Date(dayIso)
+    start.setUTCHours(0, 0, 0, 0)
+    const end = new Date(start.getTime() + 24 * 3600 * 1000)
+    const params = new URLSearchParams({
+      start: start.toISOString(),
+      end: end.toISOString(),
+      resolution: 'hour',
+    })
+    if (provider) params.set('provider', provider)
+    return request<Timeseries>(`/v1/users/${userId}/timeseries/${metric}?${params}`)
+  },
+
   sync: (userId: string) =>
     request<{ status: string; jobs: number }>(`/v1/users/${userId}/sync`, { method: 'POST' }),
 

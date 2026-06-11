@@ -60,6 +60,10 @@ interface Props {
   onSync: () => void
   /** Reports that in-range readings arrived, ending any pending sync check. */
   onSyncResolved: () => void
+  /** Drill into one day when an aggregated point is clicked. */
+  onDrillDay?: (dayIso: string) => void
+  /** When set, the chart shows this single day hour by hour. */
+  anchorDay?: string
 }
 
 /** Plain relative age for the out-of-range empty state: "16 days ago". */
@@ -127,6 +131,8 @@ export function TimelineChart({
   syncRequested,
   onSync,
   onSyncResolved,
+  onDrillDay,
+  anchorDay,
 }: Props) {
   // All per-mode chart colors come from one theme-keyed lookup; nothing in
   // the JSX below branches on the mode by hand.
@@ -148,7 +154,9 @@ export function TimelineChart({
 
     async function load() {
       try {
-        const series = await api.timeseries(userId, metric, resolution, days, provider)
+        const series = anchorDay
+          ? await api.timeseriesDay(userId, metric, anchorDay, provider)
+          : await api.timeseries(userId, metric, resolution, days, provider)
         if (!cancelled) {
           setData(series)
           setFailed(false)
@@ -173,7 +181,7 @@ export function TimelineChart({
       clearInterval(interval)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, metric, days, resolution, provider, liveVersion, onSyncResolved, data == null || data.points.length === 0])
+  }, [userId, metric, days, resolution, provider, anchorDay, liveVersion, onSyncResolved, data == null || data.points.length === 0])
 
   const inRangeEmpty = !loading && data != null && data.points.length === 0
 
@@ -184,6 +192,7 @@ export function TimelineChart({
   // metric/range, so each chart instance probes at most once.
   const probeInFlight = useRef(false)
   useEffect(() => {
+    if (anchorDay) return
     if (!inRangeEmpty || !hasDevices || probe.state !== 'idle' || probeInFlight.current) return
     if (!metricSupported(metric, providerSlugs, { demo: demoMode })) {
       // Nothing connected can produce this metric; skip the wide probe so
@@ -212,6 +221,18 @@ export function TimelineChart({
   const meta = METRIC_META[metric]
 
   if (loading && !data) return <Skeleton className="h-[400px] w-full rounded-xl" />
+  if (anchorDay && data && data.points.length === 0) {
+    return (
+      <EmptyState className="h-[400px]">
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium">No readings within this day</span>
+          <span className="text-sm text-muted-foreground">
+            The selected source recorded nothing on this calendar day.
+          </span>
+        </div>
+      </EmptyState>
+    )
+  }
   if (failed && !data) {
     return (
       <EmptyState className="h-[400px]">
@@ -351,7 +372,7 @@ export function TimelineChart({
     label: new Date(p.ts).toLocaleString(undefined, {
       month: 'short',
       day: 'numeric',
-      ...(resolution === 'hour' || resolution === 'raw'
+      ...(anchorDay || resolution === 'hour' || resolution === 'raw'
         ? { hour: '2-digit', minute: '2-digit' }
         : {}),
     }),
@@ -403,6 +424,15 @@ export function TimelineChart({
         <ComposedChart
           data={points}
           margin={{ top: 8, right: compact ? 4 : 16, bottom: 4, left: compact ? -14 : 0 }}
+          onClick={(state) => {
+            // Day-bucket points drill into their day; finer resolutions are
+            // already the drill target.
+            if (anchorDay || resolution !== 'day' || !onDrillDay) return
+            const idx = state && (state as { activeTooltipIndex?: number }).activeTooltipIndex
+            if (idx == null || idx < 0 || idx >= points.length) return
+            onDrillDay(points[idx].ts)
+          }}
+          style={resolution === 'day' && onDrillDay ? { cursor: 'pointer' } : undefined}
         >
           <defs>
             {/* Soft fill under the primary line; transparent stops in light
