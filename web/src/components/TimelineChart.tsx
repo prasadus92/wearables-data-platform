@@ -398,6 +398,11 @@ export function TimelineChart({
               {status}
             </span>
           )}
+          {!provider && providerNames.length > 1 && (
+            <span className="font-mono text-[10px] tracking-widest text-muted-foreground/70 uppercase">
+              Averaged across {formatNameList(providerNames)}
+            </span>
+          )}
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.span
               key={latestDisplay}

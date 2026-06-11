@@ -76,6 +76,10 @@ function MetricInfoPopover({ metric }: { metric: Metric }) {
             <DialogTitle>{meta.friendlyName}</DialogTitle>
           </DialogHeader>
           <p className="text-sm leading-relaxed">{meta.shortExplanation}</p>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            With more than one device connected, All devices charts their average;
+            pick a device chip to see one device's exact values.
+          </p>
           <p className="border-t pt-3 text-xs text-muted-foreground">
             This is informational, and no substitute for medical advice.
           </p>
