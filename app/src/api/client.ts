@@ -176,4 +176,29 @@ export const api = {
       `/users/${userId}/timeseries/${metric}?${params.toString()}`,
     );
   },
+
+  /**
+   * One anchored calendar day at hour buckets: the drill-down behind any
+   * aggregated point. UTC midnight to midnight, mirroring web's
+   * timeseriesDay.
+   */
+  getTimeseriesDay(
+    userId: string,
+    metric: Metric,
+    dayIso: string,
+    provider?: string,
+  ) {
+    const start = new Date(dayIso);
+    start.setUTCHours(0, 0, 0, 0);
+    const end = new Date(start.getTime() + 24 * 3600 * 1000);
+    const params = new URLSearchParams({
+      start: start.toISOString(),
+      end: end.toISOString(),
+      resolution: 'hour',
+    });
+    if (provider) params.set('provider', provider);
+    return request<Timeseries>(
+      `/users/${userId}/timeseries/${metric}?${params.toString()}`,
+    );
+  },
 };

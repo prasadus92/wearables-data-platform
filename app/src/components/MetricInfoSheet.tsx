@@ -45,6 +45,8 @@ export function MetricInfoSheet({ meta, visible, onClose }: Props) {
                 Disclaimer
               </Text>
               <Text className="mt-1.5 text-[12px] font-sans leading-[17px] text-mute">
+                With more than one device connected, All devices charts their
+                average; pick a device chip to see one device's exact values.
                 This is informational, and no substitute for medical advice.
               </Text>
             </View>

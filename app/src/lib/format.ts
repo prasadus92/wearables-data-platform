@@ -38,6 +38,12 @@ export function dayLabel(ts: number): string {
   return `${MONTHS[d.getMonth()]} ${d.getDate()}`;
 }
 
+/** Calendar day caption for the drill view: "27 May 2026". */
+export function calendarDayLabel(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
 /** Plain relative age for the out-of-range empty state: "16 days ago". */
 export function relativeAge(iso: string): string {
   const plural = (n: number, unit: string) =>
