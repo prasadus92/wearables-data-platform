@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import type { Device, JunctionEnv } from '@youth/health-core'
+import type { Device } from '@youth/health-core'
 import { springTransition, TapButton } from './motion'
 import { BADGE_TONES, providerDisplayName, relativeTime } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -11,18 +11,16 @@ import { Skeleton } from '@/components/ui/skeleton'
 // sandbox demo shortcut. WHOOP/Garmin require real accounts (no sandbox
 // demo data); Apple Watch requires the native SDK and is mobile-only.
 const PROVIDERS = [
-  { slug: 'whoop_v2', name: 'WHOOP', demo: false, unlocks: 'Heart rate, HRV, breathing rate' },
-  { slug: 'oura', name: 'Oura', demo: true, unlocks: 'HRV, blood oxygen, breathing rate' },
-  { slug: 'garmin', name: 'Garmin', demo: false, unlocks: 'Heart rate, HRV, breathing rate' },
-  { slug: 'fitbit', name: 'Fitbit', demo: true, unlocks: 'Heart rate, sleep, blood oxygen' },
+  { slug: 'whoop_v2', name: 'WHOOP', unlocks: 'Heart rate, HRV, breathing rate' },
+  { slug: 'oura', name: 'Oura', unlocks: 'HRV, blood oxygen, breathing rate' },
+  { slug: 'garmin', name: 'Garmin', unlocks: 'Heart rate, HRV, breathing rate' },
+  { slug: 'fitbit', name: 'Fitbit', unlocks: 'Heart rate, sleep, blood oxygen' },
 ]
 
 interface Props {
   /** null while the list is unknown; renders skeleton rows. */
   devices: Device[] | null
-  environment: JunctionEnv
   onConnect: (provider: string) => void
-  onConnectDemo: (provider: string) => void
   onDisconnect: (provider: string) => void
 }
 
@@ -47,7 +45,7 @@ function StatusBadge({ status }: { status: Device['status'] }) {
   )
 }
 
-export function DevicePanel({ devices, environment, onConnect, onConnectDemo, onDisconnect }: Props) {
+export function DevicePanel({ devices, onConnect, onDisconnect }: Props) {
   if (devices === null) {
     return (
       <Card>
@@ -138,16 +136,6 @@ export function DevicePanel({ devices, environment, onConnect, onConnectDemo, on
                   <TapButton size="sm" onClick={() => onConnect(provider.slug)}>
                     Connect
                   </TapButton>
-                  {provider.demo && environment === 'sandbox' && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-muted-foreground"
-                      onClick={() => onConnectDemo(provider.slug)}
-                    >
-                      Demo data
-                    </Button>
-                  )}
                 </motion.div>
               ))}
             </AnimatePresence>

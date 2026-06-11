@@ -13,10 +13,13 @@ import math
 import uuid
 from datetime import UTC, datetime, time, timedelta
 
+import redis.asyncio as aioredis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models import Metric
+from app.services.events import publish_samples_written
 from app.services.ingestion import IngestPlan, NormalizedSample, apply_plan
 
 logger = get_logger(__name__)
@@ -73,5 +76,14 @@ async def seed_demo_extras(db: AsyncSession, user_id: uuid.UUID, client_user_id:
     )
     written = await apply_plan(db, user_id, plan)
     await db.commit()
+    if written:
+        # Nudge any open timeline so the seeded charts fill immediately.
+        client = aioredis.from_url(get_settings().redis_url, decode_responses=True)
+        try:
+            await publish_samples_written(
+                client, user_id, {Metric.respiratory_rate, Metric.blood_pressure}, written
+            )
+        finally:
+            await client.aclose()
     logger.info("demo_extras_seeded", user_id=str(user_id), samples=written)
     return written
