@@ -150,7 +150,13 @@ export const api = {
   sync: (userId: string) =>
     request<{ status: string; jobs: number }>(`/v1/users/${userId}/sync`, { method: 'POST' }),
 
-  timeseries: (userId: string, metric: Metric, resolution: Resolution, days: number) => {
+  timeseries: (
+    userId: string,
+    metric: Metric,
+    resolution: Resolution,
+    days: number,
+    provider?: string,
+  ) => {
     const end = new Date()
     const start = new Date(end.getTime() - days * 24 * 3600 * 1000)
     const params = new URLSearchParams({
@@ -158,6 +164,7 @@ export const api = {
       end: end.toISOString(),
       resolution,
     })
+    if (provider) params.set('provider', provider)
     return request<Timeseries>(`/v1/users/${userId}/timeseries/${metric}?${params}`)
   },
 }

@@ -167,6 +167,19 @@ export function TimelinePage() {
   const range = matched === -1 ? RANGES.findIndex((r) => r.label === DEFAULT_RANGE) : matched
 
   const activeDevices = devices?.filter((d) => d.status !== 'disconnected') ?? null
+  // Device filter: undefined charts every device blended; a slug isolates
+  // one wearable, which is also the honest lens when devices disagree.
+  const [providerFilter, setProviderFilter] = useState<string | undefined>(undefined)
+  useEffect(() => {
+    // A filtered device that gets disconnected falls back to all devices.
+    if (
+      providerFilter &&
+      activeDevices !== null &&
+      !activeDevices.some((d) => d.provider === providerFilter)
+    ) {
+      setProviderFilter(undefined)
+    }
+  }, [activeDevices, providerFilter])
 
   return (
     <motion.div
@@ -219,10 +232,29 @@ export function TimelinePage() {
                 />
               ))}
             </div>
+            {activeDevices !== null && activeDevices.length > 1 && (
+              <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <Chip
+                  label="All devices"
+                  small
+                  active={providerFilter === undefined}
+                  onClick={() => setProviderFilter(undefined)}
+                />
+                {activeDevices.map((d) => (
+                  <Chip
+                    key={d.provider}
+                    label={providerDisplayName(d.provider)}
+                    small
+                    active={providerFilter === d.provider}
+                    onClick={() => setProviderFilter(d.provider)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.div
-              key={`${metric}-${range}`}
+              key={`${metric}-${range}-${providerFilter ?? 'all'}`}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -241,6 +273,7 @@ export function TimelinePage() {
                 providerNames={(activeDevices ?? []).map((d) => providerDisplayName(d.provider))}
                 providerSlugs={(activeDevices ?? []).map((d) => d.provider)}
                 demoMode={mode === 'sandbox'}
+                provider={providerFilter}
                 onShowMetric={(m) =>
                   navigate({ pathname: `/metrics/${m}`, search: searchParams.toString() })
                 }
