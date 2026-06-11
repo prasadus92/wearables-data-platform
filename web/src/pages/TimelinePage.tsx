@@ -160,8 +160,9 @@ export function TimelinePage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
-            <div className="flex min-w-0 items-center gap-1.5">
+            <div className="flex w-full min-w-0 items-center gap-1.5 sm:w-auto">
               <Tabs
+                className="min-w-0 max-w-full"
                 value={metric}
                 onValueChange={(v) =>
                   navigate({ pathname: `/metrics/${v}`, search: searchParams.toString() })
