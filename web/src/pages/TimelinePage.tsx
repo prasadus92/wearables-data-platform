@@ -151,16 +151,10 @@ export function TimelinePage() {
     [],
   )
 
-  // Unknown metric slugs land on heart rate, keeping any range selection.
-  if (!metricParam || !(metricParam in METRIC_META)) {
-    return (
-      <Navigate
-        to={{ pathname: '/metrics/heartrate', search: searchParams.toString() }}
-        replace
-      />
-    )
-  }
-  const metric = metricParam as Metric
+  // Unknown metric slugs land on heart rate (redirect rendered after the
+  // hooks below, which must run unconditionally).
+  const validMetric = Boolean(metricParam && metricParam in METRIC_META)
+  const metric = (validMetric ? metricParam : 'heartrate') as Metric
 
   const rangeParam = searchParams.get('range') ?? rememberedRange()
   const matched = RANGES.findIndex((r) => r.label === rangeParam)
@@ -170,6 +164,8 @@ export function TimelinePage() {
   // Device filter: undefined charts every device blended; a slug isolates
   // one wearable, which is also the honest lens when devices disagree.
   const [providerFilter, setProviderFilter] = useState<string | undefined>(undefined)
+  // Drill-down: clicking a day point pins the chart to that calendar day.
+  const [drillDay, setDrillDay] = useState<string | null>(null)
   useEffect(() => {
     // A filtered device that gets disconnected falls back to all devices.
     if (
@@ -180,6 +176,22 @@ export function TimelinePage() {
       setProviderFilter(undefined)
     }
   }, [activeDevices, providerFilter])
+
+  // Any selector change leaves the drill view: a pinned day only makes
+  // sense for the selection that produced it.
+  const metricRangeFilterKey = `${metric}|${rangeParam}|${providerFilter ?? 'all'}`
+  useEffect(() => {
+    setDrillDay(null)
+  }, [metricRangeFilterKey])
+
+  if (!validMetric) {
+    return (
+      <Navigate
+        to={{ pathname: '/metrics/heartrate', search: searchParams.toString() }}
+        replace
+      />
+    )
+  }
 
   return (
     <motion.div
@@ -252,9 +264,27 @@ export function TimelinePage() {
               </div>
             )}
           </div>
+          {drillDay && (
+            <div className="flex items-center gap-2.5">
+              <Chip
+                label={`Back to ${RANGES[range].label}`}
+                small
+                active
+                onClick={() => setDrillDay(null)}
+              />
+              <span className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
+                {new Date(drillDay).toLocaleDateString(undefined, {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+                , hour by hour
+              </span>
+            </div>
+          )}
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.div
-              key={`${metric}-${range}-${providerFilter ?? 'all'}`}
+              key={`${metric}-${range}-${providerFilter ?? 'all'}-${drillDay ?? 'span'}`}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -288,6 +318,8 @@ export function TimelinePage() {
                 syncRequested={syncRequested}
                 onSync={requestSync}
                 onSyncResolved={resolveSync}
+                anchorDay={drillDay ?? undefined}
+                onDrillDay={(day) => setDrillDay(day)}
               />
               )}
             </motion.div>
