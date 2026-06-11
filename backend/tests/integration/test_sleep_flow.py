@@ -396,3 +396,68 @@ async def test_dense_backfill_exceeding_parameter_cap(with_auth, client, engine,
     )
     assert series.status_code == 200
     assert len(series.json()["points"]) >= 240
+
+
+async def test_connection_event_triggers_own_backfills(
+    with_auth, client, engine, worker_db, monkeypatch
+):
+    """A provider.connection.created event must enqueue our own history
+    pulls, immediate and deferred, instead of trusting the provider's
+    historical webhooks to arrive."""
+    import uuid as uuidlib
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.models import WebhookEvent, WebhookEventStatus
+    from tests.conftest import SERVICE_TOKEN
+
+    class StubAggregator:
+        async def create_user(self, client_user_id: str) -> dict:
+            return {"user_id": f"jnc-{client_user_id}"}
+
+        async def connect_demo_provider(self, aggregator_user_id: str, provider: str) -> dict:
+            return {"success": True}
+
+    monkeypatch.setattr(users_module, "aggregator_client_for", lambda env: StubAggregator())
+    created = await client.post(
+        "/v1/users",
+        headers={"X-API-Key": SERVICE_TOKEN},
+        json={"client_user_id": f"connbf-{uuidlib.uuid4().hex[:8]}"},
+    )
+    assert created.status_code == 201
+    body = created.json()
+
+    enqueued: list[tuple] = []
+
+    async def _record(*args, **kwargs) -> None:
+        enqueued.append((args, kwargs))
+
+    monkeypatch.setattr(worker_module, "enqueue_backfill", _record)
+
+    event_id = uuidlib.uuid4()
+    async with AsyncSession(engine) as session:
+        session.add(
+            WebhookEvent(
+                id=event_id,
+                event_id=f"svix-{event_id}",
+                event_type="provider.connection.created",
+                status=WebhookEventStatus.received,
+                payload={
+                    "event_type": "provider.connection.created",
+                    "user_id": body["aggregator_user_id"],
+                    "client_user_id": body["client_user_id"],
+                    "data": {"provider": {"slug": "whoop_v2", "name": "WHOOP"}},
+                },
+            )
+        )
+        await session.commit()
+
+    result = await worker_module.process_webhook_event({}, str(event_id))
+    assert result.startswith("processed")
+
+    # 5 metrics + sleep, twice (immediate and deferred five minutes).
+    assert len(enqueued) == 12
+    defers = {kw.get("defer_seconds") for _, kw in enqueued}
+    assert defers == {0, 300}
+    resources = {a[1] for a, _ in enqueued}
+    assert "sleep" in resources and "heartrate" in resources
