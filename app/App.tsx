@@ -17,6 +17,7 @@ import { api, ApiError, setTokenProvider } from './src/api/client';
 import { Button } from './src/components/Button';
 import { AppContext, type AppState, type Nav, type Route } from './src/lib/appContext';
 import { storage, type Session } from './src/lib/storage';
+import { ConnectAppleScreen } from './src/screens/ConnectAppleScreen';
 import { ConnectIntroScreen } from './src/screens/ConnectIntroScreen';
 import { ConnectMenuScreen } from './src/screens/ConnectMenuScreen';
 import { ConnectResultScreen } from './src/screens/ConnectResultScreen';
@@ -353,6 +354,9 @@ function Root() {
       case 'connectIntro':
         screen = <ConnectIntroScreen provider={top.provider} />;
         break;
+      case 'connectApple':
+        screen = <ConnectAppleScreen />;
+        break;
       case 'connectResult':
         screen = (
           <ConnectResultScreen
@@ -377,6 +381,7 @@ function Root() {
     (top.name === 'home' ||
       top.name === 'connectMenu' ||
       top.name === 'connectIntro' ||
+      top.name === 'connectApple' ||
       top.name === 'connectResult' ||
       top.name === 'connectSync');
 

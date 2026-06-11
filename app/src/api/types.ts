@@ -7,3 +7,14 @@ export interface LinkOut {
   link_token: string;
   link_url: string;
 }
+
+/**
+ * Single-use pairing code for the Apple Watch connect flow. The user types
+ * it into the Aggregator Connect bridge app, which then streams Health data to
+ * the account. Fields mirror the backend response and may be null when the
+ * upstream omits them.
+ */
+export interface ApplePairingCode {
+  code: string | null;
+  expires_at: string | null;
+}

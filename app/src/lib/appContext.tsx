@@ -9,6 +9,8 @@ export type Route =
   | { name: 'devices' }
   | { name: 'connectMenu' }
   | { name: 'connectIntro'; provider: ProviderInfo }
+  /** Apple Watch pairing flow; the provider is implied (apple_health_kit). */
+  | { name: 'connectApple' }
   | {
       name: 'connectResult';
       provider: ProviderInfo;

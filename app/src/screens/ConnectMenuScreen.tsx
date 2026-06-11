@@ -13,7 +13,7 @@ import { AnimatedPressable } from '../components/AnimatedPressable';
 import { ProviderLogo } from '../components/ProviderLogo';
 import { SheetHandle, SheetTitle, sheetIn } from '../components/Sheet';
 import { useApp } from '../lib/appContext';
-import { PROVIDERS, type ProviderInfo } from '../lib/catalog';
+import { APPLE_SLUG, PROVIDERS, type ProviderInfo } from '../lib/catalog';
 import { colors, fonts } from '../theme/tokens';
 
 function Chevron() {
@@ -205,7 +205,13 @@ export function ConnectMenuScreen() {
                 key={p.slug}
                 provider={p}
                 status={statusFor(p.slug) === 'expired' ? 'expired' : 'none'}
-                onPress={() => nav.push({ name: 'connectIntro', provider: p })}
+                onPress={() =>
+                  nav.push(
+                    p.slug === APPLE_SLUG
+                      ? { name: 'connectApple' }
+                      : { name: 'connectIntro', provider: p },
+                  )
+                }
               />
             ))
           )}

@@ -12,6 +12,14 @@ export interface ProviderInfo {
   demo: boolean;
 }
 
+/**
+ * Provider slug for Apple Watch. HealthKit data leaves an iPhone only
+ * through an app with HealthKit entitlements, so this provider connects
+ * via a pairing code and the Aggregator Connect bridge app instead of hosted
+ * OAuth. The connect flow branches on this slug.
+ */
+export const APPLE_SLUG = 'apple_health_kit';
+
 export const PROVIDERS: ProviderInfo[] = [
   {
     slug: 'oura',
@@ -35,6 +43,12 @@ export const PROVIDERS: ProviderInfo[] = [
     slug: 'fitbit',
     name: 'Fitbit',
     blurb: 'Trackers and watches for everyday activity.',
+    demo: true,
+  },
+  {
+    slug: APPLE_SLUG,
+    name: 'Apple Watch',
+    blurb: 'Watch for activity, heart health and sleep.',
     demo: true,
   },
 ];

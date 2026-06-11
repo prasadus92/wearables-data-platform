@@ -8,7 +8,7 @@ import type {
 } from '@examplehealth/health-core';
 import Constants from 'expo-constants';
 
-import type { LinkOut } from './types';
+import type { ApplePairingCode, LinkOut } from './types';
 
 interface AppExtra {
   apiBaseUrl?: string;
@@ -123,6 +123,17 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ provider, redirect_url: redirectUrl }),
     });
+  },
+
+  /**
+   * Apple Watch connect (Live): mints a single-use, short-lived pairing
+   * code the user enters in the Aggregator Connect bridge app.
+   */
+  createApplePairingCode(userId: string) {
+    return request<ApplePairingCode>(
+      `/users/${userId}/devices/apple-pairing-code`,
+      { method: 'POST' },
+    );
   },
 
   connectDemo(userId: string, provider: string) {
