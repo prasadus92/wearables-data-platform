@@ -69,12 +69,11 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      # npm's optional-deps bug (npm/cli#4828): the macOS-written lockfile
-      # omits Linux native binaries, so resolve fresh on this platform. The
-      # lockfile is regenerated properly in a follow-up; then this reverts
-      # to npm ci.
+      # Reproducible install from the committed lockfile. The lockfile is
+      # written by npm 11, which records every platform's native optional
+      # dependencies, so Linux runners resolve cleanly from it.
       - name: Install dependencies
-        run: rm -f package-lock.json && npm install --workspace web --include-workspace-root=false
+        run: npm ci
 
       # VITE_API_KEY is intentionally absent: the public bundle must never
       # contain the service key. Browser requests authenticate with Clerk
