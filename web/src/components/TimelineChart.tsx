@@ -393,6 +393,9 @@ export function TimelineChart({
         {delta != null && <DeltaChip delta={delta} />}
       </div>
 
+      {/* Phones: the plot reclaims the card's horizontal padding, the same
+          full-bleed-inside-the-card treatment the mobile app uses. */}
+      <div className={compact ? '-mr-5' : undefined}>
       <ResponsiveContainer width="100%" height={compact ? 300 : 320}>
         <ComposedChart
           data={points}
@@ -425,7 +428,7 @@ export function TimelineChart({
             tick={{ fontSize: compact ? 10 : 11, fill: chart.axis }}
             stroke={chart.grid}
             domain={['auto', 'auto']}
-            width={compact ? 34 : 60}
+            width={compact ? 40 : 60}
             label={
               compact
                 ? undefined
@@ -493,6 +496,7 @@ export function TimelineChart({
           )}
         </ComposedChart>
       </ResponsiveContainer>
+      </div>
     </div>
   )
 }
