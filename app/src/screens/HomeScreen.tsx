@@ -36,6 +36,7 @@ import Svg, {
 
 import {
   baseline,
+  type Device,
   latestStatus,
   METRIC_META,
   metricSupported,
@@ -339,6 +340,50 @@ function RangeTabs({
 }
 
 /**
+ * Device filter chips, shown only when more than one device is active.
+ * "All devices" blends every connection as before; a provider chip
+ * restricts the chart to that one wearable. Per-session state, mirroring
+ * the web timeline's device filter.
+ */
+function DeviceTabs({
+  devices,
+  activeProvider,
+  pal,
+  onSelect,
+}: {
+  devices: Device[];
+  activeProvider: string | null;
+  pal: HomePalette;
+  onSelect: (provider: string | null) => void;
+}) {
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      className="mb-4 -mx-5 px-5"
+    >
+      <View className="flex-row">
+        <Chip
+          label="All devices"
+          active={activeProvider === null}
+          pal={pal}
+          onPress={() => onSelect(null)}
+        />
+        {devices.map((d) => (
+          <Chip
+            key={d.provider}
+            label={providerName(d.provider)}
+            active={activeProvider === d.provider}
+            pal={pal}
+            onPress={() => onSelect(d.provider)}
+          />
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+/**
  * Figma connect card: translucent dark surface with a hairline border,
  * warm icon tile, and a full-width translucent mono button.
  */
@@ -542,6 +587,9 @@ export function HomeScreen() {
     storage.saveRange(r.label);
     setRange(r);
   }, []);
+  // Device filter: null charts every device blended; a provider slug
+  // isolates one wearable. Per-session state, mirroring web.
+  const [providerFilter, setProviderFilter] = useState<string | null>(null);
   const [series, setSeries] = useState<Timeseries | null>(null);
   // The metric the loaded series belongs to. The metric state alone runs
   // one commit ahead of the data after a switch, so the chart's count-up
@@ -651,6 +699,7 @@ export function HomeScreen() {
         start,
         end,
         resolution: range.resolution,
+        provider: providerFilter ?? undefined,
       });
     };
     try {
@@ -675,7 +724,7 @@ export function HomeScreen() {
     } finally {
       setLoading(false);
     }
-  }, [session, metric, range]);
+  }, [session, metric, range, providerFilter]);
 
   // Revalidate the shared device list every time home gains focus (this
   // screen mounts fresh per navigation) and when the session or auth state
@@ -764,6 +813,18 @@ export function HomeScreen() {
   });
   const slugsKey = providerSlugs.slice().sort().join(',');
 
+  // A filtered device that gets disconnected falls back to all devices.
+  useEffect(() => {
+    if (
+      providerFilter &&
+      devicesKnown &&
+      !providerSlugs.includes(providerFilter)
+    ) {
+      setProviderFilter(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [providerFilter, devicesKnown, slugsKey]);
+
   const inRangeEmpty =
     !loading && !error && !!session && series != null
       ? series.points.length === 0
@@ -772,7 +833,7 @@ export function HomeScreen() {
   // The selected window may simply be too narrow; probe wide before
   // explaining the emptiness, so the copy never misleads. The probe key
   // names the context a result belongs to; a change resets the machine.
-  const probeKey = `${session?.userId ?? ''}|${metric.key}|${range.key}|${slugsKey}`;
+  const probeKey = `${session?.userId ?? ''}|${metric.key}|${range.key}|${slugsKey}|${providerFilter ?? 'all'}`;
   const probeKeyRef = useRef(probeKey);
   probeKeyRef.current = probeKey;
 
@@ -807,6 +868,7 @@ export function HomeScreen() {
         start,
         end,
         resolution: 'day',
+        provider: providerFilter ?? undefined,
       })
       .then((wide) => {
         if (probeKeyRef.current !== key) return;
@@ -826,7 +888,15 @@ export function HomeScreen() {
         if (probeKeyRef.current !== key) setProbe({ state: 'idle' });
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inRangeEmpty, active.length, probe, supported, session, metric.key]);
+  }, [
+    inRangeEmpty,
+    active.length,
+    probe,
+    supported,
+    session,
+    metric.key,
+    providerFilter,
+  ]);
 
   // Hold the spinner while the probe decides which empty state applies, so
   // the explanation never flickers between copies.
@@ -903,8 +973,13 @@ export function HomeScreen() {
         },
       };
     }
+    // With a device filter on, the waiting copy names that one device so
+    // the message matches what the chart is actually showing.
+    const named = providerFilter
+      ? active.filter((d) => d.provider === providerFilter)
+      : active;
     const names =
-      formatNameList(active.map((d) => providerName(d.provider))) ||
+      formatNameList(named.map((d) => providerName(d.provider))) ||
       'Your device';
     return {
       title: `No ${friendly} here yet`,
@@ -924,6 +999,7 @@ export function HomeScreen() {
     metric.key,
     probe,
     range.label,
+    providerFilter,
     nav,
     onRefresh,
   ]);
@@ -1057,6 +1133,14 @@ export function HomeScreen() {
 
             <MetricTabs active={metric} pal={pal} onSelect={setMetric} />
             <RangeTabs active={range} pal={pal} onSelect={pickRange} />
+            {devicesKnown && active.length > 1 ? (
+              <DeviceTabs
+                devices={active}
+                activeProvider={providerFilter}
+                pal={pal}
+                onSelect={setProviderFilter}
+              />
+            ) : null}
           </Animated.View>
 
           <Animated.View entering={enter(3)}>
