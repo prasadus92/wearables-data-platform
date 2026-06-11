@@ -64,16 +64,17 @@ No value is calibrated, corrected, or otherwise manipulated; samples store
 exactly what the provider delivered. Differences against the vendor app come
 from four documented choices:
 
-- **Which aggregate is charted.** For sleep-derived biomarkers the platform
-  charts the session's average heart rate (falling back to resting when the
-  provider sends only that), the session's average HRV, and the session's
-  breathing rate, stamped at wake time. Vendor apps often headline a
-  different cut of the same night: Oura leads with the lowest resting heart
-  rate, WHOOP computes recovery HRV from a specific late-sleep window. Same
-  night, same sensor, different summary statistic.
-- **Bucket averaging.** Day and week buckets are means over every sample in
-  the bucket. A vendor app showing a single nightly value will differ from a
-  bucket that also contains daytime readings.
+- **Which aggregate is charted.** For sleep-derived heart rate the platform
+  charts the vendor's own headline resting value (lowest for providers that
+  send it, resting otherwise, the session average only as a last resort), so
+  a comparison against the device's own app is exact. HRV charts the
+  session average and breathing rate the session value, stamped at wake
+  time; WHOOP's app headlines a recovery HRV computed from a specific
+  late-sleep window, so its HRV can read differently by design.
+- **Bucket averaging.** Buckets are means over every sample inside them. A
+  vendor app showing a single nightly value will differ from a bucket that
+  also contains daytime readings. Every range up to 90 days uses day buckets
+  or finer, so one point is never more than one day.
 - **Cross-device blending.** With more than one wearable connected, a bucket
   averages across devices unless the device filter narrows the series to one
   provider. Devices measure differently by design; the filter is the honest

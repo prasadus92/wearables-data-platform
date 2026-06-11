@@ -214,10 +214,10 @@ class TestSleepEvents:
         assert by_metric[Metric.respiratory_rate].value == 15.04
         assert by_metric[Metric.respiratory_rate].unit == "breaths/min"
 
-    def test_oura_session_uses_hr_average(self):
+    def test_oura_session_uses_vendor_headline_hr(self):
         plan = parse_event(_sleep_event(OURA_SLEEP))
         hr = next(s for s in plan.samples if s.metric is Metric.heartrate)
-        assert hr.value == 49.0  # hr_average, never hr_lowest
+        assert hr.value == 43.0  # hr_average, never hr_lowest
         assert hr.provider == "oura"
         assert hr.ts == datetime(2026, 5, 8, 6, 12, 43, tzinfo=UTC)
 
