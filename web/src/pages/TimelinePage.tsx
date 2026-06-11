@@ -18,7 +18,7 @@ import { Chip } from '../components/Chip'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 const METRICS: { key: Metric; label: string }[] = (
   ['heartrate', 'hrv', 'spo2', 'respiratory_rate', 'blood_pressure'] as Metric[]
@@ -33,31 +33,36 @@ const RANGES: { label: string; days: number; resolution: Resolution }[] = [
 
 const DEFAULT_RANGE = '7d'
 
-/** Info button that explains the selected metric in plain language. */
+/** Info button that explains the selected metric in plain language. A
+ * centered dialog rather than an anchored popover: popper positioning
+ * proved unreliable here (content stuck at its placeholder coordinates),
+ * and a dialog reads better at phone widths anyway. */
 function MetricInfoPopover({ metric }: { metric: Metric }) {
   const meta = METRIC_META[metric]
+  const [open, setOpen] = useState(false)
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="xs"
-          className="size-6 rounded-full p-0 text-muted-foreground hover:text-foreground"
-          aria-label={`What is ${meta.friendlyName}?`}
-        >
-          <Info className="size-3.5" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="flex w-80 flex-col gap-2">
-        <span className="text-sm font-medium">{meta.friendlyName}</span>
-        <p className="text-sm leading-relaxed text-popover-foreground/90">
-          {meta.shortExplanation}
-        </p>
-        <p className="border-t pt-2 text-xs text-muted-foreground">
-          This is informational, and no substitute for medical advice.
-        </p>
-      </PopoverContent>
-    </Popover>
+    <>
+      <Button
+        variant="ghost"
+        size="xs"
+        className="size-6 rounded-full p-0 text-muted-foreground hover:text-foreground"
+        aria-label={`What is ${meta.friendlyName}?`}
+        onClick={() => setOpen(true)}
+      >
+        <Info className="size-3.5" />
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{meta.friendlyName}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm leading-relaxed">{meta.shortExplanation}</p>
+          <p className="border-t pt-3 text-xs text-muted-foreground">
+            This is informational, and no substitute for medical advice.
+          </p>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
