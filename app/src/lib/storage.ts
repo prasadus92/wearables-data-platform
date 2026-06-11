@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { AggregatorEnv } from '@examplehealth/health-core';
 
+import type { AppearancePref } from '../theme/tokens';
+
 export interface Session {
   userId: string;
   clientUserId: string;
@@ -21,6 +23,7 @@ const sessionKey = (env: AggregatorEnv) => `wearables-user:${env}`;
 const LEGACY_SESSION_KEY = 'yw.session';
 const SKIPPED_KEY = 'yw.onboardingSkipped';
 const CARD_DISMISSED_KEY = 'yw.connectCardDismissed';
+const APPEARANCE_KEY = 'yw.appearance';
 
 function parseSession(raw: string | null): Session | null {
   if (!raw) return null;
@@ -102,5 +105,14 @@ export const storage = {
 
   saveConnectCardDismissed() {
     return AsyncStorage.setItem(CARD_DISMISSED_KEY, '1');
+  },
+
+  async loadAppearance(): Promise<AppearancePref> {
+    const saved = await AsyncStorage.getItem(APPEARANCE_KEY);
+    return saved === 'light' || saved === 'dark' ? saved : 'system';
+  },
+
+  saveAppearance(pref: AppearancePref) {
+    return AsyncStorage.setItem(APPEARANCE_KEY, pref);
   },
 };

@@ -6,7 +6,7 @@ import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, Text, useColorScheme, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ReducedMotionConfig, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -25,7 +25,11 @@ import { ConnectSyncScreen } from './src/screens/ConnectSyncScreen';
 import { DevicesScreen } from './src/screens/DevicesScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { WelcomeScreen } from './src/screens/WelcomeScreen';
-import { colors } from './src/theme/tokens';
+import {
+  colors,
+  type AppearancePref,
+  type ResolvedTheme,
+} from './src/theme/tokens';
 
 // Completes pending auth sessions when the OAuth redirect returns (web only).
 WebBrowser.maybeCompleteAuthSession();
@@ -64,6 +68,22 @@ function Root() {
   const [connectCardDismissed, setConnectCardDismissed] = useState(false);
   const [stack, setStack] = useState<Route[]>([{ name: 'home' }]);
 
+  // Appearance preference for the home look: follow the OS, or force one.
+  // The profile and connect screens stay light by design in either case.
+  const [appearance, setAppearanceState] =
+    useState<AppearancePref>('system');
+  const systemScheme = useColorScheme();
+  const theme: ResolvedTheme =
+    appearance === 'system'
+      ? systemScheme === 'light'
+        ? 'light'
+        : 'dark'
+      : appearance;
+  const setAppearance = useCallback((pref: AppearancePref) => {
+    setAppearanceState(pref);
+    storage.saveAppearance(pref);
+  }, []);
+
   // Bridges Clerk session state into the API client. While signed in, every
   // request carries a fresh session JWT instead of the static API key.
   // `bridged` flips to true only AFTER the token provider is registered, so
@@ -89,17 +109,24 @@ function Root() {
 
   useEffect(() => {
     (async () => {
-      const [savedMode, savedSessions, savedSkipped, savedDismissed] =
-        await Promise.all([
-          storage.loadMode(),
-          storage.loadSessions(),
-          storage.loadSkipped(),
-          storage.loadConnectCardDismissed(),
-        ]);
+      const [
+        savedMode,
+        savedSessions,
+        savedSkipped,
+        savedDismissed,
+        savedAppearance,
+      ] = await Promise.all([
+        storage.loadMode(),
+        storage.loadSessions(),
+        storage.loadSkipped(),
+        storage.loadConnectCardDismissed(),
+        storage.loadAppearance(),
+      ]);
       setMode(savedMode);
       setSessions(savedSessions);
       setSkipped(savedSkipped);
       setConnectCardDismissed(savedDismissed);
+      setAppearanceState(savedAppearance);
       setReady(true);
     })();
   }, []);
@@ -276,6 +303,9 @@ function Root() {
     () => ({
       mode,
       switchMode,
+      appearance,
+      setAppearance,
+      theme,
       session,
       skipped,
       connectCardDismissed,
@@ -291,6 +321,9 @@ function Root() {
     [
       mode,
       switchMode,
+      appearance,
+      setAppearance,
+      theme,
       session,
       skipped,
       connectCardDismissed,
@@ -374,11 +407,12 @@ function Root() {
   }
 
   // Connect-flow sheets sit on a dark scrim, and home sits on the dark
-  // backdrop, so their status bars flip light.
+  // backdrop (when the resolved theme is dark), so their status bars flip
+  // light. The light home keeps dark status bar content like the rest.
   const onScrim =
     !bootstrapping &&
     !showWelcome &&
-    (top.name === 'home' ||
+    ((top.name === 'home' && theme === 'dark') ||
       top.name === 'connectMenu' ||
       top.name === 'connectIntro' ||
       top.name === 'connectApple' ||

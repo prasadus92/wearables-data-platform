@@ -1,6 +1,7 @@
 import type { Device, AggregatorEnv } from '@examplehealth/health-core';
 import { createContext, useContext } from 'react';
 
+import type { AppearancePref, ResolvedTheme } from '../theme/tokens';
 import type { ProviderInfo } from './catalog';
 import type { Session } from './storage';
 
@@ -36,6 +37,11 @@ export interface AppState {
   mode: AggregatorEnv;
   /** Switch environments instantly; each keeps its own session. */
   switchMode: (mode: AggregatorEnv) => void;
+  /** Appearance preference as chosen: system, light or dark. */
+  appearance: AppearancePref;
+  setAppearance: (pref: AppearancePref) => void;
+  /** The preference resolved against the OS scheme; drives the home look. */
+  theme: ResolvedTheme;
   session: Session | null;
   /** User chose "Not now" during onboarding. */
   skipped: boolean;
