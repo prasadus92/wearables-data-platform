@@ -146,8 +146,9 @@ curl -s -X DELETE "https://api.examplehealth.example.com/v1/users/<id>" -H "X-AP
 
 1. **Open with the live dashboard**: real WHOOP and Oura data, connected through
    the product's own flow in under two minutes per device.
-2. **Guest demo path**: private window, Try the demo, watch the timeline fill over
-   SSE with zero setup.
+2. **Guest demo path**: private window, Try the demo. A demo wearable attaches
+   itself and the timeline fills over SSE within a couple of minutes, all five
+   biomarkers, zero clicks.
 3. **Mobile**: same account on Expo Go, haptics and charts. Hand the phone over.
 4. **Engine room** (for the technical thread): one terminal tailing the API logs
    while a webhook lands, then the architecture walkthrough from docs/architecture.md
@@ -157,6 +158,10 @@ curl -s -X DELETE "https://api.examplehealth.example.com/v1/users/<id>" -H "X-AP
 
 If WiFi or AWS fails: `docker compose up -d`, `cd web && npm run dev`, and replay
 webhooks from the Postman collection. The demo survives offline.
+
+For the product-vision conversation (recommendation system, agentic actions, data
+scientist hiring, burst handling): docs/recommendation-system.md is the prepared
+answer, grounded in this platform.
 
 ## 6. Teardown (after the challenge)
 
