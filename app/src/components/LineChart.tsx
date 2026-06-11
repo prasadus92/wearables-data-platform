@@ -19,6 +19,7 @@ import {
   vec,
 } from '@shopify/react-native-skia';
 import Animated, {
+  Easing,
   runOnJS,
   type SharedValue,
   useAnimatedProps,
@@ -56,6 +57,18 @@ interface Props {
   unit: string;
   /** Plot value_secondary as a second line (blood pressure). */
   dual?: boolean;
+  /**
+   * Identifies the series (the metric key). The latest-value count-up only
+   * continues from a previous value belonging to the same series; values
+   * from two different metrics are never animated as if continuous.
+   */
+  seriesKey?: string;
+  /**
+   * Horizontal padding for the text rows (status, latest, min/avg/max).
+   * The plot itself spans the component's full width so it can run edge
+   * to edge inside a rounded, clipped card.
+   */
+  inset?: number;
   /** Chart window length, controls x axis label format. */
   rangeHours: number;
   height?: number;
@@ -91,6 +104,19 @@ type PressState = ChartPressState<{
 
 const MAX_POINTS = 400;
 const MONO = Platform.select({ ios: 'Menlo', default: 'monospace' });
+
+/**
+ * Vertical room the status sentence plus the latest/min/avg/max block take
+ * above the plot when data is shown. Loading and empty states reserve the
+ * same footprint, so the card keeps one height whether or not a chart is
+ * on screen and the page never reflows when switching metrics or ranges.
+ */
+const STATS_AREA_HEIGHT = 106;
+const DEFAULT_CHART_HEIGHT = 220;
+/** Total content height of the chart block; siblings that replace it
+ * (error and signed-out states) should occupy the same footprint. */
+export const CHART_CONTENT_MIN_HEIGHT =
+  DEFAULT_CHART_HEIGHT + STATS_AREA_HEIGHT;
 
 /** Color sets for the light card and the Figma dark biomarkers card. */
 interface Theme {
@@ -439,10 +465,16 @@ function Cursor({
 const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
 /**
- * Large latest reading that counts from the previously shown value to the
- * new one on metric or range switches (~350ms). Dual readings and Reduce
- * Motion swap in place. Runs on animated props, so counting never
- * re-renders the tree.
+ * Large latest reading. A range switch within the same metric counts from
+ * the previously shown value (~350ms); a metric switch or a first load
+ * fades the new value in quietly instead, so the count never runs across
+ * two different units as if they were continuous. The count decides its
+ * decimal places from the TARGET value once: integer targets count in
+ * whole numbers and one-decimal targets show exactly one decimal at every
+ * frame. On completion the exact formatted target is set definitively,
+ * never left to the last interpolated frame, which used to strand text
+ * like a trailing dot or a truncated value. Reduce Motion swaps in place.
+ * Runs on animated props, so counting never re-renders the tree.
  */
 function LatestValue({
   value,
@@ -456,35 +488,77 @@ function LatestValue({
   value: number;
   /** Preformatted latest, used verbatim when not counting (dual). */
   text: string;
-  /** Previously shown latest, the count-up's starting point. */
+  /** Previously shown latest for the SAME series, the count's start. */
   from: number | null;
   countUp: boolean;
   t: Theme;
   dark: boolean;
 }) {
   const reduced = useReducedMotion();
-  const animated = countUp && !reduced;
-  const sv = useSharedValue(animated && from != null ? from : value);
+  // The entrance choice is frozen at mount. Metric and range switches
+  // remount this block (the loading state unmounts it), so every switch
+  // replays exactly one entrance: a count when a same-series start value
+  // exists, otherwise a quiet fade-in.
+  const entrance = useRef({ from, countUp }).current;
+  const startFrom =
+    entrance.countUp && entrance.from != null ? entrance.from : null;
+  const counting = !reduced && startFrom != null;
+  const fading = !reduced && !counting;
+
+  // Decimals come from the target once: 62 counts 58, 59, ... 62 and
+  // 14.7 counts 13.9, 14.0, ... 14.7. toFixed pads every frame, so a
+  // bare trailing dot can never render.
+  const decimals = Number.isInteger(Math.round(value * 10) / 10) ? 0 : 1;
+  const finalText = countUp
+    ? (Math.round(value * 10) / 10).toFixed(decimals)
+    : text;
+
+  const sv = useSharedValue(startFrom != null && counting ? startFrom : value);
+  // Once settled, the exact formatted target renders, never a frame value.
+  const settled = useSharedValue(!counting);
+  const opacity = useSharedValue(fading ? 0 : 1);
 
   useEffect(() => {
-    if (!animated) {
+    if (fading) {
+      opacity.value = withTiming(1, {
+        duration: 300,
+        easing: Easing.out(Easing.cubic),
+      });
+    }
+    // The entrance plays once per mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!counting) {
       sv.value = value;
+      settled.value = true;
       return;
     }
-    sv.value = withTiming(value, { duration: 350 });
-  }, [value, animated, sv]);
+    settled.value = false;
+    sv.value = withTiming(value, { duration: 350 }, (finished) => {
+      'worklet';
+      if (finished) {
+        // Guarantee the final frame: set the exact target definitively.
+        sv.value = value;
+        settled.value = true;
+      }
+    });
+  }, [value, counting, sv, settled]);
 
   const valueProps = useAnimatedProps(() => {
-    const shown = animated ? formatValue(sv.value) : text;
+    const shown = settled.value ? finalText : sv.value.toFixed(decimals);
     return { text: shown, defaultValue: shown } as TextInputProps;
   });
+
+  const fadeStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
 
   return (
     <AnimatedTextInput
       editable={false}
       underlineColorAndroid="transparent"
       animatedProps={valueProps}
-      style={{ padding: 0, margin: 0, color: t.strong }}
+      style={[{ padding: 0, margin: 0, color: t.strong }, fadeStyle]}
       className={
         dark
           ? 'text-[36px] font-sans leading-[42px]'
@@ -568,8 +642,10 @@ export function LineChart({
   points,
   unit,
   dual = false,
+  seriesKey = '',
+  inset = 0,
   rangeHours,
-  height = 220,
+  height = DEFAULT_CHART_HEIGHT,
   loading = false,
   dark = false,
   emptyTitle,
@@ -665,16 +741,25 @@ export function LineChart({
     },
   );
 
-  // The latest value last shown on screen, surviving the loading unmounts,
-  // so switching metric or range counts from the previous reading.
-  const lastShownLatest = useRef<number | null>(null);
+  // The latest value last shown on screen, tagged with the series it
+  // belongs to and surviving the loading unmounts. A range switch within
+  // the same series counts from it. A series switch never does (the units
+  // differ), and an unchanged value yields a fade instead of a dead frame,
+  // so every switch visibly replays.
+  const lastShown = useRef<{ key: string; value: number } | null>(null);
   const latestNumeric = rows.length > 0 ? rows[rows.length - 1].value : null;
-  const countFrom = lastShownLatest.current;
+  const prevShown = lastShown.current;
+  const countFrom =
+    prevShown != null &&
+    prevShown.key === seriesKey &&
+    prevShown.value !== latestNumeric
+      ? prevShown.value
+      : null;
   useEffect(() => {
     if (!loading && latestNumeric != null) {
-      lastShownLatest.current = latestNumeric;
+      lastShown.current = { key: seriesKey, value: latestNumeric };
     }
-  }, [latestNumeric, loading]);
+  }, [latestNumeric, loading, seriesKey]);
 
   const xLabel = rangeHours <= 24 ? hourLabel : dayLabel;
   const hasData = rows.length > 0;
@@ -736,7 +821,11 @@ export function LineChart({
         // Pixel padding on top of the padded domain keeps the 2.5pt stroke
         // (plus its round caps) inside the clip even at the extremes.
         domainPadding={{ top: 14, bottom: 14, left: 6, right: 6 }}
-        padding={{ top: 4, bottom: 2 }}
+        // The canvas spans the card's full width: a small left padding
+        // keeps the y axis labels off the card edge, while the right edge
+        // stays at zero so the plot and the typical-range band run edge
+        // to edge by design, clipped by the card's rounded bounds.
+        padding={{ top: 4, bottom: 4, left: 12, right: 0 }}
         chartPressState={state}
         xAxis={{
           font: axisFont,
@@ -864,11 +953,14 @@ export function LineChart({
   }
 
   return (
-    <View>
+    <View style={{ minHeight: height + STATS_AREA_HEIGHT }}>
       {hasData && !loading && stats ? (
         <>
           {status ? (
-            <View className="mt-3 flex-row items-center justify-between">
+            <View
+              style={{ paddingHorizontal: inset }}
+              className="mt-3 flex-row items-center justify-between"
+            >
               <Text
                 style={{ color: t.strong }}
                 className="flex-1 pr-2 text-[13px] font-sans-medium"
@@ -881,6 +973,7 @@ export function LineChart({
             </View>
           ) : null}
           <View
+            style={{ paddingHorizontal: inset }}
             className={`mb-2 flex-row items-end justify-between ${status ? 'mt-2' : 'mt-3'}`}
           >
             <View>
@@ -894,7 +987,7 @@ export function LineChart({
                 <LatestValue
                   value={latestNumeric ?? 0}
                   text={stats.latest}
-                  from={countFrom}
+                  from={dual ? null : countFrom}
                   countUp={!dual && latestNumeric != null}
                   t={t}
                   dark={dark}
@@ -918,7 +1011,10 @@ export function LineChart({
         </>
       ) : null}
       <View
-        style={{ height }}
+        // Empty and loading bodies stretch over the whole reserved
+        // footprint and center there, so toggling between a chart and an
+        // empty state never moves the rest of the page.
+        style={hasData && !loading ? { height } : { flex: 1 }}
         onLayout={(e) => {
           containerWidth.value = e.nativeEvent.layout.width;
         }}
