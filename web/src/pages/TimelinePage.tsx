@@ -159,15 +159,15 @@ export function TimelinePage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-2.5">
-            <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
+            <div className="flex min-w-0 items-center gap-1.5">
               <Tabs
                 value={metric}
                 onValueChange={(v) =>
                   navigate({ pathname: `/metrics/${v}`, search: searchParams.toString() })
                 }
               >
-                <TabsList className="h-auto flex-wrap">
+                <TabsList className="h-auto max-w-full flex-nowrap justify-start overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {METRICS.map((m) => (
                   <TabsTrigger
                     key={m.key}

@@ -140,14 +140,16 @@ export function TimelineChart({
     }
 
     load()
-    // SSE drives instant refreshes via liveVersion; the slow interval is a
-    // fallback for proxies that buffer event streams.
-    const interval = setInterval(load, 60_000)
+    // SSE drives instant refreshes via liveVersion; the interval is the
+    // fallback. While the series is empty (fresh demo wearable, first sync)
+    // poll fast so the chart fills without any user action.
+    const interval = setInterval(load, data && data.points.length > 0 ? 60_000 : 8_000)
     return () => {
       cancelled = true
       clearInterval(interval)
     }
-  }, [userId, metric, days, resolution, liveVersion, onSyncResolved])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, metric, days, resolution, liveVersion, onSyncResolved, data == null || data.points.length === 0])
 
   const inRangeEmpty = !loading && data != null && data.points.length === 0
 

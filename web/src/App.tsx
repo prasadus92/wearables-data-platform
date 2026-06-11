@@ -300,9 +300,12 @@ function AppShell() {
   // The shared sample account rides the idempotent service-side create.
   const exploreSample = () => establishSession(() => api.createUser('wearables-sample', mode))
 
-  if (!user && clerkLoaded && signedIn) {
-    // Signed in, bootstrap in flight: a quiet beat instead of flashing the
-    // landing page between the OAuth return and the session resolving.
+  if (!user && (!clerkLoaded || signedIn)) {
+    // Two windows where onboarding must never flash: while Clerk is still
+    // resolving (it may be about to say signed in), and after it resolves
+    // signed in while the session bootstrap is in flight. A quiet beat
+    // covers both; genuinely signed-out visitors pass through in well under
+    // a second.
     return (
       <div className="flex min-h-dvh items-center justify-center">
         <motion.div
@@ -313,7 +316,7 @@ function AppShell() {
         >
           <img src="/examplehealth-logo.svg" alt="ExampleHealth" className="h-5 w-auto" />
           <span className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
-            Signing you in
+            {signedIn ? 'Signing you in' : 'Loading'}
           </span>
         </motion.div>
       </div>
