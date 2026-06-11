@@ -26,8 +26,8 @@ End-to-end wearable platform on Junction, live at `api.youth.luminik.io`:
 
 ## 2. Live demo script (5 minutes)
 
-1. Dashboard: Try the demo as a guest, connect a demo wearable, watch the chart
-   fill live (SSE). Zero accounts, zero setup.
+1. Dashboard: Try the demo as a guest. A demo wearable attaches itself and the
+   chart fills live (SSE). Zero accounts, zero clicks.
 2. Terminal split-screen: `aws logs tail /ecs/youth-wearables-api --follow` showing
    Junction webhooks arriving while the chart updates. This is the central moment of the demo.
 3. Real device: the WHOOP strap and Oura ring connected through the product's
@@ -109,4 +109,6 @@ rate.
 - Live API docs: https://api.youth.luminik.io/docs
 - Architecture: docs/architecture.md, docs/ideal-architecture.drawio
 - White-label strategy: docs/white-label-strategy.md
+- Recommendation and action system proposal: docs/recommendation-system.md
+- Insight math: docs/insights.md
 - Runbook: docs/demo-runbook.md
