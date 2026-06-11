@@ -44,6 +44,8 @@ interface Props {
   providerSlugs: string[]
   /** Demo connections deliver a narrower metric set than real devices. */
   demoMode: boolean
+  /** Restrict the series to one device; undefined means all devices. */
+  provider?: string
   /** Switches the metric tab when the current one cannot have data. */
   onShowMetric: (metric: Metric) => void
   /** Label of the selected range ("7d"), for the out-of-range empty state. */
@@ -117,6 +119,7 @@ export function TimelineChart({
   providerNames,
   providerSlugs,
   demoMode,
+  provider,
   onShowMetric,
   rangeLabel,
   onConnectDevice,
@@ -145,7 +148,7 @@ export function TimelineChart({
 
     async function load() {
       try {
-        const series = await api.timeseries(userId, metric, resolution, days)
+        const series = await api.timeseries(userId, metric, resolution, days, provider)
         if (!cancelled) {
           setData(series)
           setFailed(false)
@@ -170,7 +173,7 @@ export function TimelineChart({
       clearInterval(interval)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, metric, days, resolution, liveVersion, onSyncResolved, data == null || data.points.length === 0])
+  }, [userId, metric, days, resolution, provider, liveVersion, onSyncResolved, data == null || data.points.length === 0])
 
   const inRangeEmpty = !loading && data != null && data.points.length === 0
 
@@ -191,7 +194,7 @@ export function TimelineChart({
     probeInFlight.current = true
     setProbe({ state: 'pending' })
     api
-      .timeseries(userId, metric, 'day', 90)
+      .timeseries(userId, metric, 'day', 90, provider)
       .then((wide) => {
         const last = wide.points[wide.points.length - 1]
         setProbe(last ? { state: 'found', latestTs: last.ts } : { state: 'empty' })

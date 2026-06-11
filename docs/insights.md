@@ -57,3 +57,27 @@ days of plausible values itself at demo connect (`backend/app/services/`
 `demo_seed.py`, deterministic per user). Demo mode is synthetic end to end,
 so every chart carries data; real devices in Live populate the same charts
 through sleep summaries and direct streams.
+
+## Why a reading can differ from the vendor's own app
+
+No value is calibrated, corrected, or otherwise manipulated; samples store
+exactly what the provider delivered. Differences against the vendor app come
+from four documented choices:
+
+- **Which aggregate is charted.** For sleep-derived biomarkers the platform
+  charts the session's average heart rate (falling back to resting when the
+  provider sends only that), the session's average HRV, and the session's
+  breathing rate, stamped at wake time. Vendor apps often headline a
+  different cut of the same night: Oura leads with the lowest resting heart
+  rate, WHOOP computes recovery HRV from a specific late-sleep window. Same
+  night, same sensor, different summary statistic.
+- **Bucket averaging.** Day and week buckets are means over every sample in
+  the bucket. A vendor app showing a single nightly value will differ from a
+  bucket that also contains daytime readings.
+- **Cross-device blending.** With more than one wearable connected, a bucket
+  averages across devices unless the device filter narrows the series to one
+  provider. Devices measure differently by design; the filter is the honest
+  lens when they disagree.
+- **Gaps are real.** A day with no chart point is a day the selected source
+  recorded no session, which the vendor app may mask by carrying forward its
+  last value. The platform never invents a reading.
