@@ -13,7 +13,8 @@ docs/setup-journal.md.
 ## Commands
 
 - Backend tests: `cd backend && .venv/bin/python -m pytest tests/ -q` (needs
-  `docker compose up -d db redis`; integration tests use real Postgres, never sqlite)
+  `docker compose up -d db redis`; integration tests use real Postgres, never sqlite;
+  84 tests at last count)
 - Lint: `.venv/bin/ruff check app tests --fix && .venv/bin/ruff format app tests`
 - Web: `cd web && npm run build` (tsc + vite; must pass before any commit)
 - Mobile: `cd app && npx tsc --noEmit && npx expo export --platform ios` (both gates)
@@ -47,12 +48,28 @@ docs/setup-journal.md.
 - Expo Go: react-native-reanimated must match the Expo Go native version exactly
   (currently 4.3.1); newer JS crashes at launch with no Metro logs. Phone and Mac must
   share a network; cellular or AP-isolated WiFi shows zero Metro connections.
+- Real wearables deliver heart rate, HRV, and breathing rate inside Junction
+  `sleep` summaries; demo wearables emit direct biomarker resources. The parser
+  treats a resource as an input shape (sleep fans out to three metrics). A pipeline
+  tested only on demo data ingests nothing from a real device.
+- Demo mode seeds synthetic breathing rate and blood pressure at demo connect
+  (app/services/demo_seed.py); Junction demo data covers only HR/HRV/SpO2.
+- npm on macOS omits Linux natives for nested package instances even on npm 11;
+  the four Linux bindings the web build needs are pinned as explicit
+  optionalDependencies in web/package.json. Keep them in sync on major bumps.
+- React runs passive effects children-first: register API credentials in a layout
+  effect or the child's first fetch goes out unauthenticated. And never write an
+  effect that sets its own dependency state while registering a cancelling
+  cleanup; it discards its own result (the chart-probe bug, fixed on web and app).
 - This machine: Intel Mac, no GNU `timeout`, zsh eats `$VAR:l` (use `${VAR}`),
   use /bin/sleep. Python via uv (.venv in backend/). Terraform state is local.
 
 ## Layout
 
 backend/app: api -> services -> models layering; parsing pure in services/ingestion.py.
-web/src: shadcn/ui + Tailwind v4 + motion; insight logic in lib/insights.ts (pure).
-app/src: Expo + NativeWind + victory-native Skia charts; mirror of web's lib/ where
-sensible. infra/terraform: full AWS stack. postman/: API collection.
+packages/health-core: shared workspace package (@youth/health-core) with metric
+metadata, pure insight math, and API contract types mirroring backend/app/schemas.py;
+plain TS source, no build step; root package.json declares the npm workspaces.
+web/src: shadcn/ui + Tailwind v4 + motion; insights/metrics come from @youth/health-core.
+app/src: Expo + NativeWind + victory-native Skia charts; shares @youth/health-core with
+web. infra/terraform: full AWS stack. postman/: API collection.
