@@ -5,8 +5,14 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:8000" },
-    { "key": "userId", "value": "" }
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "userId",
+      "value": ""
+    }
   ],
   "item": [
     {
@@ -33,7 +39,12 @@
       ],
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"client_user_id\": \"postman-demo-user\"\n}"
@@ -52,7 +63,12 @@
       "name": "Create Link (WHOOP OAuth URL)",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"provider\": \"whoop_v2\",\n  \"redirect_url\": \"https://example.com/connected\"\n}"
@@ -65,7 +81,12 @@
       "name": "Connect Demo Device (sandbox)",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"provider\": \"oura\"\n}"
@@ -87,13 +108,40 @@
         "method": "GET",
         "url": {
           "raw": "{{baseUrl}}/v1/users/{{userId}}/timeseries/heartrate?resolution=hour",
-          "host": ["{{baseUrl}}"],
-          "path": ["v1", "users", "{{userId}}", "timeseries", "heartrate"],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "users",
+            "{{userId}}",
+            "timeseries",
+            "heartrate"
+          ],
           "query": [
-            { "key": "resolution", "value": "hour", "description": "raw | hour | day | week" },
-            { "key": "start", "value": "", "description": "ISO 8601, default end-7d", "disabled": true },
-            { "key": "end", "value": "", "description": "ISO 8601, default now", "disabled": true },
-            { "key": "provider", "value": "", "description": "filter by provider slug", "disabled": true }
+            {
+              "key": "resolution",
+              "value": "hour",
+              "description": "raw | hour | day | week"
+            },
+            {
+              "key": "start",
+              "value": "",
+              "description": "ISO 8601, default end-7d",
+              "disabled": true
+            },
+            {
+              "key": "end",
+              "value": "",
+              "description": "ISO 8601, default now",
+              "disabled": true
+            },
+            {
+              "key": "provider",
+              "value": "",
+              "description": "filter by provider slug",
+              "disabled": true
+            }
           ]
         }
       }
@@ -132,8 +180,14 @@
       "request": {
         "method": "POST",
         "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "svix-id", "value": "msg_postman_{{$randomUUID}}" }
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "svix-id",
+            "value": "msg_postman_{{$randomUUID}}"
+          }
         ],
         "body": {
           "mode": "raw",
@@ -148,6 +202,143 @@
       "request": {
         "method": "DELETE",
         "url": "{{baseUrl}}/v1/users/{{userId}}/devices/oura"
+      }
+    },
+    {
+      "name": "Create Guest Session (public)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/guests",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "guests"
+          ]
+        },
+        "description": "Public by design: mints an anonymous demo identity with a demo wearable attached and all five biomarkers seeded. The response carries guest_token exactly once; present it as a Bearer token for every later call.",
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Sync Now (refresh + backfills)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-API-Key",
+            "value": "{{api_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/users/{{user_id}}/sync",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "users",
+            "{{user_id}}",
+            "sync"
+          ]
+        },
+        "description": "Asks the providers for fresh readings and enqueues recovery backfills, including 180 days of sleep summaries per connected provider."
+      }
+    },
+    {
+      "name": "Activity Feed",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-API-Key",
+            "value": "{{api_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/users/{{user_id}}/events",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "users",
+            "{{user_id}}",
+            "events"
+          ]
+        },
+        "description": "Recent ingestion and lifecycle events for the user, newest first."
+      }
+    },
+    {
+      "name": "Apple Watch Pairing Code",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-API-Key",
+            "value": "{{api_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/users/{{user_id}}/devices/apple-pairing-code",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "users",
+            "{{user_id}}",
+            "devices",
+            "apple-pairing-code"
+          ]
+        },
+        "description": "Mints a single-use code for the Aggregator Connect bridge app; Apple Watch data then flows through the normal webhook pipeline."
+      }
+    },
+    {
+      "name": "Erase User (GDPR, service only)",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "X-API-Key",
+            "value": "{{api_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/users/{{user_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "users",
+            "{{user_id}}"
+          ]
+        },
+        "description": "Right to erasure: deregisters providers upstream, deletes the upstream user, then removes the local row with cascades. Service credential only; Clerk and guest callers receive 403."
       }
     }
   ]

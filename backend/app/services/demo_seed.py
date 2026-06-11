@@ -36,6 +36,20 @@ def _walk(seed: int, day: int, amplitude: float) -> float:
     )
 
 
+def _jitter(seed: int, n: int, amplitude: float) -> float:
+    """Deterministic point noise so series read like sensor data instead of
+    pure sines; hash-derived, so reseeding stays stable."""
+    h = int(hashlib.sha256(f"{seed}:{n}".encode()).hexdigest()[:8], 16)
+    return amplitude * ((h % 2000) / 1000.0 - 1.0)
+
+
+def _skip(seed: int, n: int, rate: float = 0.08) -> bool:
+    """Real wearables have gaps (charger nights, loose strap); drop a
+    deterministic fraction of points."""
+    h = int(hashlib.sha256(f"gap:{seed}:{n}".encode()).hexdigest()[:8], 16)
+    return (h % 1000) / 1000.0 < rate
+
+
 def synth_samples(user_key: str, now: datetime | None = None) -> list[NormalizedSample]:
     """Thirty days of all five biomarkers, plus hourly heart rate for the
     last two days so the 24h view has texture."""
@@ -70,12 +84,14 @@ def synth_samples(user_key: str, now: datetime | None = None) -> list[Normalized
             (Metric.hrv, wake, round(48 + _walk(seed + 4, day, 12.0), 1), None, "ms"),
             (Metric.spo2, wake, round(97.6 + _walk(seed + 5, day, 0.8), 1), None, "%"),
         ]
-        for metric, ts, value, secondary, unit in daily:
+        for i, (metric, ts, value, secondary, unit) in enumerate(daily):
+            if _skip(seed + i, day):
+                continue
             samples.append(
                 NormalizedSample(
                     metric=metric,
                     ts=ts,
-                    value=float(value),
+                    value=round(float(value) + _jitter(seed + i, day, 1.2), 2),
                     value_secondary=float(secondary) if secondary is not None else None,
                     unit=unit,
                     provider=DEMO_PROVIDER,
@@ -84,13 +100,20 @@ def synth_samples(user_key: str, now: datetime | None = None) -> list[Normalized
     # Hourly heart rate for the last 48 hours: the 24h view needs texture.
     hour_cursor = now.replace(minute=0, second=0, microsecond=0)
     for h in range(48, 0, -1):
+        if _skip(seed + 9, h, rate=0.12):
+            continue
         ts = hour_cursor - timedelta(hours=h)
         circadian = 8 * math.sin((ts.hour - 4) / 24 * 2 * math.pi)
+        # An afternoon activity bump on some days keeps the line honest:
+        # resting heart rate is never a clean sine.
+        bump = 14.0 if ts.hour in (17, 18) and (seed + ts.day) % 3 == 0 else 0.0
         samples.append(
             NormalizedSample(
                 metric=Metric.heartrate,
                 ts=ts,
-                value=round(68 + circadian + _walk(seed + 6, h, 5.0)),
+                value=round(
+                    68 + circadian + bump + _walk(seed + 6, h, 5.0) + _jitter(seed + 7, h, 3.5)
+                ),
                 value_secondary=None,
                 unit="bpm",
                 provider=DEMO_PROVIDER,
