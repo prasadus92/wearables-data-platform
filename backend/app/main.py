@@ -87,9 +87,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# All /v1 routes require either the service API key or a Clerk session JWT.
-# Webhooks authenticate via the Svix signature instead, and /health stays
-# open for load balancer checks.
+# All /v1 routes accept the service API key, a Clerk session JWT, or a guest
+# session token. Webhooks authenticate via the Svix signature instead, and
+# /health stays open for load balancer checks.
 v1_auth = [Depends(require_auth)]
 app.include_router(users.router, prefix="/v1", dependencies=v1_auth)
 app.include_router(users.me_router, prefix="/v1", dependencies=v1_auth)
@@ -103,4 +103,5 @@ app.include_router(webhooks.router)
 
 @app.get("/health", response_model=HealthOut, tags=["ops"])
 async def health() -> HealthOut:
+    """Liveness probe for the load balancer; open, no authentication."""
     return HealthOut(environment=get_settings().environment)

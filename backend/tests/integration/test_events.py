@@ -11,19 +11,15 @@ from datetime import UTC, datetime, timedelta
 
 import jwt as pyjwt
 import pytest
-from cryptography.hazmat.primitives.asymmetric import rsa
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from app.core import clerk
-from app.core.config import get_settings
 from app.models import DeviceEvent, User, WebhookEvent, WebhookEventStatus
+from tests.conftest import ISSUER, SERVICE_TOKEN
 
 pytestmark = pytest.mark.integration
 
 JUNCTION_USER = "8e837b56-26ab-4347-9d4a-be9b2f5a78c4"
 CLIENT_USER = "youth-user-1"
-SERVICE_TOKEN = "test-service-token-1234"
-ISSUER = "https://test-instance.clerk.accounts.dev"
 SUB = "user_2abcDEFghiJKLmno"
 
 
@@ -280,27 +276,10 @@ async def test_ledger_entries_scoped_to_owner(client, engine):
 # --- Ownership scoping under Clerk auth ---
 
 
-@pytest.fixture(scope="module")
-def rsa_key():
-    return rsa.generate_private_key(public_exponent=65537, key_size=2048)
-
-
 def make_jwt(private_key, sub: str = SUB) -> str:
     now = int(time.time())
     claims = {"sub": sub, "iss": ISSUER, "iat": now, "nbf": now - 30, "exp": now + 3600}
     return pyjwt.encode(claims, private_key, algorithm="RS256", headers={"kid": "test-kid"})
-
-
-@pytest.fixture
-def with_clerk(monkeypatch, rsa_key):
-    """Enable static + Clerk auth and route JWKS lookups to the test key."""
-    monkeypatch.setenv("API_AUTH_TOKEN", SERVICE_TOKEN)
-    monkeypatch.setenv("CLERK_ISSUER", ISSUER)
-    get_settings.cache_clear()
-    public_key = rsa_key.public_key()
-    monkeypatch.setattr(clerk, "_signing_key", lambda token, issuer: public_key)
-    yield
-    get_settings.cache_clear()
 
 
 async def test_clerk_token_scoped_to_own_events(with_clerk, client, engine, rsa_key):

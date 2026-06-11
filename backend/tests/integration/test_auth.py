@@ -2,19 +2,9 @@
 
 import pytest
 
-from app.core.config import get_settings
+from tests.conftest import SERVICE_TOKEN as TOKEN
 
 pytestmark = pytest.mark.integration
-
-TOKEN = "test-api-token-1234"
-
-
-@pytest.fixture
-def with_auth(monkeypatch):
-    monkeypatch.setenv("API_AUTH_TOKEN", TOKEN)
-    get_settings.cache_clear()
-    yield
-    get_settings.cache_clear()
 
 
 async def test_v1_rejected_without_token(with_auth, client):

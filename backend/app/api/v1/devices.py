@@ -1,12 +1,16 @@
 """Device (wearable connection) endpoints: link, list, demo-connect, disconnect."""
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession, junction_client_for
 from app.core.logging import get_logger
-from app.models import Connection, ConnectionStatus, DeviceEventActor, DeviceEventType
+from app.models import Connection, ConnectionStatus, DeviceEventActor, DeviceEventType, User
 from app.schemas import ConnectionOut, LinkOut, LinkRequest
+from app.services.demo_seed import seed_demo_extras
+from app.services.ingestion import ConnectionChange, IngestPlan, apply_plan
 from app.services.junction import JunctionError
 from app.services.ledger import record_device_event
 
@@ -14,7 +18,7 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/users/{user_id}/devices", tags=["devices"])
 
 
-def _require_junction_id(user) -> str:
+def _require_junction_id(user: User) -> str:
     if not user.junction_user_id:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="User is not registered with Junction")
     return user.junction_user_id
@@ -55,8 +59,6 @@ async def connect_demo(body: LinkRequest, user: CurrentUser, db: DbSession) -> d
     # Record the connection immediately. The provider.connection.created
     # webhook will arrive too (and idempotently upsert the same row), but the
     # UI should reflect the device without waiting on webhook delivery.
-    from app.services.ingestion import ConnectionChange, IngestPlan, apply_plan
-
     await apply_plan(
         db,
         user.id,
@@ -82,8 +84,6 @@ async def connect_demo(body: LinkRequest, user: CurrentUser, db: DbSession) -> d
     await db.commit()
     # Demo wearables never deliver breathing rate or blood pressure; demo
     # mode is synthetic end to end, so those two come from our own seeder.
-    from app.services.demo_seed import seed_demo_extras
-
     await seed_demo_extras(db, user.id, user.client_user_id)
     logger.info("demo_connected", user_id=str(user.id), provider=body.provider)
     return {"connected": True, "provider": body.provider, "junction_response": result}
@@ -91,6 +91,8 @@ async def connect_demo(body: LinkRequest, user: CurrentUser, db: DbSession) -> d
 
 @router.get("", response_model=list[ConnectionOut])
 async def list_devices(user: CurrentUser, db: DbSession) -> list[Connection]:
+    """All of the user's wearable connections, oldest first. Disconnected
+    and expired rows are included; the ``status`` field tells them apart."""
     rows = (
         await db.execute(
             select(Connection)
@@ -119,8 +121,6 @@ async def disconnect_device(provider: str, user: CurrentUser, db: DbSession) -> 
     except JunctionError as exc:
         if exc.status_code != 404:  # already gone at Junction is fine
             raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=exc.detail) from exc
-
-    from datetime import UTC, datetime
 
     connection.status = ConnectionStatus.disconnected
     connection.disconnected_at = datetime.now(UTC)

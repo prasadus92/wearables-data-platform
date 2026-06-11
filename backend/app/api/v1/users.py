@@ -13,6 +13,7 @@ from app.core.config import JunctionEnvironment, get_settings
 from app.core.logging import get_logger
 from app.models import Connection, ConnectionStatus, DeviceEventActor, DeviceEventType, User
 from app.schemas import GuestCreate, GuestOut, MeCreate, UserCreate, UserOut
+from app.services.demo_seed import seed_demo_extras
 from app.services.ingestion import (
     RESOURCE_TO_METRIC,
     SLEEP_RESOURCE,
@@ -138,8 +139,6 @@ async def attach_demo_wearable(db: AsyncSession, user: User, provider: str = "ou
         junction_user_id=user.junction_user_id,
     )
     await db.commit()
-    from app.services.demo_seed import seed_demo_extras
-
     await seed_demo_extras(db, user.id, user.client_user_id)
     logger.info("demo_autoconnected", user_id=str(user.id), provider=provider)
 
@@ -219,6 +218,8 @@ async def create_guest(db: DbSession, body: GuestCreate | None = None) -> GuestO
 
 @router.get("/{user_id}", response_model=UserOut)
 async def get_user(user: CurrentUser) -> User:
+    """Fetch one user. Clerk callers see only their own users; guest tokens
+    see exactly the user they were minted for (anything else is a 404)."""
     return user
 
 
@@ -310,7 +311,7 @@ async def sync_user(user: CurrentUser, db: DbSession, _default: Junction) -> dic
     so overlapping syncs are harmless.
     """
     if not user.junction_user_id:
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="User not registered with Junction")
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="User is not registered with Junction")
 
     junction = junction_client_for(user.junction_environment)
     try:
