@@ -179,7 +179,7 @@ def _sleep_session_samples(sleep: dict) -> list[NormalizedSample]:
     """Flatten one sleep summary into up to three nightly samples.
 
     Timestamped at ``bedtime_stop`` (wake time), falling back to ``date``.
-    Heart rate prefers ``hr_average`` and falls back to ``hr_resting``
+    Heart rate prefers ``hr_lowest``, then ``hr_resting``, then ``hr_average``
     because WHOOP reports only the resting figure for sleep sessions.
     Every field can be None per provider; missing values simply yield no
     sample for that metric.
@@ -195,9 +195,15 @@ def _sleep_session_samples(sleep: dict) -> list[NormalizedSample]:
     source = sleep.get("source") or {}
     provider = source.get("provider") or _extract_provider(sleep)
 
-    heartrate = sleep.get("hr_average")
+    # The vendor's own app headlines its resting number (Oura: lowest,
+    # WHOOP: resting); charting the same value keeps every comparison a
+    # user makes against their device app exact. Averages are the last
+    # resort, never the preference.
+    heartrate = sleep.get("hr_lowest")
     if heartrate is None:
         heartrate = sleep.get("hr_resting")
+    if heartrate is None:
+        heartrate = sleep.get("hr_average")
 
     candidates: list[tuple[Metric, object, str]] = [
         (Metric.heartrate, heartrate, "bpm"),
