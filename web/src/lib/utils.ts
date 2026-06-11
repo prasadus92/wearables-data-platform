@@ -40,7 +40,10 @@ export function relativeTime(iso: string): string {
  * "connected" device and a "processed" event read as the same kind of good.
  */
 export const BADGE_TONES = {
-  positive: 'border-emerald-200 bg-emerald-50 tracking-wide text-emerald-700 uppercase',
-  warning: 'border-amber-200 bg-amber-50 tracking-wide text-amber-700 uppercase',
-  lifecycle: 'border-violet-200 bg-violet-50 tracking-wide text-violet-700 uppercase',
+  positive:
+    'border-emerald-200 bg-emerald-50 tracking-wide text-emerald-700 uppercase dark:border-[#0ED187]/25 dark:bg-[#0ED187]/10 dark:text-[#0ED187]',
+  warning:
+    'border-amber-200 bg-amber-50 tracking-wide text-amber-700 uppercase dark:border-[#FF8811]/25 dark:bg-[#FF8811]/10 dark:text-[#FF8811]',
+  lifecycle:
+    'border-violet-200 bg-violet-50 tracking-wide text-violet-700 uppercase dark:border-violet-400/25 dark:bg-violet-400/10 dark:text-violet-300',
 } as const
