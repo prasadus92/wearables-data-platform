@@ -8,7 +8,7 @@ at-least-once delivery safe.
 """
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import JunctionEnvironment, get_settings
 from app.core.logging import configure_logging, get_logger
 from app.db.session import db_session
-from app.models import Metric, User, WebhookEvent, WebhookEventStatus
+from app.models import ConnectionStatus, Metric, User, WebhookEvent, WebhookEventStatus
 from app.services.events import publish_samples_written
 from app.services.ingestion import (
     RESOURCE_TO_METRIC,
@@ -46,6 +46,23 @@ async def _resolve_user(session: AsyncSession, plan: IngestPlan) -> User | None:
             await session.execute(select(User).where(User.client_user_id == plan.client_user_id))
         ).scalar_one_or_none()
     return None
+
+
+async def _enqueue_connection_backfills(user_id: str, provider: str) -> None:
+    """Connect-time history pull: every direct metric over 31 days plus
+    sleep summaries over 180, immediately and deferred five minutes."""
+    end = datetime.now(UTC)
+    start = end - timedelta(days=31)
+    sleep_start = end - timedelta(days=180)
+    for defer in (0, 300):
+        for resource in RESOURCE_TO_METRIC:
+            await enqueue_backfill(
+                user_id, resource, provider, str(start), str(end), defer_seconds=defer
+            )
+        await enqueue_backfill(
+            user_id, SLEEP_RESOURCE, provider, str(sleep_start), str(end), defer_seconds=defer
+        )
+    logger.info("connection_backfills_enqueued", user_id=user_id, provider=provider)
 
 
 async def process_webhook_event(ctx: dict[str, Any], webhook_event_id: str) -> str:
@@ -84,6 +101,19 @@ async def process_webhook_event(ctx: dict[str, Any], webhook_event_id: str) -> s
                 return "unknown-user"
 
             written = await apply_plan(session, user.id, plan)
+
+            if (
+                plan.connection_change is not None
+                and plan.connection_change.status == ConnectionStatus.connected
+                and plan.connection_change.provider
+            ):
+                # A fresh connection fetches its own history immediately
+                # instead of trusting the provider's historical webhooks to
+                # arrive, and once more after five minutes because the
+                # upstream may still be ingesting from the vendor at the
+                # moment of connection. Idempotent upserts make the overlap
+                # free; the dedupe id keeps duplicates collapsed.
+                await _enqueue_connection_backfills(str(user.id), plan.connection_change.provider)
 
             if plan.backfill is not None:
                 await enqueue_backfill(
