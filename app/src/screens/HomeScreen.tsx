@@ -64,7 +64,12 @@ import {
 } from '../lib/format';
 import { heartbeat, tapLight } from '../lib/haptics';
 import { enter, pressSpring } from '../lib/motion';
-import { colors, fonts } from '../theme/tokens';
+import {
+  colors,
+  fonts,
+  homePalette,
+  type HomePalette,
+} from '../theme/tokens';
 
 // Blurred warm raster lifted from the Figma home backdrop; it already fades
 // to transparent at its lower edge so it melts into the night background.
@@ -137,8 +142,7 @@ function TealCardBackdrop() {
   );
 }
 
-function InfoIcon() {
-  const stroke = 'rgba(255, 255, 255, 0.6)';
+function InfoIcon({ stroke }: { stroke: string }) {
   return (
     <Svg width={18} height={18} viewBox="0 0 18 18" fill="none">
       <SvgCircle cx={9} cy={9} r={7.25} stroke={stroke} strokeWidth={1.5} />
@@ -153,8 +157,7 @@ function InfoIcon() {
   );
 }
 
-function CloseIcon() {
-  const stroke = 'rgba(255, 255, 255, 0.7)';
+function CloseIcon({ stroke }: { stroke: string }) {
   return (
     <Svg width={14} height={14} viewBox="0 0 14 14" fill="none">
       <SvgPath
@@ -171,6 +174,7 @@ function Chip({
   label,
   active,
   flat,
+  pal,
   onPress,
   onLayout,
 }: {
@@ -178,6 +182,7 @@ function Chip({
   active: boolean;
   /** Flat chips rely on a shared sliding indicator for their active pill. */
   flat?: boolean;
+  pal: HomePalette;
   onPress: () => void;
   onLayout?: (event: LayoutChangeEvent) => void;
 }) {
@@ -199,19 +204,25 @@ function Chip({
         onPressOut={() => {
           scale.value = withSpring(1, pressSpring);
         }}
-        className={`rounded-full px-4 py-2 ${
+        style={
           active
             ? flat
-              ? ''
-              : 'bg-card'
-            : 'border border-[rgba(255,255,255,0.16)] bg-[rgba(255,255,255,0.08)]'
-        }`}
+              ? undefined
+              : { backgroundColor: pal.chipActiveBg }
+            : {
+                borderWidth: 1,
+                borderColor: pal.chipInactiveBorder,
+                backgroundColor: pal.chipInactiveBg,
+              }
+        }
+        className="rounded-full px-4 py-2"
       >
         <Text
-          style={{ fontFamily: fonts.mono }}
-          className={`text-[11px] uppercase tracking-[0.5px] ${
-            active ? 'text-ink' : 'text-[rgba(255,255,255,0.72)]'
-          }`}
+          style={{
+            fontFamily: fonts.mono,
+            color: active ? pal.chipActiveText : pal.chipInactiveText,
+          }}
+          className="text-[11px] uppercase tracking-[0.5px]"
         >
           {label}
         </Text>
@@ -223,9 +234,11 @@ function Chip({
 /** Metric tabs with an active pill that springs between selections. */
 function MetricTabs({
   active,
+  pal,
   onSelect,
 }: {
   active: MetricInfo;
+  pal: HomePalette;
   onSelect: (metric: MetricInfo) => void;
 }) {
   const reduced = useReducedMotion();
@@ -275,7 +288,7 @@ function MetricTabs({
               top: 0,
               bottom: 0,
               borderRadius: 999,
-              backgroundColor: colors.card,
+              backgroundColor: pal.chipActiveBg,
             },
             pillStyle,
           ]}
@@ -286,6 +299,7 @@ function MetricTabs({
             label={m.label}
             active={m.key === active.key}
             flat
+            pal={pal}
             onLayout={(event) => {
               const { x, width } = event.nativeEvent.layout;
               layouts.current.set(m.key, { x, width });
@@ -301,9 +315,11 @@ function MetricTabs({
 
 function RangeTabs({
   active,
+  pal,
   onSelect,
 }: {
   active: RangeInfo;
+  pal: HomePalette;
   onSelect: (range: RangeInfo) => void;
 }) {
   return (
@@ -313,6 +329,7 @@ function RangeTabs({
           key={r.key}
           label={r.label}
           active={r.key === active.key}
+          pal={pal}
           onPress={() => onSelect(r)}
         />
       ))}
@@ -326,22 +343,33 @@ function RangeTabs({
  */
 function ConnectCard({
   hasSession,
+  pal,
   onConnect,
   onDismiss,
 }: {
   hasSession: boolean;
+  pal: HomePalette;
   onConnect: () => void;
   onDismiss: () => void;
 }) {
   return (
-    <View className="mb-4 rounded-[18px] border-[0.5px] border-[rgba(255,255,255,0.45)] bg-[rgba(27,27,27,0.3)] p-4">
+    <View
+      style={{ borderColor: pal.cardBorder, backgroundColor: pal.cardBg }}
+      className="mb-4 rounded-[18px] border-[0.5px] p-4"
+    >
       <View className="flex-row items-start">
         <View className="h-12 w-12 rounded-[20px] bg-[#F37953]" />
         <View className="ml-3 flex-1">
-          <Text className="text-[18px] font-sans-medium tracking-[-0.3px] text-white">
+          <Text
+            style={{ color: pal.text }}
+            className="text-[18px] font-sans-medium tracking-[-0.3px]"
+          >
             Connect your devices
           </Text>
-          <Text className="mt-0.5 text-[14px] font-sans leading-[20px] text-[rgba(255,255,255,0.5)]">
+          <Text
+            style={{ color: pal.cardBody }}
+            className="mt-0.5 text-[14px] font-sans leading-[20px]"
+          >
             Unlock more insights by connecting your wearable devices
           </Text>
         </View>
@@ -351,16 +379,17 @@ function ConnectCard({
           hitSlop={8}
           className="ml-2 h-8 w-8 items-center justify-center rounded-full active:opacity-60"
         >
-          <CloseIcon />
+          <CloseIcon stroke={pal.closeIcon} />
         </Pressable>
       </View>
       <Pressable
         onPress={onConnect}
-        className="mt-4 w-full items-center justify-center rounded-[9px] bg-[rgba(255,255,255,0.13)] py-3.5 active:opacity-80"
+        style={{ backgroundColor: pal.cardButtonBg }}
+        className="mt-4 w-full items-center justify-center rounded-[9px] py-3.5 active:opacity-80"
       >
         <Text
-          style={{ fontFamily: fonts.mono }}
-          className="text-[12px] uppercase tracking-[0.5px] text-white"
+          style={{ fontFamily: fonts.mono, color: pal.cardButtonText }}
+          className="text-[12px] uppercase tracking-[0.5px]"
         >
           {hasSession ? 'Connect a device' : 'Get started'}
         </Text>
@@ -377,29 +406,38 @@ function ConnectCard({
  * has been dismissed, so the pitch never shows twice on one screen.
  */
 function ConnectBanner({
+  pal,
   onConnect,
   onDismiss,
 }: {
+  pal: HomePalette;
   onConnect: () => void;
   onDismiss: () => void;
 }) {
   return (
     <View className="mb-4 flex-row items-center">
       <View className="flex-1 pr-2">
-        <Text className="text-[14px] font-sans-medium leading-[20px] text-white">
+        <Text
+          style={{ color: pal.text }}
+          className="text-[14px] font-sans-medium leading-[20px]"
+        >
           Connect your device
         </Text>
-        <Text className="text-[12px] font-sans leading-[16px] text-[#DEDEDE]">
+        <Text
+          style={{ color: pal.bannerBody }}
+          className="text-[12px] font-sans leading-[16px]"
+        >
           Unlock more insights by connecting your wearable devices
         </Text>
       </View>
       <Pressable
         onPress={onConnect}
-        className="h-[34px] items-center justify-center rounded-[7px] bg-white px-3 active:opacity-80"
+        style={{ backgroundColor: pal.bannerButtonBg }}
+        className="h-[34px] items-center justify-center rounded-[7px] px-3 active:opacity-80"
       >
         <Text
-          style={{ fontFamily: fonts.mono }}
-          className="text-[10px] uppercase tracking-[1px] text-ink"
+          style={{ fontFamily: fonts.mono, color: pal.bannerButtonText }}
+          className="text-[10px] uppercase tracking-[1px]"
         >
           Connect
         </Text>
@@ -407,9 +445,10 @@ function ConnectBanner({
       <Pressable
         accessibilityLabel="Dismiss"
         onPress={onDismiss}
-        className="ml-2 h-[34px] w-[34px] items-center justify-center rounded-[7px] bg-[rgba(255,255,255,0.1)] active:opacity-60"
+        style={{ backgroundColor: pal.bannerDismissBg }}
+        className="ml-2 h-[34px] w-[34px] items-center justify-center rounded-[7px] active:opacity-60"
       >
-        <CloseIcon />
+        <CloseIcon stroke={pal.closeIcon} />
       </Pressable>
     </View>
   );
@@ -420,7 +459,7 @@ function ConnectBanner({
  * still unknown, so the connect pitch never flashes at someone who already
  * has devices. Static under Reduce Motion.
  */
-function ConnectCardSkeleton() {
+function ConnectCardSkeleton({ pal }: { pal: HomePalette }) {
   const pulse = useSharedValue(0.55);
 
   useEffect(() => {
@@ -437,17 +476,32 @@ function ConnectCardSkeleton() {
 
   return (
     <Animated.View
-      style={style}
-      className="mb-4 rounded-[18px] border-[0.5px] border-[rgba(255,255,255,0.2)] bg-[rgba(27,27,27,0.3)] p-4"
+      style={[
+        style,
+        { borderColor: pal.skeletonBorder, backgroundColor: pal.skeletonBg },
+      ]}
+      className="mb-4 rounded-[18px] border-[0.5px] p-4"
     >
       <View className="flex-row items-start">
-        <View className="h-12 w-12 rounded-[20px] bg-[rgba(255,255,255,0.12)]" />
+        <View
+          style={{ backgroundColor: pal.skeletonTile }}
+          className="h-12 w-12 rounded-[20px]"
+        />
         <View className="ml-3 flex-1 gap-2 pt-1">
-          <View className="h-4 w-40 rounded-full bg-[rgba(255,255,255,0.12)]" />
-          <View className="h-3 w-56 rounded-full bg-[rgba(255,255,255,0.08)]" />
+          <View
+            style={{ backgroundColor: pal.skeletonTile }}
+            className="h-4 w-40 rounded-full"
+          />
+          <View
+            style={{ backgroundColor: pal.skeletonLine }}
+            className="h-3 w-56 rounded-full"
+          />
         </View>
       </View>
-      <View className="mt-4 h-[46px] w-full rounded-[9px] bg-[rgba(255,255,255,0.08)]" />
+      <View
+        style={{ backgroundColor: pal.skeletonLine }}
+        className="mt-4 h-[46px] w-full rounded-[9px]"
+      />
     </Animated.View>
   );
 }
@@ -459,6 +513,7 @@ type Probe =
 export function HomeScreen() {
   const {
     mode,
+    theme,
     session,
     connectCardDismissed,
     dismissConnectCard,
@@ -467,6 +522,9 @@ export function HomeScreen() {
     refreshDevices,
     nav,
   } = useApp();
+  // Chrome colors for the resolved theme. The teal biomarkers card keeps
+  // its own dark palette inside LineChart regardless of the theme.
+  const pal = homePalette[theme];
   const displayName = useDisplayName(session);
   const [metric, setMetric] = useState(METRICS[0]);
   const [range, setRange] = useState(RANGES[1]);
@@ -859,8 +917,10 @@ export function HomeScreen() {
   const lastTs = series?.points.at(-1)?.ts ?? null;
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.night }}>
-      <HomeBackdrop />
+    <View style={{ flex: 1, backgroundColor: pal.bg }}>
+      {/* The warm ember raster and gradient belong to the dark home only;
+          the light home sits on plain brand cream. */}
+      {theme === 'dark' ? <HomeBackdrop /> : null}
       <Animated.ScrollView
         style={{ flex: 1 }}
         onScroll={onScroll}
@@ -870,7 +930,7 @@ export function HomeScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#FFFFFF"
+            tintColor={pal.refreshTint}
           />
         }
       >
@@ -879,21 +939,31 @@ export function HomeScreen() {
             <View className="mb-5 flex-row items-center justify-between">
               <Animated.View style={headerStyle}>
                 <Text
-                  style={{ fontFamily: fonts.mono }}
-                  className="text-[10px] uppercase tracking-[1px] text-white"
+                  style={{ fontFamily: fonts.mono, color: pal.caption }}
+                  className="text-[10px] uppercase tracking-[1px]"
                 >
                   {session ? 'Hello' : 'Welcome back,'}
                 </Text>
-                <Text className="mt-2 text-[18px] font-sans-medium tracking-[-0.3px] text-white">
+                <Text
+                  style={{ color: pal.text }}
+                  className="mt-2 text-[18px] font-sans-medium tracking-[-0.3px]"
+                >
                   {displayName}
                 </Text>
               </Animated.View>
               <Pressable
                 accessibilityLabel="Profile and devices"
                 onPress={() => nav.push({ name: 'devices' })}
-                className="h-10 w-10 items-center justify-center rounded-full border-[0.4px] border-white bg-[rgba(254,213,180,0.33)] active:opacity-80"
+                style={{
+                  borderColor: pal.avatarBorder,
+                  backgroundColor: pal.avatarBg,
+                }}
+                className="h-10 w-10 items-center justify-center rounded-full border-[0.4px] active:opacity-80"
               >
-                <Text className="text-[15px] font-sans-medium text-[#FFE2CE]">
+                <Text
+                  style={{ color: pal.avatarText }}
+                  className="text-[15px] font-sans-medium"
+                >
                   {displayName[0].toUpperCase()}
                 </Text>
               </Pressable>
@@ -928,6 +998,7 @@ export function HomeScreen() {
           {showConnectBanner ? (
             <Animated.View entering={enter(1)}>
               <ConnectBanner
+                pal={pal}
                 onConnect={() => nav.push({ name: 'connectMenu' })}
                 onDismiss={() => setConnectBannerDismissed(true)}
               />
@@ -936,12 +1007,13 @@ export function HomeScreen() {
 
           {showConnectSkeleton ? (
             <Animated.View entering={enter(1)}>
-              <ConnectCardSkeleton />
+              <ConnectCardSkeleton pal={pal} />
             </Animated.View>
           ) : showConnectCard ? (
             <Animated.View entering={enter(1)}>
               <ConnectCard
                 hasSession={!!session}
+                pal={pal}
                 onConnect={() =>
                   session ? nav.push({ name: 'connectMenu' }) : signOut()
                 }
@@ -952,7 +1024,10 @@ export function HomeScreen() {
 
           <Animated.View entering={enter(2)}>
             <View className="mb-3 mt-2 flex-row items-center justify-between">
-              <Text className="text-[20px] font-sans-medium tracking-[-0.5px] text-white">
+              <Text
+                style={{ color: pal.text }}
+                className="text-[20px] font-sans-medium tracking-[-0.5px]"
+              >
                 Biomarkers
               </Text>
               <Pressable
@@ -962,12 +1037,12 @@ export function HomeScreen() {
                 hitSlop={8}
                 className="h-8 w-8 items-center justify-center rounded-full active:opacity-60"
               >
-                <InfoIcon />
+                <InfoIcon stroke={pal.infoIcon} />
               </Pressable>
             </View>
 
-            <MetricTabs active={metric} onSelect={setMetric} />
-            <RangeTabs active={range} onSelect={setRange} />
+            <MetricTabs active={metric} pal={pal} onSelect={setMetric} />
+            <RangeTabs active={range} pal={pal} onSelect={setRange} />
           </Animated.View>
 
           <Animated.View entering={enter(3)}>
@@ -1064,18 +1139,24 @@ export function HomeScreen() {
           <Animated.View entering={enter(4)}>
             <View className="mt-8 px-1">
               <Text
-                style={{ fontFamily: fonts.mono }}
-                className="text-[10px] uppercase tracking-[1px] text-[rgba(255,255,255,0.5)]"
+                style={{ fontFamily: fonts.mono, color: pal.faint }}
+                className="text-[10px] uppercase tracking-[1px]"
               >
                 Disclaimer
               </Text>
-              <Text className="mt-2 text-[12px] font-sans leading-[17px] text-[rgba(255,255,255,0.5)]">
+              <Text
+                style={{ color: pal.faint }}
+                className="mt-2 text-[12px] font-sans leading-[17px]"
+              >
                 These readings provide an overview, and they do not capture
                 everything. Regular check-ups with health professionals are
                 recommended.
               </Text>
               <Animated.View style={logoStyle}>
-                <Text className="mt-6 text-[20px] font-sans-medium text-white">
+                <Text
+                  style={{ color: pal.text }}
+                  className="mt-6 text-[20px] font-sans-medium"
+                >
                   YOU(th)
                 </Text>
               </Animated.View>
