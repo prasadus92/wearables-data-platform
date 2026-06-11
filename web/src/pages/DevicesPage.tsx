@@ -51,6 +51,14 @@ export function DevicesPage() {
         onConnect={async (provider) => {
           setError(null)
           try {
+            // Demo mode attaches demo wearables instantly; hosted OAuth is
+            // for real accounts. WHOOP and Garmin have no demo data, so
+            // they keep the OAuth path in both modes.
+            if (mode === 'sandbox' && (provider === 'oura' || provider === 'fitbit')) {
+              await api.connectDemo(user.id, provider)
+              await refreshDevices()
+              return
+            }
             const { link_url } = await api.createLink(user.id, provider)
             // Popup blockers return null without throwing; falling back to
             // this tab keeps the flow alive (the link redirects back here
