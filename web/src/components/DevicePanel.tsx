@@ -98,9 +98,9 @@ export function DevicePanel({ devices, onConnect, onConnectApple, onDisconnect }
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={springTransition}
-                  className="flex items-center justify-between gap-3 py-2.5"
+                  className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2.5"
                 >
-                  <div className="flex flex-wrap items-center gap-2.5">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2.5">
                     <span className="text-sm font-medium">{providerDisplayName(device.provider)}</span>
                     <StatusBadge status={device.status} />
                     <span className="text-xs text-muted-foreground">{lastSynced(device)}</span>
