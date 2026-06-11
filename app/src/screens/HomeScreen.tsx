@@ -45,7 +45,7 @@ import {
 
 import { api } from '../api/client';
 import { Banner } from '../components/Banner';
-import { LineChart } from '../components/LineChart';
+import { CHART_CONTENT_MIN_HEIGHT, LineChart } from '../components/LineChart';
 import { MetricInfoSheet } from '../components/MetricInfoSheet';
 import { useApp } from '../lib/appContext';
 import { useDisplayName } from '../lib/displayName';
@@ -370,6 +370,52 @@ function ConnectCard({
 }
 
 /**
+ * Slim connect prompt for the notification slot, per the Figma home
+ * design (Home->Notification): with zero devices connected there is
+ * nothing to sync, so the notification area pitches connecting instead of
+ * warning about syncing. It only appears after the larger connect card
+ * has been dismissed, so the pitch never shows twice on one screen.
+ */
+function ConnectBanner({
+  onConnect,
+  onDismiss,
+}: {
+  onConnect: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <View className="mb-4 flex-row items-center">
+      <View className="flex-1 pr-2">
+        <Text className="text-[14px] font-sans-medium leading-[20px] text-white">
+          Connect your device
+        </Text>
+        <Text className="text-[12px] font-sans leading-[16px] text-[#DEDEDE]">
+          Unlock more insights by connecting your wearable devices
+        </Text>
+      </View>
+      <Pressable
+        onPress={onConnect}
+        className="h-[34px] items-center justify-center rounded-[7px] bg-white px-3 active:opacity-80"
+      >
+        <Text
+          style={{ fontFamily: fonts.mono }}
+          className="text-[10px] uppercase tracking-[1px] text-ink"
+        >
+          Connect
+        </Text>
+      </Pressable>
+      <Pressable
+        accessibilityLabel="Dismiss"
+        onPress={onDismiss}
+        className="ml-2 h-[34px] w-[34px] items-center justify-center rounded-[7px] bg-[rgba(255,255,255,0.1)] active:opacity-60"
+      >
+        <CloseIcon />
+      </Pressable>
+    </View>
+  );
+}
+
+/**
  * Pulsing placeholder in the connect card's slot while the device list is
  * still unknown, so the connect pitch never flashes at someone who already
  * has devices. Static under Reduce Motion.
@@ -425,6 +471,10 @@ export function HomeScreen() {
   const [metric, setMetric] = useState(METRICS[0]);
   const [range, setRange] = useState(RANGES[1]);
   const [series, setSeries] = useState<Timeseries | null>(null);
+  // The metric the loaded series belongs to. The metric state alone runs
+  // one commit ahead of the data after a switch, so the chart's count-up
+  // bookkeeping reads this value, set together with the data.
+  const [seriesMetricKey, setSeriesMetricKey] = useState(METRICS[0].key);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -543,6 +593,7 @@ export function HomeScreen() {
       }
       setError(null);
       setSeries(next);
+      setSeriesMetricKey(metric.key);
       return next;
     } catch {
       // Both attempts failed: a real request failure.
@@ -624,6 +675,16 @@ export function HomeScreen() {
     !connectCardDismissed && (!session || (devicesKnown && active.length === 0));
   const showConnectSkeleton =
     !connectCardDismissed && !!session && !devicesKnown;
+  // With zero devices confirmed and the connect card dismissed, the
+  // notification slot carries the Figma connect prompt so the screen
+  // still offers a working path to connecting. Session-scoped dismissal.
+  const [connectBannerDismissed, setConnectBannerDismissed] = useState(false);
+  const showConnectBanner =
+    !!session &&
+    devicesKnown &&
+    active.length === 0 &&
+    connectCardDismissed &&
+    !connectBannerDismissed;
 
   const providerSlugs = active.map((d) => d.provider);
   const supported = metricSupported(metric.key, providerSlugs, {
@@ -851,12 +912,24 @@ export function HomeScreen() {
             </Animated.View>
           ) : null}
 
-          {stale.length > 0 ? (
+          {/* A sync warning needs something connected to sync. With zero
+              devices confirmed, the Figma home design shows a connect
+              prompt in the notification area instead, never sync copy. */}
+          {devicesKnown && active.length > 0 && stale.length > 0 ? (
             <Animated.View entering={enter(1)}>
               <Banner
                 kind="warning"
                 title="Sync issues"
                 message="We have not received data recently. Pull down to refresh or check the device's own app."
+              />
+            </Animated.View>
+          ) : null}
+
+          {showConnectBanner ? (
+            <Animated.View entering={enter(1)}>
+              <ConnectBanner
+                onConnect={() => nav.push({ name: 'connectMenu' })}
+                onDismiss={() => setConnectBannerDismissed(true)}
               />
             </Animated.View>
           ) : null}
@@ -898,9 +971,11 @@ export function HomeScreen() {
           </Animated.View>
 
           <Animated.View entering={enter(3)}>
+            {/* The rounded card clips its children, so the plot inside is
+                allowed to run edge to edge while never escaping the card. */}
             <View className="overflow-hidden rounded-[24px]">
               <TealCardBackdrop />
-              <View className="p-4">
+              <View className="px-4 pt-4">
                 <View className="flex-row items-baseline justify-between">
                   <Text className="text-[16px] font-sans-medium text-white">
                     {metric.label}
@@ -925,49 +1000,64 @@ export function HomeScreen() {
                     </Text>
                   ) : null}
                 </View>
-
-                {error ? (
-                  <View className="h-[220px] items-center justify-center gap-3 px-6">
-                    <Text className="text-center text-[13px] font-sans text-[rgba(255,255,255,0.65)]">
-                      {error}
-                    </Text>
-                    <Pressable
-                      onPress={() => loadSeries()}
-                      className="mt-1 h-10 items-center justify-center rounded-full bg-white px-5 active:opacity-80"
-                    >
-                      <Text
-                        style={{ fontFamily: fonts.mono }}
-                        className="text-[12px] uppercase tracking-[0.5px] text-ink"
-                      >
-                        Try again
-                      </Text>
-                    </Pressable>
-                  </View>
-                ) : !session ? (
-                  <View className="h-[220px] items-center justify-center px-6">
-                    <Text className="text-center text-[13px] font-sans leading-[19px] text-[rgba(255,255,255,0.65)]">
-                      Create your profile and connect a wearable to see your
-                      data here.
-                    </Text>
-                  </View>
-                ) : (
-                  <LineChart
-                    points={series?.points ?? []}
-                    unit={series?.unit ?? ''}
-                    dual={metric.dual}
-                    rangeHours={range.hours}
-                    loading={loading || probePending || devicesPending}
-                    dark
-                    emptyTitle={empty.title}
-                    emptyMessage={empty.message}
-                    emptyAction={empty.action}
-                    status={insights?.status}
-                    weekDeltaPct={insights?.delta}
-                    baselineBand={insights?.base}
-                    clinicalBand={meta.clinicalBand ?? null}
-                  />
-                )}
               </View>
+
+              {/* Every body below shares the chart block's footprint, so
+                  the card holds one height across charts, empty states,
+                  errors, and the signed-out pitch. */}
+              {error ? (
+                <View
+                  style={{ minHeight: CHART_CONTENT_MIN_HEIGHT }}
+                  className="items-center justify-center gap-3 px-6"
+                >
+                  <Text className="text-center text-[13px] font-sans text-[rgba(255,255,255,0.65)]">
+                    {error}
+                  </Text>
+                  <Pressable
+                    onPress={() => loadSeries()}
+                    className="mt-1 h-10 items-center justify-center rounded-full bg-white px-5 active:opacity-80"
+                  >
+                    <Text
+                      style={{ fontFamily: fonts.mono }}
+                      className="text-[12px] uppercase tracking-[0.5px] text-ink"
+                    >
+                      Try again
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : !session ? (
+                <View
+                  style={{ minHeight: CHART_CONTENT_MIN_HEIGHT }}
+                  className="items-center justify-center px-6"
+                >
+                  <Text className="text-center text-[13px] font-sans leading-[19px] text-[rgba(255,255,255,0.65)]">
+                    Create your profile and connect a wearable to see your
+                    data here.
+                  </Text>
+                </View>
+              ) : (
+                <LineChart
+                  points={series?.points ?? []}
+                  unit={series?.unit ?? ''}
+                  dual={metric.dual}
+                  seriesKey={seriesMetricKey}
+                  inset={16}
+                  rangeHours={range.hours}
+                  loading={loading || probePending || devicesPending}
+                  dark
+                  emptyTitle={empty.title}
+                  emptyMessage={empty.message}
+                  emptyAction={empty.action}
+                  status={insights?.status}
+                  weekDeltaPct={insights?.delta}
+                  baselineBand={insights?.base}
+                  clinicalBand={meta.clinicalBand ?? null}
+                />
+              )}
+
+              {/* Breathing room between the x axis labels and the card's
+                  bottom edge. */}
+              <View className="h-4" />
             </View>
           </Animated.View>
 

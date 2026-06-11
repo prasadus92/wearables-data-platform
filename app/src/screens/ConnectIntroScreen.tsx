@@ -20,7 +20,8 @@ import {
   sheetIn,
 } from '../components/Sheet';
 import { useApp } from '../lib/appContext';
-import type { ProviderInfo } from '../lib/catalog';
+import { APPLE_SLUG, type ProviderInfo } from '../lib/catalog';
+import { ConnectAppleScreen } from './ConnectAppleScreen';
 
 const HERO_W = 337;
 const HERO_H = 320;
@@ -85,6 +86,13 @@ interface Props {
 export function ConnectIntroScreen({ provider }: Props) {
   const { mode, session, refreshDevices, nav } = useApp();
   const [busy, setBusy] = useState<'link' | 'demo' | null>(null);
+
+  // Apple Watch never goes through hosted link OAuth. Entries that land
+  // here with the apple provider (reconnect from devices, retry from the
+  // result sheet) render the pairing flow instead.
+  if (provider.slug === APPLE_SLUG) {
+    return <ConnectAppleScreen />;
+  }
 
   /** Webhook delivery can lag the OAuth redirect, so poll a few times. */
   async function providerConnected(userId: string): Promise<boolean> {
