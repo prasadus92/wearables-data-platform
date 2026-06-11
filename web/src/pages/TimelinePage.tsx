@@ -28,7 +28,7 @@ const RANGES: { label: string; days: number; resolution: Resolution }[] = [
   { label: '24h', days: 1, resolution: 'hour' },
   { label: '7d', days: 7, resolution: 'hour' },
   { label: '30d', days: 30, resolution: 'day' },
-  { label: '90d', days: 90, resolution: 'week' },
+  { label: '90d', days: 90, resolution: 'day' },
 ]
 
 const DEFAULT_RANGE = '7d'

@@ -93,7 +93,7 @@ export const RANGES: RangeInfo[] = [
   { key: '24h', label: '24h', hours: 24, resolution: 'hour' },
   { key: '7d', label: '7d', hours: 24 * 7, resolution: 'hour' },
   { key: '30d', label: '30d', hours: 24 * 30, resolution: 'day' },
-  { key: '90d', label: '90d', hours: 24 * 90, resolution: 'week' },
+  { key: '90d', label: '90d', hours: 24 * 90, resolution: 'day' },
 ];
 
 export const DATA_WE_READ = [
