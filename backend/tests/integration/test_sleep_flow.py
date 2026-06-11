@@ -332,3 +332,67 @@ class TestSyncEnqueuesSleepBackfill:
 
         response = await client.post(f"/v1/users/{user.id}/sync")
         assert response.status_code == 409
+
+
+async def test_dense_backfill_exceeding_parameter_cap(with_auth, client, engine, monkeypatch):
+    """A single plan with more rows than one statement can bind (32767
+    params / 8 per row) must write completely via chunked upserts. This is
+    the Apple Watch case: intraday heart rate at a reading every few
+    minutes for months."""
+    import uuid as uuidlib
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.models import Metric
+    from app.services.ingestion import IngestPlan, NormalizedSample, apply_plan
+    from tests.conftest import SERVICE_TOKEN
+
+    class StubAggregator:
+        async def create_user(self, client_user_id: str) -> dict:
+            return {"user_id": f"jnc-{client_user_id}"}
+
+        async def connect_demo_provider(self, aggregator_user_id: str, provider: str) -> dict:
+            return {"success": True}
+
+    monkeypatch.setattr(users_module, "aggregator_client_for", lambda env: StubAggregator())
+    created = await client.post(
+        "/v1/users",
+        headers={"X-API-Key": SERVICE_TOKEN},
+        json={"client_user_id": f"dense-{uuidlib.uuid4().hex[:8]}"},
+    )
+    assert created.status_code == 201
+    user_id = created.json()["id"]
+
+    base = datetime(2026, 3, 1, tzinfo=UTC)
+    samples = [
+        NormalizedSample(
+            metric=Metric.heartrate,
+            ts=base + timedelta(minutes=3 * i),
+            value=60.0 + (i % 30),
+            value_secondary=None,
+            unit="bpm",
+            provider="apple_health_kit",
+        )
+        for i in range(5000)
+    ]
+    plan = IngestPlan(
+        event_type="daily.data.heartrate.created",
+        aggregator_user_id=None,
+        client_user_id=None,
+        samples=samples,
+    )
+    async with AsyncSession(engine) as session:
+        written = await apply_plan(session, uuidlib.UUID(user_id), plan)
+        await session.commit()
+    assert written == 5000
+
+    # Raw resolution is capped at 7 days by design; hour buckets verify the
+    # full span persisted (5000 samples at 3 minute spacing cover ~250 hours).
+    series = await client.get(
+        f"/v1/users/{user_id}/timeseries/heartrate"
+        "?resolution=hour&start=2026-03-01T00:00:00Z&end=2026-03-12T00:00:00Z",
+        headers={"X-API-Key": SERVICE_TOKEN},
+    )
+    assert series.status_code == 200
+    assert len(series.json()["points"]) >= 240

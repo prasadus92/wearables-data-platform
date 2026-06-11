@@ -333,16 +333,24 @@ async def apply_plan(session: AsyncSession, user_id: uuid.UUID, plan: IngestPlan
             }
             for s in plan.samples
         ]
-        stmt = pg_insert(Sample).values(rows)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["user_id", "metric", "ts", "provider"],
-            set_={
-                "value": stmt.excluded.value,
-                "value_secondary": stmt.excluded.value_secondary,
-                "unit": stmt.excluded.unit,
-            },
-        )
-        await session.execute(stmt)
+        # Postgres wire protocol caps a statement at 32767 bind parameters;
+        # at 8 per row a dense intraday backfill (an Apple Watch delivers a
+        # reading every few minutes) blows through it in one page. Chunked
+        # upserts keep every batch comfortably under the cap, and the
+        # natural-key conflict clause keeps retries of any chunk safe.
+        chunk_size = 2000
+        for start in range(0, len(rows), chunk_size):
+            chunk = rows[start : start + chunk_size]
+            stmt = pg_insert(Sample).values(chunk)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["user_id", "metric", "ts", "provider"],
+                set_={
+                    "value": stmt.excluded.value,
+                    "value_secondary": stmt.excluded.value_secondary,
+                    "unit": stmt.excluded.unit,
+                },
+            )
+            await session.execute(stmt)
         written = len(rows)
 
         # Freshness drives the app's "sync issues" banner.
