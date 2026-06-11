@@ -24,6 +24,7 @@ const LEGACY_SESSION_KEY = 'yw.session';
 const SKIPPED_KEY = 'yw.onboardingSkipped';
 const CARD_DISMISSED_KEY = 'yw.connectCardDismissed';
 const APPEARANCE_KEY = 'yw.appearance';
+const RANGE_KEY = 'yw.range';
 
 function parseSession(raw: string | null): Session | null {
   if (!raw) return null;
@@ -105,6 +106,14 @@ export const storage = {
 
   saveConnectCardDismissed() {
     return AsyncStorage.setItem(CARD_DISMISSED_KEY, '1');
+  },
+
+  async loadRange(): Promise<string | null> {
+    return AsyncStorage.getItem(RANGE_KEY);
+  },
+
+  saveRange(label: string) {
+    AsyncStorage.setItem(RANGE_KEY, label).catch(() => {});
   },
 
   async loadAppearance(): Promise<AppearancePref> {

@@ -56,6 +56,7 @@ import {
   type RangeInfo,
   providerName,
 } from '../lib/catalog';
+import { storage } from '../lib/storage';
 import {
   formatNameList,
   isOlderThan,
@@ -528,6 +529,19 @@ export function HomeScreen() {
   const displayName = useDisplayName(session);
   const [metric, setMetric] = useState(METRICS[0]);
   const [range, setRange] = useState(RANGES[1]);
+  // The last-used range survives restarts: picking 90d once means 90d
+  // everywhere until changed, mirroring web.
+  useEffect(() => {
+    storage.loadRange().then((label: string | null) => {
+      if (!label) return;
+      const saved = RANGES.find((r) => r.label === label);
+      if (saved) setRange(saved);
+    });
+  }, []);
+  const pickRange = useCallback((r: (typeof RANGES)[number]) => {
+    storage.saveRange(r.label);
+    setRange(r);
+  }, []);
   const [series, setSeries] = useState<Timeseries | null>(null);
   // The metric the loaded series belongs to. The metric state alone runs
   // one commit ahead of the data after a switch, so the chart's count-up
@@ -1042,7 +1056,7 @@ export function HomeScreen() {
             </View>
 
             <MetricTabs active={metric} pal={pal} onSelect={setMetric} />
-            <RangeTabs active={range} pal={pal} onSelect={setRange} />
+            <RangeTabs active={range} pal={pal} onSelect={pickRange} />
           </Animated.View>
 
           <Animated.View entering={enter(3)}>
