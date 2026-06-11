@@ -14,12 +14,11 @@ import { api } from '../api'
 import { springTransition } from '../components/motion'
 import { TimelineChart } from '../components/TimelineChart'
 import { providerDisplayName } from '@/lib/utils'
+import { Chip } from '../components/Chip'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 const METRICS: { key: Metric; label: string }[] = (
   ['heartrate', 'hrv', 'spo2', 'respiratory_rate', 'blood_pressure'] as Metric[]
@@ -69,13 +68,13 @@ function LivePulse({ version }: { version: number }) {
       {version > 0 && (
         <motion.span
           key={version}
-          className="absolute inset-0 rounded-full bg-emerald-500"
+          className="absolute inset-0 rounded-full bg-good"
           initial={{ scale: 1, opacity: 0.7 }}
           animate={{ scale: 2.4, opacity: 0 }}
           transition={{ duration: 0.35, ease: 'easeOut' }}
         />
       )}
-      <span className="size-2 rounded-full bg-emerald-500/70" />
+      <span className="size-2 rounded-full bg-good/70" />
     </span>
   )
 }
@@ -151,7 +150,7 @@ export function TimelinePage() {
       animate={{ opacity: 1, y: 0 }}
       transition={springTransition}
     >
-      <Card>
+      <Card className="chart-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 font-mono text-xs font-medium tracking-widest text-muted-foreground uppercase">
             Timeline
@@ -159,58 +158,42 @@ export function TimelinePage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
-            <div className="flex w-full min-w-0 items-center gap-1.5 sm:w-auto">
-              <Tabs
-                className="min-w-0 max-w-full"
-                value={metric}
-                onValueChange={(v) =>
-                  navigate({ pathname: `/metrics/${v}`, search: searchParams.toString() })
-                }
-              >
-                <TabsList className="h-auto max-w-full flex-nowrap justify-start overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex flex-col gap-2.5">
+            {/* Independent chips in a scrollable row, like the mobile home;
+                the info icon stays pinned outside the scroll area. */}
+            <div className="flex min-w-0 items-center gap-1.5">
+              <div className="chip-row -my-1 flex min-w-0 flex-1 items-center gap-2 overflow-x-auto py-1">
                 {METRICS.map((m) => (
-                  <TabsTrigger
+                  <Chip
                     key={m.key}
-                    value={m.key}
-                    className="data-[state=active]:bg-transparent group-data-[variant=default]/tabs-list:data-[state=active]:shadow-none dark:data-[state=active]:border-transparent dark:data-[state=active]:bg-transparent"
-                  >
-                    {metric === m.key && (
-                      <motion.span
-                        layoutId="metric-tab-pill"
-                        className="absolute inset-0 rounded-md bg-background shadow-sm dark:border dark:border-input dark:bg-input/30"
-                        transition={{ type: 'spring', stiffness: 500, damping: 38 }}
-                      />
-                    )}
-                    <span className="relative z-10">{m.label}</span>
-                  </TabsTrigger>
+                    label={m.label}
+                    active={metric === m.key}
+                    onClick={() =>
+                      navigate({
+                        pathname: `/metrics/${m.key}`,
+                        search: searchParams.toString(),
+                      })
+                    }
+                  />
                 ))}
-                </TabsList>
-              </Tabs>
+              </div>
               <MetricInfoPopover metric={metric} />
             </div>
-            <ToggleGroup
-              type="single"
-              variant="outline"
-              size="sm"
-              value={RANGES[range].label}
-              onValueChange={(v) => {
-                if (!v) return
-                const next = new URLSearchParams(searchParams)
-                next.set('range', v)
-                setSearchParams(next)
-              }}
-            >
+            <div className="chip-row -my-1 flex items-center gap-2 overflow-x-auto py-1">
               {RANGES.map((r) => (
-                <ToggleGroupItem
+                <Chip
                   key={r.label}
-                  value={r.label}
-                  className="px-3 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
-                >
-                  {r.label}
-                </ToggleGroupItem>
+                  label={r.label}
+                  small
+                  active={RANGES[range].label === r.label}
+                  onClick={() => {
+                    const next = new URLSearchParams(searchParams)
+                    next.set('range', r.label)
+                    setSearchParams(next)
+                  }}
+                />
               ))}
-            </ToggleGroup>
+            </div>
           </div>
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.div

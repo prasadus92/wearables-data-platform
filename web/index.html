@@ -28,6 +28,22 @@
     />
     <meta name="twitter:image" content="https://app.examplehealth.example.com/og.png" />
     <meta name="theme-color" content="#F4F1EC" />
+    <script>
+      // Apply the saved (or system) theme before first paint so a reload
+      // in dark mode never flashes the light background. ThemeProvider
+      // takes over once React mounts.
+      ;(function () {
+        try {
+          var t = localStorage.getItem('wearables-theme')
+          var dark =
+            t === 'dark' ||
+            (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
+          if (dark) document.documentElement.classList.add('dark')
+        } catch (e) {
+          /* first paint stays light; ThemeProvider corrects it on mount */
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>
