@@ -78,6 +78,13 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://youth:youth@localhost:5432/wearables"
     redis_url: str = "redis://localhost:6379/0"
 
+    # Sample upsert batch size. The Postgres wire protocol caps a statement
+    # at 32767 bind parameters (4095 rows at 8 per row); this stays well
+    # under it while keeping batches large enough to be efficient. An ops
+    # lever, never a correctness one: idempotent upserts make any chunking
+    # safe.
+    sample_upsert_chunk_rows: int = 2000
+
     # --- Service ---
     log_level: str = "INFO"
     environment: str = "local"  # local | staging | production
