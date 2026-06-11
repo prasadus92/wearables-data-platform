@@ -59,6 +59,7 @@ import {
 } from '../lib/catalog';
 import { storage } from '../lib/storage';
 import {
+  calendarDayLabel,
   formatNameList,
   isOlderThan,
   relativeAge,
@@ -590,11 +591,16 @@ export function HomeScreen() {
   // Device filter: null charts every device blended; a provider slug
   // isolates one wearable. Per-session state, mirroring web.
   const [providerFilter, setProviderFilter] = useState<string | null>(null);
+  // Drill-down: picking a day point pins the chart to that calendar day
+  // at hour resolution, mirroring the web timeline.
+  const [drillDay, setDrillDay] = useState<string | null>(null);
   const [series, setSeries] = useState<Timeseries | null>(null);
   // The metric the loaded series belongs to. The metric state alone runs
   // one commit ahead of the data after a switch, so the chart's count-up
   // bookkeeping reads this value, set together with the data.
-  const [seriesMetricKey, setSeriesMetricKey] = useState<string>(METRICS[0].key);
+  const [seriesMetricKey, setSeriesMetricKey] = useState<string>(
+    `${METRICS[0].key}|all|span`,
+  );
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -606,6 +612,13 @@ export function HomeScreen() {
 
   const meta = METRIC_META[metric.key];
   const demoMode = mode === 'sandbox';
+
+  // Any selector change leaves the drill view: a pinned day only makes
+  // sense for the selection that produced it.
+  const drillContextKey = `${metric.key}|${range.key}|${providerFilter ?? 'all'}`;
+  useEffect(() => {
+    setDrillDay(null);
+  }, [drillContextKey]);
 
   // Plain-language insights derived from the full series for this range.
   const insights = useMemo(() => {
@@ -693,6 +706,15 @@ export function HomeScreen() {
     // A retry must show the busy spinner, never a frozen error view.
     setError(null);
     const fetchOnce = () => {
+      if (drillDay) {
+        // Anchored drill view: one calendar day at hour resolution.
+        return api.getTimeseriesDay(
+          session.userId,
+          metric.key,
+          drillDay,
+          providerFilter ?? undefined,
+        );
+      }
       const end = new Date();
       const start = new Date(end.getTime() - range.hours * 3600 * 1000);
       return api.getTimeseries(session.userId, metric.key, {
@@ -714,7 +736,11 @@ export function HomeScreen() {
       }
       setError(null);
       setSeries(next);
-      setSeriesMetricKey(`${metric.key}|${providerFilter ?? 'all'}`);
+      // A drilled day is a different series from the range view: the
+      // count-up must never run across the two as if continuous.
+      setSeriesMetricKey(
+        `${metric.key}|${providerFilter ?? 'all'}|${drillDay ?? 'span'}`,
+      );
       return next;
     } catch {
       // Both attempts failed: a real request failure.
@@ -724,7 +750,7 @@ export function HomeScreen() {
     } finally {
       setLoading(false);
     }
-  }, [session, metric, range, providerFilter]);
+  }, [session, metric, range, providerFilter, drillDay]);
 
   // Revalidate the shared device list every time home gains focus (this
   // screen mounts fresh per navigation) and when the session or auth state
@@ -833,7 +859,7 @@ export function HomeScreen() {
   // The selected window may simply be too narrow; probe wide before
   // explaining the emptiness, so the copy never misleads. The probe key
   // names the context a result belongs to; a change resets the machine.
-  const probeKey = `${session?.userId ?? ''}|${metric.key}|${range.key}|${slugsKey}|${providerFilter ?? 'all'}`;
+  const probeKey = `${session?.userId ?? ''}|${metric.key}|${range.key}|${slugsKey}|${providerFilter ?? 'all'}|${drillDay ?? 'span'}`;
   const probeKeyRef = useRef(probeKey);
   probeKeyRef.current = probeKey;
 
@@ -850,6 +876,9 @@ export function HomeScreen() {
   // on an unmounted instance is a harmless no-op.
   const probeInFlight = useRef(false);
   useEffect(() => {
+    // The drill view is anchored to one known day: an empty day answers
+    // itself, so the wide probe has nothing to add.
+    if (drillDay) return;
     if (!inRangeEmpty || !session || active.length === 0) return;
     if (probe.state !== 'idle' || probeInFlight.current) return;
     if (!supported) {
@@ -896,11 +925,14 @@ export function HomeScreen() {
     session,
     metric.key,
     providerFilter,
+    drillDay,
   ]);
 
   // Hold the spinner while the probe decides which empty state applies, so
-  // the explanation never flickers between copies.
+  // the explanation never flickers between copies. The drill view never
+  // probes, so it never holds the spinner either.
   const probePending =
+    !drillDay &&
     inRangeEmpty &&
     active.length > 0 &&
     supported &&
@@ -914,6 +946,18 @@ export function HomeScreen() {
 
   const friendly = meta.friendlyName.toLowerCase();
   const empty = useMemo(() => {
+    if (drillDay) {
+      // The drill view is anchored to one known day, so an empty result is
+      // its own honest answer; the back chip restores the range view.
+      return {
+        title: 'No readings within this day',
+        message: 'The selected source recorded nothing on this calendar day.',
+        action: {
+          label: `Back to ${range.label}`,
+          onPress: () => setDrillDay(null),
+        },
+      };
+    }
     if (!devicesKnown) {
       // Reachable only when every device fetch failed: without the list the
       // other copies would guess, so say what happened and offer a retry.
@@ -1000,6 +1044,7 @@ export function HomeScreen() {
     probe,
     range.label,
     providerFilter,
+    drillDay,
     nav,
     onRefresh,
   ]);
@@ -1141,6 +1186,22 @@ export function HomeScreen() {
                 onSelect={setProviderFilter}
               />
             ) : null}
+            {drillDay ? (
+              <View className="mb-4 flex-row items-center">
+                <Chip
+                  label={`Back to ${range.label}`}
+                  active
+                  pal={pal}
+                  onPress={() => setDrillDay(null)}
+                />
+                <Text
+                  style={{ fontFamily: fonts.mono, color: pal.caption }}
+                  className="text-[10px] uppercase tracking-[1px]"
+                >
+                  {calendarDayLabel(drillDay)}, hour by hour
+                </Text>
+              </View>
+            ) : null}
           </Animated.View>
 
           <Animated.View entering={enter(3)}>
@@ -1215,16 +1276,26 @@ export function HomeScreen() {
                   dual={metric.dual}
                   seriesKey={seriesMetricKey}
                   inset={16}
-                  rangeHours={range.hours}
+                  rangeHours={drillDay ? 24 : range.hours}
                   loading={loading || probePending || devicesPending}
                   dark
                   emptyTitle={empty.title}
                   emptyMessage={empty.message}
                   emptyAction={empty.action}
                   status={insights?.status}
+                  blendNote={
+                    !providerFilter && active.length > 1
+                      ? `Averaged across ${formatNameList(active.map((d) => providerName(d.provider)))}`
+                      : null
+                  }
                   weekDeltaPct={insights?.delta}
                   baselineBand={insights?.base}
                   clinicalBand={meta.clinicalBand ?? null}
+                  onDrillDay={
+                    range.resolution === 'day' && !drillDay
+                      ? setDrillDay
+                      : undefined
+                  }
                 />
               )}
 

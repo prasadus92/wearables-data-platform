@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -82,12 +82,22 @@ interface Props {
   emptyAction?: { label: string; onPress: () => void };
   /** Neutral sentence placing the latest reading against the baseline. */
   status?: string | null;
+  /** Disclosure when the series averages several devices; null hides it. */
+  blendNote?: string | null;
   /** Mean of the last 7 days vs the prior 7, as a percentage. */
   weekDeltaPct?: number | null;
   /** Personal baseline band (mean +/- 1 stddev), drawn behind the line. */
   baselineBand?: Baseline | null;
   /** Population reference band from the metric metadata, where defensible. */
   clinicalBand?: ClinicalBand | null;
+  /**
+   * Day-resolution drill. When set, finishing a scrub (or a plain tap,
+   * which activates and releases the same press state) leaves a small
+   * "View this day" chip at the release point; tapping it reports the
+   * scrubbed point's timestamp so the caller can pin the chart to that
+   * calendar day. Omitted on hour charts and while already anchored.
+   */
+  onDrillDay?: (tsIso: string) => void;
 }
 
 interface Row {
@@ -638,6 +648,58 @@ function Tooltip({
   );
 }
 
+/**
+ * Drill affordance for day-resolution charts. The scrub pan gesture owns
+ * the canvas, so a competing tap recognizer inside the chart would race
+ * it; instead this chip appears where the finger lifted, anchored under
+ * the tooltip's last position, and pins the chart to the scrubbed point's
+ * calendar day when tapped.
+ */
+function DrillChip({
+  state,
+  containerWidth,
+  t,
+  onPress,
+}: {
+  state: PressState;
+  containerWidth: SharedValue<number>;
+  t: Theme;
+  onPress: () => void;
+}) {
+  const chipWidth = useSharedValue(104);
+
+  const boxStyle = useAnimatedStyle(() => {
+    const w = chipWidth.value;
+    const max = Math.max(0, containerWidth.value - w - 2);
+    const x = Math.min(Math.max(state.x.position.value - w / 2, 2), max);
+    return { transform: [{ translateX: x }] };
+  });
+
+  return (
+    <Animated.View
+      entering={enter(0)}
+      onLayout={(e) => {
+        chipWidth.value = e.nativeEvent.layout.width;
+      }}
+      style={[boxStyle, { backgroundColor: t.ctaBg }]}
+      className="absolute left-0 top-12 self-start rounded-full shadow-sm"
+    >
+      <Pressable
+        onPress={onPress}
+        hitSlop={6}
+        className="px-3 py-1.5 active:opacity-80"
+      >
+        <Text
+          style={{ fontFamily: MONO, color: t.ctaText }}
+          className="text-[10px] uppercase tracking-[1px]"
+        >
+          View this day
+        </Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 export function LineChart({
   points,
   unit,
@@ -652,9 +714,11 @@ export function LineChart({
   emptyMessage = 'No data for this range yet.',
   emptyAction,
   status,
+  blendNote,
   weekDeltaPct,
   baselineBand,
   clinicalBand,
+  onDrillDay,
 }: Props) {
   const t = dark ? DARK : LIGHT;
   const containerWidth = useSharedValue(0);
@@ -734,12 +798,28 @@ export function LineChart({
     return [lo - pad, hi + pad];
   }, [rows, dual, baselineBand]);
 
+  // The timestamp where the last scrub released, captured on the JS thread
+  // so the drill chip can render there. A new scrub hides the chip until
+  // the finger lifts again; fresh data or a series switch clears it.
+  const drillEnabled = onDrillDay != null;
+  const [scrubTs, setScrubTs] = useState<number | null>(null);
+
   useAnimatedReaction(
     () => state.isActive.value,
     (active, prev) => {
-      if (active && prev === false) runOnJS(tapLight)();
+      if (active && prev === false) {
+        runOnJS(tapLight)();
+        if (drillEnabled) runOnJS(setScrubTs)(null);
+      } else if (!active && prev === true && drillEnabled) {
+        runOnJS(setScrubTs)(state.x.value.value);
+      }
     },
+    [drillEnabled],
   );
+
+  useEffect(() => {
+    setScrubTs(null);
+  }, [seriesKey, rows]);
 
   // The latest value last shown on screen, tagged with the series it
   // belongs to and surviving the loading unmounts. A range switch within
@@ -972,6 +1052,16 @@ export function LineChart({
               ) : null}
             </View>
           ) : null}
+          {blendNote ? (
+            <View style={{ paddingHorizontal: inset }} className="mt-1">
+              <Text
+                style={{ color: t.axisLabel }}
+                className="font-mono text-[10px] uppercase tracking-widest"
+              >
+                {blendNote}
+              </Text>
+            </View>
+          ) : null}
           <View
             style={{ paddingHorizontal: inset }}
             className={`mb-2 flex-row items-end justify-between ${status ? 'mt-2' : 'mt-3'}`}
@@ -1036,6 +1126,19 @@ export function LineChart({
             unit={unit}
             containerWidth={containerWidth}
             t={t}
+          />
+        ) : null}
+        {hasData && !loading && onDrillDay && scrubTs != null ? (
+          <DrillChip
+            state={state}
+            containerWidth={containerWidth}
+            t={t}
+            onPress={() => {
+              tapLight();
+              const ts = scrubTs;
+              setScrubTs(null);
+              onDrillDay(new Date(ts).toISOString());
+            }}
           />
         ) : null}
       </View>
