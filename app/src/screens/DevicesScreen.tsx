@@ -377,9 +377,12 @@ export function DevicesScreen() {
                   <Text className="text-[15px] font-sans text-ink">
                     Appearance
                   </Text>
-                  <Text className="mt-0.5 text-[12px] font-sans leading-[17px] text-faint">
+                  <Text
+                    className="mt-0.5 text-[12px] font-sans leading-[17px] text-faint"
+                    numberOfLines={1}
+                  >
                     {appearance === 'system'
-                      ? 'Home follows your device setting'
+                      ? 'Follows your device'
                       : appearance === 'light'
                         ? 'Light home screen'
                         : 'Dark home screen'}

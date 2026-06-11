@@ -93,6 +93,20 @@ function DeltaChip({ delta }: { delta: number }) {
   )
 }
 
+/** Small-screen flag, media-query driven so resizes track live. */
+function useCompact(): boolean {
+  const [compact, setCompact] = useState(
+    () => window.matchMedia('(max-width: 640px)').matches,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)')
+    const onChange = (e: MediaQueryListEvent) => setCompact(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return compact
+}
+
 export function TimelineChart({
   userId,
   metric,
@@ -114,6 +128,7 @@ export function TimelineChart({
   // All per-mode chart colors come from one theme-keyed lookup; nothing in
   // the JSX below branches on the mode by hand.
   const chart = CHART_THEMES[useTheme().resolved]
+  const compact = useCompact()
   const [data, setData] = useState<Timeseries | null>(null)
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
@@ -378,8 +393,11 @@ export function TimelineChart({
         {delta != null && <DeltaChip delta={delta} />}
       </div>
 
-      <ResponsiveContainer width="100%" height={320}>
-        <ComposedChart data={points} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+      <ResponsiveContainer width="100%" height={compact ? 300 : 320}>
+        <ComposedChart
+          data={points}
+          margin={{ top: 8, right: compact ? 4 : 16, bottom: 4, left: compact ? -14 : 0 }}
+        >
           <defs>
             {/* Soft fill under the primary line; transparent stops in light
                 keep the editorial plain-line look without branching JSX. */}
@@ -404,16 +422,21 @@ export function TimelineChart({
             minTickGap={32}
           />
           <YAxis
-            tick={{ fontSize: 11, fill: chart.axis }}
+            tick={{ fontSize: compact ? 10 : 11, fill: chart.axis }}
             stroke={chart.grid}
             domain={['auto', 'auto']}
-            label={{
-              value: data.unit,
-              angle: -90,
-              position: 'insideLeft',
-              fontSize: 11,
-              fill: chart.axis,
-            }}
+            width={compact ? 34 : 60}
+            label={
+              compact
+                ? undefined
+                : {
+                    value: data.unit,
+                    angle: -90,
+                    position: 'insideLeft',
+                    fontSize: 11,
+                    fill: chart.axis,
+                  }
+            }
           />
           {meta.clinicalBand && (
             <ReferenceArea

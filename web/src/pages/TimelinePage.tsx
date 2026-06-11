@@ -32,6 +32,25 @@ const RANGES: { label: string; days: number; resolution: Resolution }[] = [
 ]
 
 const DEFAULT_RANGE = '7d'
+const RANGE_KEY = 'wearables-range'
+
+/** Last-used range survives metric switches (URL param) and reloads
+ * (localStorage), so picking 90d once means 90d everywhere until changed. */
+function rememberedRange(): string {
+  try {
+    return localStorage.getItem(RANGE_KEY) ?? DEFAULT_RANGE
+  } catch {
+    return DEFAULT_RANGE
+  }
+}
+
+function rememberRange(label: string): void {
+  try {
+    localStorage.setItem(RANGE_KEY, label)
+  } catch {
+    // Private windows can refuse storage; the URL param still works.
+  }
+}
 
 /** Info button that explains the selected metric in plain language. A
  * centered dialog rather than an anchored popover: popper positioning
@@ -143,7 +162,7 @@ export function TimelinePage() {
   }
   const metric = metricParam as Metric
 
-  const rangeParam = searchParams.get('range') ?? DEFAULT_RANGE
+  const rangeParam = searchParams.get('range') ?? rememberedRange()
   const matched = RANGES.findIndex((r) => r.label === rangeParam)
   const range = matched === -1 ? RANGES.findIndex((r) => r.label === DEFAULT_RANGE) : matched
 
@@ -192,6 +211,7 @@ export function TimelinePage() {
                   small
                   active={RANGES[range].label === r.label}
                   onClick={() => {
+                    rememberRange(r.label)
                     const next = new URLSearchParams(searchParams)
                     next.set('range', r.label)
                     setSearchParams(next)
@@ -227,6 +247,7 @@ export function TimelinePage() {
                 rangeLabel={RANGES[range].label}
                 onConnectDevice={() => navigate('/devices')}
                 onShowRange={(label) => {
+                  rememberRange(label)
                   const next = new URLSearchParams(searchParams)
                   next.set('range', label)
                   setSearchParams(next)

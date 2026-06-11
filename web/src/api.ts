@@ -69,9 +69,9 @@ export async function streamUrl(userId: string): Promise<string> {
   return `${BASE}/v1/users/${userId}/stream${suffix}`
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function requestOnce(path: string, init?: RequestInit): Promise<Response> {
   const token = await authToken()
-  const response = await fetch(`${BASE}${path}`, {
+  return fetch(`${BASE}${path}`, {
     headers: {
       'Content-Type': 'application/json',
       ...(token
@@ -82,6 +82,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
     ...init,
   })
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  let response = await requestOnce(path, init)
+  if (response.status === 401) {
+    // Slow networks can lose the token-acquisition race on the first try;
+    // one quiet retry with a fresh token resolves it without a scary banner.
+    await new Promise((resolve) => setTimeout(resolve, 800))
+    response = await requestOnce(path, init)
+  }
   if (!response.ok) {
     const body = await response.text()
     throw new Error(`${response.status}: ${body.slice(0, 200)}`)
