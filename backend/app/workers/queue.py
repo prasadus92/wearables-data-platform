@@ -34,7 +34,12 @@ async def enqueue_process_event(webhook_event_id: str) -> None:
 
 
 async def enqueue_backfill(
-    user_id: str, resource: str, provider: str, start_date: str, end_date: str
+    user_id: str,
+    resource: str,
+    provider: str,
+    start_date: str,
+    end_date: str,
+    defer_seconds: int = 0,
 ) -> None:
     """Queue a historical pull of one resource/provider over a date range.
 
@@ -53,5 +58,6 @@ async def enqueue_backfill(
         provider,
         start_date,
         end_date,
-        _job_id=f"bf-{user_id}-{resource}-{provider}-{start_date}-{end_date}",
+        _job_id=f"bf-{user_id}-{resource}-{provider}-{start_date}-{end_date}-d{defer_seconds}",
+        _defer_by=defer_seconds or None,
     )
