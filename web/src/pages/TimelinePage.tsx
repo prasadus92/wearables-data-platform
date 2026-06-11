@@ -16,6 +16,7 @@ import { TimelineChart } from '../components/TimelineChart'
 import { providerDisplayName } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -142,7 +143,7 @@ export function TimelinePage() {
   const matched = RANGES.findIndex((r) => r.label === rangeParam)
   const range = matched === -1 ? RANGES.findIndex((r) => r.label === DEFAULT_RANGE) : matched
 
-  const activeDevices = devices.filter((d) => d.status !== 'disconnected')
+  const activeDevices = devices?.filter((d) => d.status !== 'disconnected') ?? null
 
   return (
     <motion.div
@@ -218,15 +219,18 @@ export function TimelinePage() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
             >
+              {activeDevices === null ? (
+                <Skeleton className="h-[400px] w-full rounded-xl" />
+              ) : (
               <TimelineChart
                 userId={user.id}
                 metric={metric}
                 days={RANGES[range].days}
                 resolution={RANGES[range].resolution}
                 liveVersion={liveVersion}
-                hasDevices={activeDevices.length > 0}
-                providerNames={activeDevices.map((d) => providerDisplayName(d.provider))}
-                providerSlugs={activeDevices.map((d) => d.provider)}
+                hasDevices={activeDevices !== null && activeDevices.length > 0}
+                providerNames={(activeDevices ?? []).map((d) => providerDisplayName(d.provider))}
+                providerSlugs={(activeDevices ?? []).map((d) => d.provider)}
                 demoMode={mode === 'sandbox'}
                 onShowMetric={(m) =>
                   navigate({ pathname: `/metrics/${m}`, search: searchParams.toString() })
@@ -242,6 +246,7 @@ export function TimelinePage() {
                 onSync={requestSync}
                 onSyncResolved={resolveSync}
               />
+              )}
             </motion.div>
           </AnimatePresence>
         </CardContent>
