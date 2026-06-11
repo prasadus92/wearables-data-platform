@@ -462,9 +462,9 @@ function AppShell() {
               {mode === 'production' ? 'Live' : 'Demo'}
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex h-9 items-center gap-2">
             <ThemeToggle />
-            <span className="flex items-center gap-1 rounded-full border bg-card py-1 pr-1.5 pl-3 text-xs">
+            <span className="flex h-9 items-center gap-1.5 rounded-full border bg-card pr-1 pl-3 text-xs">
               {mode === 'production' && (
                 <Button
                   variant="ghost"
@@ -493,7 +493,7 @@ function AppShell() {
                       : 'sync now'}
                 </Button>
               )}
-              <span className="text-foreground" title={user.client_user_id}>
+              <span className="leading-none text-foreground" title={user.client_user_id}>
                 {displayName}
               </span>
               {!signedIn && (
@@ -510,8 +510,12 @@ function AppShell() {
                   start fresh
                 </Button>
               )}
+              {signedIn && (
+                <span className="flex size-7 items-center justify-center">
+                  <UserButton />
+                </span>
+              )}
             </span>
-            {signedIn && <UserButton />}
           </div>
         </header>
 
