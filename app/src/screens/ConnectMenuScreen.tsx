@@ -122,8 +122,8 @@ function Disclaimer() {
           Disclaimer
         </Text>
         <Text className="text-[14px] font-sans leading-[20px] text-ink">
-          Your historical data will be collected starting with next month's
-          app update.
+          Connecting imports your recent history automatically and new
+          readings keep flowing in. Disconnect any time.
         </Text>
       </View>
     </View>
