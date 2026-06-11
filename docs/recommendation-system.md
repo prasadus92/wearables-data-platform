@@ -181,7 +181,7 @@ This layer earns its way in with data volume:
   This is where `f(biomarkers, DNA, lifestyle, ...)` starts being learned rather
   than asserted.
 
-### The hiring answer
+### Team sequencing: when data science joins
 
 Start with strong engineering plus rules and LLMs. Layers 1 and 2 need engineers, a
 clinical advisor reviewing the rulebook and knowledge base, and evaluation
