@@ -48,7 +48,8 @@ function loadUser(env: AggregatorEnv): StoredUser | null {
 export interface DashboardContext {
   user: User
   mode: AggregatorEnv
-  devices: Device[]
+  /** null while unknown (first fetch in flight); consumers hold skeletons. */
+  devices: Device[] | null
   liveVersion: number
   refreshDevices: () => Promise<void>
   setError: (error: string | null) => void
@@ -103,7 +104,7 @@ function AppShell() {
       if (mode !== next) {
         setMode(next)
         localStorage.setItem(MODE_KEY, next)
-        setDevices([])
+        setDevices(null)
       }
     }
   }, [sessions.production, signedIn, clerkLoaded, mode])
@@ -117,7 +118,7 @@ function AppShell() {
     ? 'Guest'
     : clerkUser?.firstName || clerkUser?.fullName || 'You'
   const navigate = useNavigate()
-  const [devices, setDevices] = useState<Device[]>([])
+  const [devices, setDevices] = useState<Device[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   // Header sync chip feedback: idle -> busy -> asked (5s) -> idle.
@@ -185,7 +186,7 @@ function AppShell() {
     localStorage.removeItem(userKey('sandbox'))
     localStorage.removeItem(userKey('production'))
     setSessions({ sandbox: null, production: null })
-    setDevices([])
+    setDevices(null)
     setError(null)
   }, [signedIn])
 
@@ -278,7 +279,7 @@ function AppShell() {
       const created = await create()
       localStorage.setItem(userKey(mode), JSON.stringify(created))
       setSessions((s) => ({ ...s, [mode]: created }))
-      setDevices([])
+      setDevices(null)
       return true
     } catch (e) {
       setError(String(e))
@@ -298,6 +299,26 @@ function AppShell() {
   }
   // The shared sample account rides the idempotent service-side create.
   const exploreSample = () => establishSession(() => api.createUser('wearables-sample', mode))
+
+  if (!user && clerkLoaded && signedIn) {
+    // Signed in, bootstrap in flight: a quiet beat instead of flashing the
+    // landing page between the OAuth return and the session resolving.
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.15 }}
+          className="flex items-center gap-3"
+        >
+          <img src="/examplehealth-logo.svg" alt="ExampleHealth" className="h-5 w-auto" />
+          <span className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
+            Signing you in
+          </span>
+        </motion.div>
+      </div>
+    )
+  }
 
   if (!user) {
     return (
@@ -471,7 +492,7 @@ function AppShell() {
                   onClick={() => {
                     localStorage.removeItem(userKey(mode))
                     setSessions((s) => ({ ...s, [mode]: null }))
-                    setDevices([])
+                    setDevices(null)
                   }}
                 >
                   start fresh

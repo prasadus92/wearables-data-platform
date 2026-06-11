@@ -5,6 +5,7 @@ import { BADGE_TONES, providerDisplayName, relativeTime } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 
 // Providers offered in the ExampleHealth connect menu (product spec) plus the
 // sandbox demo shortcut. WHOOP/Garmin require real accounts (no sandbox
@@ -17,7 +18,8 @@ const PROVIDERS = [
 ]
 
 interface Props {
-  devices: Device[]
+  /** null while the list is unknown; renders skeleton rows. */
+  devices: Device[] | null
   environment: AggregatorEnv
   onConnect: (provider: string) => void
   onConnectDemo: (provider: string) => void
@@ -46,6 +48,21 @@ function StatusBadge({ status }: { status: Device['status'] }) {
 }
 
 export function DevicePanel({ devices, environment, onConnect, onConnectDemo, onDisconnect }: Props) {
+  if (devices === null) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-mono text-xs font-medium tracking-widest text-muted-foreground uppercase">
+            Devices
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <Skeleton className="h-10 w-full rounded-lg" />
+          <Skeleton className="h-10 w-full rounded-lg" />
+        </CardContent>
+      </Card>
+    )
+  }
   const active = devices.filter((d) => d.status !== 'disconnected')
   const connectedSlugs = new Set(active.map((d) => d.provider))
   // Connect menu shows only what is not already connected (product spec).
