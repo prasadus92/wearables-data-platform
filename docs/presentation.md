@@ -75,6 +75,12 @@ invariants above survive every tier.
   rate inside sleep summaries. A pipeline tested only against sandbox demo data
   ingests nothing from a real ring. Found against production, fixed with a sleep
   parser, verified with 68 real nights backfilled.
+- The first dense device found two production limits in one afternoon: a 90
+  day Apple Watch backfill (a reading every few minutes) exceeded the
+  Postgres 32767 bind parameter cap in one statement, and the failed job's
+  retained result then blocked every retry sharing its dedupe id. Chunked
+  upserts and range-complete job ids fixed both; idempotency meant the
+  repairs were deploys plus a resync, never data surgery.
 - A wearable's vendor cloud only has what the device synced to the vendor's phone
   app over Bluetooth; web sign-ins cannot trigger a sync. Demo prep has to include
   physically syncing devices, and the charts say honestly when data is stale.

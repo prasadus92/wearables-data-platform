@@ -35,6 +35,7 @@ from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models import (
     Connection,
@@ -337,8 +338,10 @@ async def apply_plan(session: AsyncSession, user_id: uuid.UUID, plan: IngestPlan
         # at 8 per row a dense intraday backfill (an Apple Watch delivers a
         # reading every few minutes) blows through it in one page. Chunked
         # upserts keep every batch comfortably under the cap, and the
-        # natural-key conflict clause keeps retries of any chunk safe.
-        chunk_size = 2000
+        # natural-key conflict clause keeps retries of any chunk safe. The
+        # size is an ops setting, clamped so no override can recreate the
+        # parameter-cap failure.
+        chunk_size = min(max(get_settings().sample_upsert_chunk_rows, 100), 4000)
         for start in range(0, len(rows), chunk_size):
             chunk = rows[start : start + chunk_size]
             stmt = pg_insert(Sample).values(chunk)

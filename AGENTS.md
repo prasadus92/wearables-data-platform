@@ -61,6 +61,19 @@ docs/setup-journal.md.
   effect or the child's first fetch goes out unauthenticated. And never write an
   effect that sets its own dependency state while registering a cancelling
   cleanup; it discards its own result (the chart-probe bug, fixed on web and app).
+- asyncpg caps one statement at 32767 bind parameters; sample upserts chunk
+  via the SAMPLE_UPSERT_CHUNK_ROWS setting (clamped to 4000 rows). The first
+  dense intraday backfill (Apple Watch) found this in production.
+- arq refuses to enqueue a job id while a previous result for it is retained,
+  including FAILED results; backfill ids fold in the full date range so a
+  user sync always runs. Never key a dedupe id coarser than the retry intent.
+- Connection events trigger our own backfills (immediate plus deferred 5
+  minutes); first data does not depend on historical webhooks arriving.
+- The Aggregator Connect bridge app requests a limited HealthKit type set decided
+  on the phone, never via dashboard or API (the scope requirements API
+  excludes HealthKit). Full type coverage means the Aggregator Health SDK in
+  our own app. No wearable measures blood pressure; Withings and Omron cuffs
+  are Aggregator providers and the real BP path.
 - This machine: Intel Mac, no GNU `timeout`, zsh eats `$VAR:l` (use `${VAR}`),
   use /bin/sleep. Python via uv (.venv in backend/). Terraform state is local.
 
