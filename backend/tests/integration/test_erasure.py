@@ -17,7 +17,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.api.v1 import users as users_module
-from app.core.config import get_settings
 from app.models import (
     Connection,
     ConnectionStatus,
@@ -27,19 +26,11 @@ from app.models import (
     WebhookEvent,
 )
 from app.services.aggregator import AggregatorError
+from tests.conftest import SERVICE_TOKEN
 
 pytestmark = pytest.mark.integration
 
-SERVICE_TOKEN = "test-service-token-1234"
 SERVICE = {"X-API-Key": SERVICE_TOKEN}
-
-
-@pytest.fixture
-def with_auth(monkeypatch):
-    monkeypatch.setenv("API_AUTH_TOKEN", SERVICE_TOKEN)
-    get_settings.cache_clear()
-    yield
-    get_settings.cache_clear()
 
 
 class StubAggregator:

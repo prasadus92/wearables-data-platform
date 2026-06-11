@@ -14,20 +14,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.api.v1 import users as users_module
-from app.core.config import get_settings
 from app.models import DeviceEvent
+from tests.conftest import SERVICE_TOKEN, bearer
 
 pytestmark = pytest.mark.integration
-
-SERVICE_TOKEN = "test-service-token-1234"
-
-
-@pytest.fixture
-def with_auth(monkeypatch):
-    monkeypatch.setenv("API_AUTH_TOKEN", SERVICE_TOKEN)
-    get_settings.cache_clear()
-    yield
-    get_settings.cache_clear()
 
 
 class StubAggregator:
@@ -41,10 +31,6 @@ class StubAggregator:
 @pytest.fixture
 def stub_aggregator(monkeypatch):
     monkeypatch.setattr(users_module, "aggregator_client_for", lambda env: StubAggregator())
-
-
-def bearer(token: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {token}"}
 
 
 async def _mint_guest(client) -> dict:

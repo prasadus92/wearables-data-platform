@@ -84,13 +84,9 @@ async def require_auth(request: Request, db: AsyncSession = Depends(get_db)) -> 
     raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing credentials")
 
 
-# Backwards-compatible name for the pre-Clerk dependency.
-require_api_key = require_auth
-
-
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
-_aggregator_clients: dict[str, AggregatorClient] = {}
+_aggregator_clients: dict[AggregatorEnvironment, AggregatorClient] = {}
 
 
 def aggregator_client_for(environment: str | AggregatorEnvironment) -> AggregatorClient:

@@ -10,6 +10,7 @@ makes repeat calls harmless.
 
 import hashlib
 import math
+import uuid
 from datetime import UTC, datetime, time, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -62,7 +63,7 @@ def synth_samples(user_key: str, now: datetime | None = None) -> list[Normalized
     return samples
 
 
-async def seed_demo_extras(db: AsyncSession, user_id, client_user_id: str) -> int:
+async def seed_demo_extras(db: AsyncSession, user_id: uuid.UUID, client_user_id: str) -> int:
     """Upsert the synthetic extras for one demo user. Returns samples written."""
     plan = IngestPlan(
         event_type="local.demo.seeded",

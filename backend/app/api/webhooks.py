@@ -11,7 +11,9 @@ Design constraints (from Aggregator's delivery semantics):
   parsing/normalization happens in the worker, never in the request path.
 """
 
+import hashlib
 import json
+from collections.abc import Mapping
 
 from fastapi import APIRouter, HTTPException, Request, status
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -27,7 +29,7 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 
-def verify_signature(raw_body: bytes, headers) -> None:
+def verify_signature(raw_body: bytes, headers: Mapping[str, str]) -> None:
     """Svix HMAC-SHA256 verification. Raises 401 on bad/missing signature.
 
     Aggregator signs per webhook endpoint, and each environment (sandbox,
@@ -50,6 +52,9 @@ def verify_signature(raw_body: bytes, headers) -> None:
 
 @router.post("/aggregator", status_code=status.HTTP_202_ACCEPTED)
 async def aggregator_webhook(request: Request, db: DbSession) -> dict:
+    """Receive one Aggregator event: verify the Svix signature, persist the
+    raw payload (deduped on the Svix message id), enqueue processing, and
+    ACK with 202 well inside Aggregator's 15-second delivery timeout."""
     raw_body = await request.body()
     verify_signature(raw_body, request.headers)
 
@@ -59,9 +64,11 @@ async def aggregator_webhook(request: Request, db: DbSession) -> dict:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Invalid JSON") from exc
 
     event_type = payload.get("event_type", "unknown")
-    # Svix message id is stable across retries; fall back to a payload hash
-    # so unsigned local testing still dedupes.
-    event_id = request.headers.get("svix-id") or f"sha:{hash(raw_body)}"
+    # Svix message id is stable across retries; fall back to a content hash
+    # so unsigned local testing still dedupes. SHA-256 rather than Python's
+    # hash(), which is randomized per process and would defeat dedupe across
+    # restarts and workers.
+    event_id = request.headers.get("svix-id") or f"sha:{hashlib.sha256(raw_body).hexdigest()}"
 
     stmt = (
         pg_insert(WebhookEvent)

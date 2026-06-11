@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import type { Device, AggregatorEnv } from '@examplehealth/health-core'
 import { springTransition, TapButton } from './motion'
-import { providerDisplayName } from '@/lib/utils'
+import { BADGE_TONES, providerDisplayName, relativeTime } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -28,28 +28,15 @@ function lastSynced(device: Device): string {
   // last_data_at is the newest reading's own timestamp, so the honest label
   // is about the data's age, never about when a sync ran.
   if (!device.last_data_at) return 'no data yet'
-  const minutes = Math.round((Date.now() - new Date(device.last_data_at).getTime()) / 60000)
-  if (minutes < 1) return 'latest reading just now'
-  if (minutes < 60) return `latest reading ${minutes}m ago`
-  const hours = Math.round(minutes / 60)
-  if (hours < 48) return `latest reading ${hours}h ago`
-  return `latest reading ${Math.round(hours / 24)}d ago`
+  return `latest reading ${relativeTime(device.last_data_at)}`
 }
 
 function StatusBadge({ status }: { status: Device['status'] }) {
   if (status === 'connected') {
-    return (
-      <Badge className="border-emerald-200 bg-emerald-50 tracking-wide text-emerald-700 uppercase">
-        connected
-      </Badge>
-    )
+    return <Badge className={BADGE_TONES.positive}>connected</Badge>
   }
   if (status === 'expired') {
-    return (
-      <Badge className="border-amber-200 bg-amber-50 tracking-wide text-amber-700 uppercase">
-        connection expired
-      </Badge>
-    )
+    return <Badge className={BADGE_TONES.warning}>connection expired</Badge>
   }
   return (
     <Badge variant="outline" className="tracking-wide uppercase">

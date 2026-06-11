@@ -21,6 +21,7 @@ import {
   type Timeseries,
 } from '@examplehealth/health-core'
 import { api } from '../api'
+import { EmptyState } from './EmptyState'
 import { TapButton } from './motion'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatNameList } from '@/lib/utils'
@@ -187,7 +188,7 @@ export function TimelineChart({
   if (loading && !data) return <Skeleton className="h-[400px] w-full rounded-xl" />
   if (failed && !data) {
     return (
-      <div className="flex h-[400px] flex-col items-center justify-center gap-4 px-10 text-center">
+      <EmptyState className="h-[400px]">
         <div className="flex flex-col gap-1">
           <span className="text-sm font-medium">Could not load this chart</span>
           <span className="text-sm text-muted-foreground">
@@ -211,7 +212,7 @@ export function TimelineChart({
         >
           Retry
         </TapButton>
-      </div>
+      </EmptyState>
     )
   }
   if (!data || data.points.length === 0) {
@@ -226,7 +227,7 @@ export function TimelineChart({
       const latestAge = Date.now() - new Date(probe.latestTs).getTime()
       const target = latestAge > 30 * 24 * 3600 * 1000 ? '90d' : '30d'
       return (
-        <div className="flex h-[400px] flex-col items-center justify-center gap-4 px-10 text-center">
+        <EmptyState className="h-[400px]">
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium">
               No readings in the last {rangeLabel}
@@ -238,7 +239,7 @@ export function TimelineChart({
           <TapButton size="sm" onClick={() => onShowRange(target)}>
             Show last {target}
           </TapButton>
-        </div>
+        </EmptyState>
       )
     }
 
@@ -246,7 +247,7 @@ export function TimelineChart({
       // Nothing connected can ever produce this metric; offering a sync here
       // would be a dead end. Say what measures it instead.
       return (
-        <div className="flex h-[400px] flex-col items-center justify-center gap-4 px-10 text-center">
+        <EmptyState className="h-[400px]">
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium">
               {demoMode
@@ -270,12 +271,12 @@ export function TimelineChart({
               Connect a device
             </TapButton>
           )}
-        </div>
+        </EmptyState>
       )
     }
 
     return (
-      <div className="flex h-[400px] flex-col items-center justify-center gap-4 px-10 text-center">
+      <EmptyState className="h-[400px]">
         {hasDevices ? (
           <>
             <div className="flex flex-col gap-1">
@@ -314,7 +315,7 @@ export function TimelineChart({
             </TapButton>
           </>
         )}
-      </div>
+      </EmptyState>
     )
   }
 

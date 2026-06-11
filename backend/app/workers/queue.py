@@ -25,6 +25,7 @@ async def get_queue() -> ArqRedis:
 
 
 async def enqueue_process_event(webhook_event_id: str) -> None:
+    """Queue normalization of one persisted raw webhook event."""
     queue = await get_queue()
     # Job id = event id -> a double-enqueue collapses into one job.
     await queue.enqueue_job(
@@ -35,6 +36,12 @@ async def enqueue_process_event(webhook_event_id: str) -> None:
 async def enqueue_backfill(
     user_id: str, resource: str, provider: str, start_date: str, end_date: str
 ) -> None:
+    """Queue a historical pull of one resource/provider over a date range.
+
+    The job id folds in user, resource, provider and start date, so a burst
+    of identical requests (webhook retries, repeated syncs) collapses into
+    one job; the upserts make any survivors idempotent anyway.
+    """
     queue = await get_queue()
     await queue.enqueue_job(
         "process_backfill",

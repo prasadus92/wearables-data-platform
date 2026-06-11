@@ -27,6 +27,7 @@ Aggregator event reference (see docs/aggregator-notes.md):
   lifecycle.
 """
 
+import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
@@ -217,15 +218,6 @@ def _sleep_session_samples(sleep: dict) -> list[NormalizedSample]:
     ]
 
 
-def parse_sleep_sessions(data: object) -> list[NormalizedSample]:
-    """Normalize one or many sleep summary objects into samples."""
-    return [
-        sample
-        for sleep in _sleep_payload_sessions(data)
-        for sample in _sleep_session_samples(sleep)
-    ]
-
-
 def parse_event(payload: dict) -> IngestPlan:
     """Translate one raw Aggregator webhook payload into an :class:`IngestPlan`.
 
@@ -314,7 +306,7 @@ def _extract_provider(data: dict) -> str:
 # --- Persistence ---
 
 
-async def apply_plan(session: AsyncSession, user_id, plan: IngestPlan) -> int:
+async def apply_plan(session: AsyncSession, user_id: uuid.UUID, plan: IngestPlan) -> int:
     """Execute a plan for our internal ``user_id``. Returns samples written.
 
     All sample writes are idempotent upserts on the natural key

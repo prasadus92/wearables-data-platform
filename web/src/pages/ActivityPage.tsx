@@ -4,43 +4,24 @@ import { useNavigate, useOutletContext } from 'react-router-dom'
 import type { DashboardContext } from '../App'
 import type { ActivityEvent } from '@examplehealth/health-core'
 import { api } from '../api'
+import { EmptyState } from '../components/EmptyState'
 import { springTransition, TapButton } from '../components/motion'
+import { BADGE_TONES, relativeTime } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-
-function relativeTime(iso: string): string {
-  const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.round(minutes / 60)
-  if (hours < 48) return `${hours}h ago`
-  return `${Math.round(hours / 24)}d ago`
-}
 
 function StatusBadge({ status, eventType }: { status: ActivityEvent['status']; eventType: string }) {
   // Lifecycle ledger entries (connects, disconnects, identity changes) carry
   // their own badge: they are transitions, never pipeline states.
   if (eventType.startsWith('lifecycle.')) {
-    return (
-      <Badge className="border-violet-200 bg-violet-50 tracking-wide text-violet-700 uppercase">
-        lifecycle
-      </Badge>
-    )
+    return <Badge className={BADGE_TONES.lifecycle}>lifecycle</Badge>
   }
   if (status === 'processed') {
-    return (
-      <Badge className="border-emerald-200 bg-emerald-50 tracking-wide text-emerald-700 uppercase">
-        processed
-      </Badge>
-    )
+    return <Badge className={BADGE_TONES.positive}>processed</Badge>
   }
   if (status === 'failed') {
-    return (
-      <Badge className="border-amber-200 bg-amber-50 tracking-wide text-amber-700 uppercase">
-        failed
-      </Badge>
-    )
+    return <Badge className={BADGE_TONES.warning}>failed</Badge>
   }
   if (status === 'received') {
     return (
@@ -117,7 +98,7 @@ export function ActivityPage() {
           )}
 
           {events === null && failed && (
-            <div className="flex h-[300px] flex-col items-center justify-center gap-4 px-10 text-center">
+            <EmptyState className="h-[300px]">
               <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium">Could not load your activity</span>
                 <span className="text-sm text-muted-foreground">
@@ -133,11 +114,11 @@ export function ActivityPage() {
               >
                 Retry
               </TapButton>
-            </div>
+            </EmptyState>
           )}
 
           {events !== null && events.length === 0 && (
-            <div className="flex h-[300px] flex-col items-center justify-center gap-4 px-10 text-center">
+            <EmptyState className="h-[300px]">
               <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium">
                   {hadRawRows ? 'Nothing to show here yet' : 'No activity yet'}
@@ -157,7 +138,7 @@ export function ActivityPage() {
                   Connect a device
                 </TapButton>
               )}
-            </div>
+            </EmptyState>
           )}
 
           {events !== null && events.length > 0 && (

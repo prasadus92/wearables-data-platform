@@ -12,8 +12,9 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
+from app.core.config import AggregatorEnvironment, get_settings
 from app.core.logging import configure_logging, get_logger
 from app.db.session import db_session
 from app.models import Metric, User, WebhookEvent, WebhookEventStatus
@@ -31,7 +32,7 @@ from app.workers.queue import enqueue_backfill, redis_settings
 logger = get_logger(__name__)
 
 
-async def _resolve_user(session, plan: IngestPlan) -> User | None:
+async def _resolve_user(session: AsyncSession, plan: IngestPlan) -> User | None:
     if plan.aggregator_user_id:
         user = (
             await session.execute(
@@ -214,8 +215,6 @@ async def process_backfill(
 
 async def startup(ctx: dict[str, Any]) -> None:
     configure_logging()
-    from app.core.config import AggregatorEnvironment
-
     ctx["aggregator_clients"] = {
         str(env): AggregatorClient(environment=env) for env in AggregatorEnvironment
     }
@@ -236,7 +235,3 @@ class WorkerSettings:
     job_timeout = 120
     max_tries = 5
     health_check_interval = 30
-
-
-# Sanity guard: every resource we normalize must have a metric mapping.
-assert all(r in RESOURCE_TO_METRIC for r in RESOURCE_TO_METRIC)
