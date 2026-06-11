@@ -158,13 +158,20 @@ export const api = {
   getTimeseries(
     userId: string,
     metric: Metric,
-    opts: { start: Date; end: Date; resolution: Resolution },
+    opts: {
+      start: Date;
+      end: Date;
+      resolution: Resolution;
+      /** Restrict the series to one device; omitted means all devices. */
+      provider?: string;
+    },
   ) {
     const params = new URLSearchParams({
       start: opts.start.toISOString(),
       end: opts.end.toISOString(),
       resolution: opts.resolution,
     });
+    if (opts.provider) params.set('provider', opts.provider);
     return request<Timeseries>(
       `/users/${userId}/timeseries/${metric}?${params.toString()}`,
     );
