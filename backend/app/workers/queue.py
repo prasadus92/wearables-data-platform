@@ -38,9 +38,12 @@ async def enqueue_backfill(
 ) -> None:
     """Queue a historical pull of one resource/provider over a date range.
 
-    The job id folds in user, resource, provider and start date, so a burst
-    of identical requests (webhook retries, repeated syncs) collapses into
-    one job; the upserts make any survivors idempotent anyway.
+    The job id folds in user, resource, provider and the full date range.
+    Webhook-driven backfills carry the vendor's fixed range, so delivery
+    retries still collapse into one job; user-initiated syncs carry a fresh
+    end timestamp and therefore always run, even when an earlier identical
+    window failed (the queue refuses re-enqueues while a previous result for
+    the same id is retained). The upserts keep any overlap idempotent.
     """
     queue = await get_queue()
     await queue.enqueue_job(
@@ -50,5 +53,5 @@ async def enqueue_backfill(
         provider,
         start_date,
         end_date,
-        _job_id=f"bf-{user_id}-{resource}-{provider}-{start_date}",
+        _job_id=f"bf-{user_id}-{resource}-{provider}-{start_date}-{end_date}",
     )
