@@ -70,6 +70,21 @@ into up to three samples stamped at wake time. A pipeline validated only against
 sandbox demo data would ship zero real readings; this seam is where that class of bug
 dies.
 
+**Statement limits are part of burst handling.** The Postgres wire protocol
+caps one statement at 32767 bind parameters; the first dense intraday device
+(an Apple Watch reporting every few minutes) exceeded it in a single backfill
+page. Sample upserts therefore write in configurable chunks
+(`SAMPLE_UPSERT_CHUNK_ROWS`, clamped server-side), at the one choke point the
+webhook and backfill paths share.
+
+**Connections fetch their own history.** Processing any connection event
+enqueues the platform's own backfills (every metric over 31 days, sleep
+summaries over 180), immediately and once more deferred five minutes, so the
+first data never depends on the provider's historical webhooks being
+delivered. Backfill job ids fold in the full date range: vendor-fixed ranges
+let webhook retries collapse, while user-initiated syncs always run even
+after an identical window failed.
+
 **Raw events are the source of truth.** The `webhook_events` table is an audit trail,
 a dedupe ledger, and a replay buffer in one. Events that reference unknown users are
 parked as failed instead of dropped.
