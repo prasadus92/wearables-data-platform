@@ -467,7 +467,7 @@ export function TimelineChart({
               stroke="none"
               label={{
                 value: 'your typical range',
-                position: 'insideBottomRight',
+                position: meta.clinicalBand ? 'insideBottomLeft' : 'insideBottomRight',
                 fontSize: 9,
                 fill: chart.bandLabel,
               }}
