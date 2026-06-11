@@ -61,7 +61,9 @@ async def test_guest_token_issued_once_and_grants_own_access(
 
     series = await client.get(f"/v1/users/{user_id}/timeseries/heartrate", headers=bearer(token))
     assert series.status_code == 200
-    assert series.json()["points"] == []
+    # All five biomarkers are seeded at guest creation, so the dashboard is
+    # full at first paint; heart rate carries hourly texture for 24h views.
+    assert len(series.json()["points"]) > 0
 
     # Query-parameter transport (the SSE stream's form) works too.
     via_query = await client.get(f"/v1/users/{user_id}/devices?api_key={token}")

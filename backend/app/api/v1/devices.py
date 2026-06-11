@@ -89,6 +89,25 @@ async def connect_demo(body: LinkRequest, user: CurrentUser, db: DbSession) -> d
     return {"connected": True, "provider": body.provider, "aggregator_response": result}
 
 
+@router.post("/apple-pairing-code", response_model=dict)
+async def create_apple_pairing_code(user: CurrentUser) -> dict:
+    """Mint a single-use pairing code for connecting an Apple Watch.
+
+    HealthKit data leaves an iPhone only through an app with HealthKit
+    entitlements, so Apple Watch connects through the Aggregator Connect bridge
+    app instead of hosted OAuth: install it, enter this code, grant access.
+    Readings then flow through the normal webhook pipeline as the
+    apple_health_kit provider. Codes are single-use and short-lived.
+    """
+    aggregator_user_id = _require_aggregator_id(user)
+    aggregator = aggregator_client_for(user.aggregator_environment)
+    try:
+        result = await aggregator.create_link_code(aggregator_user_id)
+    except AggregatorError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=exc.detail) from exc
+    return {"code": result.get("code"), "expires_at": result.get("expires_at")}
+
+
 @router.get("", response_model=list[ConnectionOut])
 async def list_devices(user: CurrentUser, db: DbSession) -> list[Connection]:
     """All of the user's wearable connections, oldest first. Disconnected

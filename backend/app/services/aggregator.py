@@ -97,6 +97,17 @@ class AggregatorClient:
             payload["redirect_url"] = redirect_url
         return await self._request("POST", "/v2/link/token", json=payload)
 
+    async def create_link_code(self, aggregator_user_id: str) -> dict[str, Any]:
+        """Mint a single-use pairing code for the Aggregator Connect bridge app.
+
+        Apple Watch data reaches the platform through HealthKit on the phone,
+        so the connection happens by entering this code in the bridge app and
+        granting HealthKit access. Codes expire quickly; mint right before use.
+        """
+        return await self._request(
+            "POST", "/v2/link/code/create", params={"user_id": aggregator_user_id}
+        )
+
     async def deregister_provider(self, aggregator_user_id: str, provider: str) -> dict[str, Any]:
         """Disconnect flow: revoke the user's provider connection."""
         return await self._request("DELETE", f"/v2/user/{aggregator_user_id}/{provider}")
