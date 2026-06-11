@@ -126,6 +126,11 @@ export const api = {
       body: JSON.stringify({ provider }),
     }),
 
+  applePairingCode: (userId: string) =>
+    request<{ code: string; expires_at: string }>(
+      `/v1/users/${userId}/devices/apple-pairing-code`,
+      { method: 'POST' },
+    ),
   disconnect: (userId: string, provider: string) =>
     request<void>(`/v1/users/${userId}/devices/${provider}`, { method: 'DELETE' }),
 

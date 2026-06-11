@@ -15,12 +15,21 @@ const PROVIDERS = [
   { slug: 'oura', name: 'Oura', unlocks: 'HRV, blood oxygen, breathing rate' },
   { slug: 'garmin', name: 'Garmin', unlocks: 'Heart rate, HRV, breathing rate' },
   { slug: 'fitbit', name: 'Fitbit', unlocks: 'Heart rate, sleep, blood oxygen' },
+  {
+    slug: 'apple_health_kit',
+    name: 'Apple Watch',
+    unlocks: 'Heart rate, HRV, blood pressure',
+  },
 ]
+
+export const APPLE_SLUG = 'apple_health_kit'
 
 interface Props {
   /** null while the list is unknown; renders skeleton rows. */
   devices: Device[] | null
   onConnect: (provider: string) => void
+  /** Apple Watch pairs through a code instead of hosted OAuth. */
+  onConnectApple: () => void
   onDisconnect: (provider: string) => void
 }
 
@@ -45,7 +54,7 @@ function StatusBadge({ status }: { status: Device['status'] }) {
   )
 }
 
-export function DevicePanel({ devices, onConnect, onDisconnect }: Props) {
+export function DevicePanel({ devices, onConnect, onConnectApple, onDisconnect }: Props) {
   if (devices === null) {
     return (
       <Card>
@@ -133,7 +142,12 @@ export function DevicePanel({ devices, onConnect, onDisconnect }: Props) {
                 <span className="text-center text-xs leading-snug text-muted-foreground">
                   {provider.unlocks}
                 </span>
-                  <TapButton size="sm" onClick={() => onConnect(provider.slug)}>
+                  <TapButton
+                    size="sm"
+                    onClick={() =>
+                      provider.slug === APPLE_SLUG ? onConnectApple() : onConnect(provider.slug)
+                    }
+                  >
                     Connect
                   </TapButton>
                 </motion.div>
