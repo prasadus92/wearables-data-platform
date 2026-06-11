@@ -9,6 +9,7 @@ import { useClerkBridge } from './components/AuthBridge'
 import { springTransition, TapButton } from './components/motion'
 import { PulseBand } from './components/PulseBand'
 import { SectionNav } from './components/SectionNav'
+import { ThemeToggle } from './components/ThemeToggle'
 import { ActivityPage } from './pages/ActivityPage'
 import { DevicesPage } from './pages/DevicesPage'
 import { TimelinePage } from './pages/TimelinePage'
@@ -314,7 +315,7 @@ function AppShell() {
           transition={{ delay: 0.15 }}
           className="flex items-center gap-3"
         >
-          <img src="/youth-logo.svg" alt="YOU(th)" className="h-5 w-auto" />
+          <img src="/youth-logo.svg" alt="YOU(th)" className="h-5 w-auto dark:invert" />
           <span className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
             {signedIn ? 'Signing you in' : 'Loading'}
           </span>
@@ -326,11 +327,18 @@ function AppShell() {
   if (!user) {
     return (
       <MotionConfig reducedMotion="user">
+        {/* In dark mode the hero sits on the warm ember backdrop from the
+            mobile welcome screen; light keeps the editorial paper. */}
+        <div
+          aria-hidden="true"
+          className="hero-backdrop pointer-events-none fixed inset-0 hidden dark:block"
+        />
+        <ThemeToggle className="fixed top-4 right-4 z-10" />
         <motion.div
           variants={staggerParent}
           initial="hidden"
           animate="show"
-          className="mx-auto flex min-h-dvh max-w-4xl flex-col items-center justify-center gap-6 px-6 py-16 text-center"
+          className="relative mx-auto flex min-h-dvh max-w-4xl flex-col items-center justify-center gap-6 px-6 py-16 text-center"
         >
           <motion.div
             variants={riseIn}
@@ -339,7 +347,7 @@ function AppShell() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
           >
-            <img src="/youth-logo.svg" alt="YOU(th)" className="h-6 w-auto" />
+            <img src="/youth-logo.svg" alt="YOU(th)" className="h-6 w-auto dark:invert" />
             <span className="font-mono text-xs font-medium tracking-[0.25em] text-muted-foreground uppercase">
               Wearables
             </span>
@@ -437,7 +445,7 @@ function AppShell() {
                 whileTap={{ scale: 0.97 }}
                 transition={springTransition}
               >
-                <img src="/youth-logo.svg" alt="YOU(th)" className="h-4 w-auto" />
+                <img src="/youth-logo.svg" alt="YOU(th)" className="h-4 w-auto dark:invert" />
                 <span className="text-xl leading-none font-semibold tracking-tight">
                   Wearables
                 </span>
@@ -455,6 +463,7 @@ function AppShell() {
             </span>
           </div>
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <span className="flex items-center gap-1 rounded-full border bg-card py-1 pr-1.5 pl-3 text-xs">
               {mode === 'production' && (
                 <Button

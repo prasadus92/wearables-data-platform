@@ -1,9 +1,10 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
 import {
+  Area,
   CartesianGrid,
+  ComposedChart,
   Line,
-  LineChart,
   ReferenceArea,
   ResponsiveContainer,
   Tooltip,
@@ -23,7 +24,9 @@ import {
 import { api } from '../api'
 import { EmptyState } from './EmptyState'
 import { TapButton } from './motion'
+import { useTheme } from './ThemeProvider'
 import { Skeleton } from '@/components/ui/skeleton'
+import { CHART_THEMES } from '@/lib/chartTheme'
 import { formatNameList } from '@/lib/utils'
 
 interface Props {
@@ -108,6 +111,9 @@ export function TimelineChart({
   onSync,
   onSyncResolved,
 }: Props) {
+  // All per-mode chart colors come from one theme-keyed lookup; nothing in
+  // the JSX below branches on the mode by hand.
+  const chart = CHART_THEMES[useTheme().resolved]
   const [data, setData] = useState<Timeseries | null>(null)
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
@@ -373,27 +379,55 @@ export function TimelineChart({
       </div>
 
       <ResponsiveContainer width="100%" height={320}>
-        <LineChart data={points} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-          <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={32} />
+        <ComposedChart data={points} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+          <defs>
+            {/* Soft fill under the primary line; transparent stops in light
+                keep the editorial plain-line look without branching JSX. */}
+            <linearGradient id="timeline-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop
+                offset="0%"
+                stopColor={chart.fillFrom}
+                stopOpacity={chart.fillFromOpacity}
+              />
+              <stop
+                offset="100%"
+                stopColor={chart.fillFrom}
+                stopOpacity={chart.fillToOpacity}
+              />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+          <XAxis
+            dataKey="label"
+            tick={{ fontSize: 11, fill: chart.axis }}
+            stroke={chart.grid}
+            minTickGap={32}
+          />
           <YAxis
-            tick={{ fontSize: 11 }}
+            tick={{ fontSize: 11, fill: chart.axis }}
+            stroke={chart.grid}
             domain={['auto', 'auto']}
-            label={{ value: data.unit, angle: -90, position: 'insideLeft', fontSize: 11 }}
+            label={{
+              value: data.unit,
+              angle: -90,
+              position: 'insideLeft',
+              fontSize: 11,
+              fill: chart.axis,
+            }}
           />
           {meta.clinicalBand && (
             <ReferenceArea
               y1={meta.clinicalBand.min}
               y2={meta.clinicalBand.max}
               ifOverflow="extendDomain"
-              fill="var(--chart-2)"
-              fillOpacity={0.05}
+              fill={chart.clinicalBand}
+              fillOpacity={chart.clinicalBandOpacity}
               stroke="none"
               label={{
                 value: meta.clinicalBand.label,
                 position: 'insideTopRight',
                 fontSize: 9,
-                fill: 'var(--muted-foreground)',
+                fill: chart.bandLabel,
               }}
             />
           )}
@@ -402,43 +436,39 @@ export function TimelineChart({
               y1={base.low}
               y2={base.high}
               ifOverflow="extendDomain"
-              fill="var(--muted-foreground)"
-              fillOpacity={0.06}
+              fill={chart.typicalBand}
+              fillOpacity={chart.typicalBandOpacity}
               stroke="none"
               label={{
                 value: 'your typical range',
                 position: 'insideBottomRight',
                 fontSize: 9,
-                fill: 'var(--muted-foreground)',
+                fill: chart.bandLabel,
               }}
             />
           )}
-          <Tooltip
-            contentStyle={{
-              borderRadius: 'var(--radius)',
-              border: '1px solid var(--border)',
-              fontSize: 12,
-            }}
-          />
-          <Line
+          <Tooltip contentStyle={chart.tooltip} />
+          <Area
             type="monotone"
             dataKey="value"
             name={isBloodPressure ? 'systolic' : meta.friendlyName}
-            stroke="var(--chart-1)"
+            stroke={chart.line}
             strokeWidth={2}
-            dot={points.length < 60}
+            fill="url(#timeline-fill)"
+            dot={points.length < 60 ? { fill: chart.line, strokeWidth: 0, r: 2.5 } : false}
+            activeDot={{ r: 4 }}
           />
           {isBloodPressure && (
             <Line
               type="monotone"
               dataKey="value_secondary"
               name="diastolic"
-              stroke="var(--chart-2)"
+              stroke={chart.lineSecondary}
               strokeWidth={2}
               dot={points.length < 60}
             />
           )}
-        </LineChart>
+        </ComposedChart>
       </ResponsiveContainer>
     </div>
   )

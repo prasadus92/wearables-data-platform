@@ -17,15 +17,17 @@
   font-display: swap;
 }
 
-/* Dark mode is class-gated so system dark scheme never flips the app. */
+/* Dark mode is class-gated (ThemeProvider owns the .dark class); the
+ * "system" theme resolves to a class too, so CSS never second-guesses JS. */
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Design tokens from the product Figma:
+ * Light design tokens from the product Figma (the editorial theme):
  * background #F7F6F3, ink #1C1C1E, accent #E8554D, borders #E8E7E3,
  * secondary text #8F8F8F, white cards, 16px card radius.
  */
 :root {
+  color-scheme: light;
   --background: #f7f6f3;
   --foreground: #1c1c1e;
   --card: #ffffff;
@@ -49,6 +51,43 @@
   --chart-1: #e8554d;
   --chart-2: #4d7ce8;
   --radius: 0.75rem;
+  /* Mobile status accents, shared across themes (app/src/theme/tokens.ts). */
+  --good: #0ed187;
+  --attention: #ff8811;
+  --teal-top: #176058;
+  --teal-bottom: #0b3534;
+}
+
+/*
+ * Dark tokens from the mobile app (app/src/theme/tokens.ts): near-ink night
+ * background with the warm ember undertone, slightly lifted warm card
+ * surfaces, #0ED187 as the positive/chart accent, #EC4444 for errors,
+ * muted warm greys for captions.
+ */
+.dark {
+  color-scheme: dark;
+  --background: #121111;
+  --foreground: #f4f2ef;
+  --card: #1c1917;
+  --card-foreground: #f4f2ef;
+  --popover: #211d1b;
+  --popover-foreground: #f4f2ef;
+  --primary: #f4f2ef;
+  --primary-foreground: #1c1c1e;
+  --secondary: #282321;
+  --secondary-foreground: #f4f2ef;
+  --muted: #262220;
+  --muted-foreground: #9c9a94;
+  --accent: #2c2725;
+  --accent-foreground: #f4f2ef;
+  --destructive: #ec4444;
+  --destructive-foreground: #ffffff;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.16);
+  --ring: #9c9a94;
+  --brand: #0ed187;
+  --chart-1: #0ed187;
+  --chart-2: #f54ef0;
 }
 
 @theme inline {
@@ -74,6 +113,8 @@
   --color-brand: var(--brand);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
+  --color-good: var(--good);
+  --color-attention: var(--attention);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -90,4 +131,64 @@
   body {
     @apply m-0 bg-background font-sans text-foreground antialiased;
   }
+}
+
+/* One soft cross-fade while the theme flips; ThemeProvider adds the class
+ * for the duration of the switch and removes it after, so nothing else
+ * inherits a permanent transition. */
+html.theme-switching,
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    color 0.25s ease,
+    fill 0.25s ease,
+    stroke 0.25s ease !important;
+}
+
+/*
+ * Chart-card parity with the mobile biomarkers card: in dark mode the
+ * timeline card becomes the deep teal gradient surface with white text.
+ * Tokens are re-scoped so every child (captions, chips, borders, numbers)
+ * picks up the on-teal palette without per-element conditionals.
+ */
+.dark .chart-card {
+  background: linear-gradient(to bottom, var(--teal-top), var(--teal-bottom));
+  border-color: rgba(255, 255, 255, 0.12);
+  --card: transparent;
+  --card-foreground: #ffffff;
+  --foreground: #ffffff;
+  --muted-foreground: rgba(255, 255, 255, 0.62);
+  --border: rgba(255, 255, 255, 0.14);
+  --accent: rgba(255, 255, 255, 0.12);
+  --accent-foreground: #ffffff;
+  --primary: #ffffff;
+  --primary-foreground: #0b3534;
+  --ring: rgba(255, 255, 255, 0.6);
+}
+
+/*
+ * Warm ember backdrop for the dark onboarding hero, after the mobile
+ * welcome/home: ember gradient with a soft warm glow near the top.
+ */
+.hero-backdrop {
+  background:
+    radial-gradient(
+      120% 60% at 50% 0%,
+      rgba(138, 74, 34, 0.5) 0%,
+      rgba(138, 74, 34, 0.18) 45%,
+      rgba(138, 74, 34, 0) 100%
+    ),
+    linear-gradient(to bottom, #2b1410 0%, #1a100d 40%, #121111 100%);
+}
+
+/* Horizontal chip rows scroll with the scrollbar hidden, like the app. */
+.chip-row {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.chip-row::-webkit-scrollbar {
+  display: none;
 }
