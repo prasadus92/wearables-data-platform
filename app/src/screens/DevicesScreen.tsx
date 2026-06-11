@@ -32,7 +32,7 @@ import { useDisplayName } from '../lib/displayName';
 import { timeAgo } from '../lib/format';
 import { tapLight } from '../lib/haptics';
 import { enter } from '../lib/motion';
-import { colors, fonts } from '../theme/tokens';
+import { colors, fonts, type AppearancePref } from '../theme/tokens';
 
 /** Springy reflow when device cards connect, disconnect or reorder. */
 const reflow = LinearTransition.springify(300).reduceMotion(
@@ -90,6 +90,54 @@ function ModeSwitch({
               onChange(segment.value);
             }}
             className={`rounded-full px-4 py-1.5 ${active ? 'bg-ink' : 'active:opacity-60'} ${locked ? 'opacity-40' : ''}`}
+          >
+            <Text
+              className={`text-[12px] font-sans-medium ${active ? 'text-card' : 'text-sub'}`}
+            >
+              {segment.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/**
+ * Segmented System/Light/Dark control in the same pill language as the
+ * Demo/Live switch. The choice drives the home look; the profile and
+ * connect screens stay light by design.
+ */
+function AppearanceSwitch({
+  value,
+  onChange,
+}: {
+  value: AppearancePref;
+  onChange: (pref: AppearancePref) => void;
+}) {
+  const segments: { value: AppearancePref; label: string }[] = [
+    { value: 'system', label: 'System' },
+    { value: 'light', label: 'Light' },
+    { value: 'dark', label: 'Dark' },
+  ];
+  return (
+    <View
+      accessibilityRole="tablist"
+      className="flex-row rounded-full bg-grey p-1"
+    >
+      {segments.map((segment) => {
+        const active = segment.value === value;
+        return (
+          <Pressable
+            key={segment.value}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+            onPress={() => {
+              if (active) return;
+              tapLight();
+              onChange(segment.value);
+            }}
+            className={`rounded-full px-3 py-1.5 ${active ? 'bg-ink' : 'active:opacity-60'}`}
           >
             <Text
               className={`text-[12px] font-sans-medium ${active ? 'text-card' : 'text-sub'}`}
@@ -200,8 +248,18 @@ interface DisconnectState {
 }
 
 export function DevicesScreen() {
-  const { mode, switchMode, session, signOut, clerkSignOut, devices, refreshDevices, nav } =
-    useApp();
+  const {
+    mode,
+    switchMode,
+    appearance,
+    setAppearance,
+    session,
+    signOut,
+    clerkSignOut,
+    devices,
+    refreshDevices,
+    nav,
+  } = useApp();
   // Clerk-bootstrapped sessions end via a real sign-out that clears every
   // mode; anonymous ones just swap the per-mode identity.
   const clerkAuthed = session?.auth === 'clerk';
@@ -313,6 +371,22 @@ export function DevicesScreen() {
                   Sign in to connect real devices
                 </Text>
               ) : null}
+              <View className="h-px bg-line" />
+              <View className="flex-row items-center justify-between py-3.5">
+                <View className="flex-1 pr-3">
+                  <Text className="text-[15px] font-sans text-ink">
+                    Appearance
+                  </Text>
+                  <Text className="mt-0.5 text-[12px] font-sans leading-[17px] text-faint">
+                    {appearance === 'system'
+                      ? 'Home follows your device setting'
+                      : appearance === 'light'
+                        ? 'Light home screen'
+                        : 'Dark home screen'}
+                  </Text>
+                </View>
+                <AppearanceSwitch value={appearance} onChange={setAppearance} />
+              </View>
             </View>
           </Animated.View>
         ) : null}
