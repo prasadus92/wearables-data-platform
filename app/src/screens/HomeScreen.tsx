@@ -594,7 +594,7 @@ export function HomeScreen() {
   // The metric the loaded series belongs to. The metric state alone runs
   // one commit ahead of the data after a switch, so the chart's count-up
   // bookkeeping reads this value, set together with the data.
-  const [seriesMetricKey, setSeriesMetricKey] = useState(METRICS[0].key);
+  const [seriesMetricKey, setSeriesMetricKey] = useState<string>(METRICS[0].key);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -714,7 +714,7 @@ export function HomeScreen() {
       }
       setError(null);
       setSeries(next);
-      setSeriesMetricKey(metric.key);
+      setSeriesMetricKey(`${metric.key}|${providerFilter ?? 'all'}`);
       return next;
     } catch {
       // Both attempts failed: a real request failure.
