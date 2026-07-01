@@ -9,9 +9,9 @@ from app.api.deps import CurrentUser, DbSession, aggregator_client_for
 from app.core.logging import get_logger
 from app.models import Connection, ConnectionStatus, DeviceEventActor, DeviceEventType, User
 from app.schemas import ConnectionOut, LinkOut, LinkRequest
+from app.services.aggregator import AggregatorError
 from app.services.demo_seed import seed_demo_extras
 from app.services.ingestion import ConnectionChange, IngestPlan, apply_plan
-from app.services.aggregator import AggregatorError
 from app.services.ledger import record_device_event
 
 logger = get_logger(__name__)
@@ -20,7 +20,9 @@ router = APIRouter(prefix="/users/{user_id}/devices", tags=["devices"])
 
 def _require_aggregator_id(user: User) -> str:
     if not user.aggregator_user_id:
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="User is not registered with Aggregator")
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, detail="User is not registered with Aggregator"
+        )
     return user.aggregator_user_id
 
 

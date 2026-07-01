@@ -27,7 +27,7 @@ class Settings(BaseSettings):
 
     # --- Aggregator ---
     # Primary (default) environment, used for new users unless they request
-    # another one. The challenge demo defaults to sandbox.
+    # another one. The demo defaults to sandbox.
     aggregator_api_key: str = ""
     aggregator_environment: AggregatorEnvironment = AggregatorEnvironment.sandbox
     aggregator_region: AggregatorRegion = AggregatorRegion.eu
@@ -105,7 +105,9 @@ class Settings(BaseSettings):
         Aggregator hosts separate sandbox and production stacks
         per region; the EU sandbox is `api.sandbox.eu.aggregator.com`.
         """
-        env_prefix = "sandbox." if self.aggregator_environment == AggregatorEnvironment.sandbox else ""
+        env_prefix = (
+            "sandbox." if self.aggregator_environment == AggregatorEnvironment.sandbox else ""
+        )
         return f"https://api.{env_prefix}{self.aggregator_region}.aggregator.com"
 
 

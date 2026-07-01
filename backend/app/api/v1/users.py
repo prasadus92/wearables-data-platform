@@ -8,11 +8,12 @@ from fastapi import APIRouter, HTTPException, Request, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import CurrentUser, DbSession, Aggregator, aggregator_client_for
+from app.api.deps import Aggregator, CurrentUser, DbSession, aggregator_client_for
 from app.core.config import AggregatorEnvironment, get_settings
 from app.core.logging import get_logger
 from app.models import Connection, ConnectionStatus, DeviceEventActor, DeviceEventType, User
 from app.schemas import GuestCreate, GuestOut, MeCreate, UserCreate, UserOut
+from app.services.aggregator import AggregatorError
 from app.services.demo_seed import seed_demo_extras
 from app.services.ingestion import (
     RESOURCE_TO_METRIC,
@@ -21,7 +22,6 @@ from app.services.ingestion import (
     IngestPlan,
     apply_plan,
 )
-from app.services.aggregator import AggregatorError
 from app.services.ledger import record_device_event
 from app.workers.queue import enqueue_backfill
 
@@ -105,7 +105,10 @@ async def attach_demo_wearable(db: AsyncSession, user: User, provider: str = "ou
     normal webhook pipeline. Failures are logged and swallowed: a missing
     demo device must never block account creation.
     """
-    if user.aggregator_environment != str(AggregatorEnvironment.sandbox) or not user.aggregator_user_id:
+    if (
+        user.aggregator_environment != str(AggregatorEnvironment.sandbox)
+        or not user.aggregator_user_id
+    ):
         return
     aggregator = aggregator_client_for(user.aggregator_environment)
     try:
@@ -148,7 +151,7 @@ async def create_user(body: UserCreate, db: DbSession, _aggregator: Aggregator) 
     """Create an app user and register them with Aggregator.
 
     Idempotent on ``client_user_id``: re-posting the same id returns the
-    existing user (200 semantics kept simple for the challenge scope).
+    existing user (200 semantics kept simple for the MVP scope).
     """
     environment = AggregatorEnvironment(body.environment or get_settings().aggregator_environment)
     return await get_or_create_user(db, body.client_user_id, environment)
@@ -311,7 +314,9 @@ async def sync_user(user: CurrentUser, db: DbSession, _default: Aggregator) -> d
     so overlapping syncs are harmless.
     """
     if not user.aggregator_user_id:
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="User is not registered with Aggregator")
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, detail="User is not registered with Aggregator"
+        )
 
     aggregator = aggregator_client_for(user.aggregator_environment)
     try:

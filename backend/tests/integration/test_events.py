@@ -54,7 +54,9 @@ def _event(
     )
 
 
-async def _seed(engine, *, client_user_id: str = CLIENT_USER, aggregator_user_id: str | None = None):
+async def _seed(
+    engine, *, client_user_id: str = CLIENT_USER, aggregator_user_id: str | None = None
+):
     """Create a user plus a varied set of webhook events, oldest first.
 
     Returns (user_id, [event payloads in insertion order]).

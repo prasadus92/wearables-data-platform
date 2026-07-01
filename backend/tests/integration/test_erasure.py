@@ -171,7 +171,9 @@ async def test_erasing_unknown_user_is_404(with_auth, stub_aggregator, client):
     assert stub_aggregator.deleted == []
 
 
-async def test_user_without_aggregator_mapping_still_erased(with_auth, stub_aggregator, client, engine):
+async def test_user_without_aggregator_mapping_still_erased(
+    with_auth, stub_aggregator, client, engine
+):
     factory = async_sessionmaker(engine, expire_on_commit=False)
     async with factory() as session:
         user = User(client_user_id="never-registered", aggregator_user_id=None)

@@ -6,5 +6,10 @@
     "web",
     "app",
     "packages/*"
-  ]
+  ],
+  "overrides": {
+    "ws": "^8.21.0",
+    "postcss": "^8.5.10",
+    "uuid": "^11.1.1"
+  }
 }

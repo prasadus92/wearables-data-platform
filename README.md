@@ -20,7 +20,7 @@ What is in the box beyond ingestion and charts:
 | `web/` | Web dashboard: connect-device flow, device list, timeline charts |
 | `app/` | Expo (React Native) mobile app mirroring the ExampleHealth Figma flows |
 | `packages/health-core` | Shared TypeScript package: metric metadata, provider capability map, insight math, API contract types |
-| `docs/` | Architecture (Mermaid + draw.io), auth model, scaling strategy, runbook, presentation notes |
+| `docs/` | Architecture (Mermaid + draw.io), auth model, scaling strategy, insight layer |
 | `scripts/` | Aggregator link URLs, demo seeding, Apple Watch pairing codes |
 | `postman/` | Postman collection for the public API |
 | `infra/` | Deployment configuration (AWS) |
@@ -44,4 +44,4 @@ Aggregator ──webhooks──▶ FastAPI /webhooks/aggregator ──▶ queue 
 Web / Expo app ◀──── REST /v1/timeseries, /v1/devices, /v1/link ─────────────┘
 ```
 
-See [docs/architecture.md](docs/architecture.md) for the full system diagrams and the 10k to 50M user scaling strategy, [docs/authentication.md](docs/authentication.md) for the auth model and its production hardening queue, [docs/insights.md](docs/insights.md) for how the typical range and insight sentences are computed, [docs/recommendation-system.md](docs/recommendation-system.md) for the proposed recommendation and action system architecture built on this foundation, and [docs/demo-runbook.md](docs/demo-runbook.md) for every manual step.
+See [docs/architecture.md](docs/architecture.md) for the full system diagrams and the 10k to 50M user scaling strategy, [docs/authentication.md](docs/authentication.md) for the auth model and its production hardening queue, and [docs/insights.md](docs/insights.md) for how the typical range and insight sentences are computed.

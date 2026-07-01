@@ -57,7 +57,7 @@ provider). The same event or backfill can be applied any number of times. This m
 at-least-once delivery safe at every step of the chain and allows free replay from the
 stored raw events when a normalizer bug needs fixing.
 
-**Queue decouples ingestion from processing.** The challenge states 100 requests per
+**Queue decouples ingestion from processing.** The current target is 100 requests per
 minute today, growing. Bursts (a provider delivering a day of data for thousands of
 users at once) land in Redis and workers drain at their own pace. API latency for app
 users is unaffected by ingestion load, and workers scale independently of the API.

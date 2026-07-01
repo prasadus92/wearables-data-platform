@@ -7,8 +7,7 @@ Guidance for AI coding agents (Codex, Cursor, and friends). Same content as CLAU
 Wearable data platform for the ExampleHealth app on Aggregator: FastAPI
 ingestion/API backend, React web dashboard, Expo mobile app, Terraform AWS infra.
 Live at https://api.examplehealth.example.com. Architecture: docs/architecture.md. Auth model:
-docs/authentication.md. Demo procedures: docs/demo-runbook.md. One-time setup history:
-docs/setup-journal.md.
+docs/authentication.md. Insight layer: docs/insights.md.
 
 ## Commands
 

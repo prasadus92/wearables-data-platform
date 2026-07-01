@@ -42,7 +42,7 @@ class Base(DeclarativeBase):
 
 
 class Metric(enum.StrEnum):
-    """Biomarkers in scope for the MVP (challenge requirement)."""
+    """Biomarkers in scope for the MVP."""
 
     heartrate = "heartrate"
     hrv = "hrv"

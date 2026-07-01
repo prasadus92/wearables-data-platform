@@ -18,6 +18,7 @@ from app.core.config import AggregatorEnvironment, get_settings
 from app.core.logging import configure_logging, get_logger
 from app.db.session import db_session
 from app.models import ConnectionStatus, Metric, User, WebhookEvent, WebhookEventStatus
+from app.services.aggregator import AggregatorClient
 from app.services.events import publish_samples_written
 from app.services.ingestion import (
     RESOURCE_TO_METRIC,
@@ -26,7 +27,6 @@ from app.services.ingestion import (
     apply_plan,
     parse_event,
 )
-from app.services.aggregator import AggregatorClient
 from app.workers.queue import enqueue_backfill, redis_settings
 
 logger = get_logger(__name__)
@@ -94,7 +94,8 @@ async def process_webhook_event(ctx: dict[str, Any], webhook_event_id: str) -> s
                 # user exists. Never drop silently.
                 event.status = WebhookEventStatus.failed
                 event.error = (
-                    f"unknown user aggregator={plan.aggregator_user_id} client={plan.client_user_id}"
+                    f"unknown user aggregator={plan.aggregator_user_id} "
+                    f"client={plan.client_user_id}"
                 )
                 await session.commit()
                 logger.warning("webhook_unknown_user", event_type=plan.event_type)

@@ -30,5 +30,5 @@ production --environment production`).
 ## Where to start reading
 
 README.md, then docs/architecture.md (system and scaling),
-docs/authentication.md (auth model and hardening queue), docs/insights.md
-(the math behind the words), docs/recommendation-system.md (where this goes).
+docs/authentication.md (auth model and hardening queue), and docs/insights.md
+(the math behind the words).
