@@ -1,7 +1,7 @@
 [project]
 name = "wearables-data-platform-backend"
 version = "0.1.0"
-description = "Wearable data ingestion and timeseries API for the ExampleHealth app, backed by Aggregator"
+description = "Wearable data ingestion and timeseries API for the platform, backed by Aggregator"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",

@@ -20,7 +20,7 @@ import {
   type Metric,
   type Resolution,
   type Timeseries,
-} from '@examplehealth/health-core'
+} from '@wearables/health-core'
 import { api } from '../api'
 import { EmptyState } from './EmptyState'
 import { TapButton } from './motion'

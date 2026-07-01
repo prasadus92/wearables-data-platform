@@ -14,7 +14,7 @@ import Animated, {
   ReduceMotion,
 } from 'react-native-reanimated';
 
-import type { Device, AggregatorEnv } from '@examplehealth/health-core';
+import type { Device, AggregatorEnv } from '@wearables/health-core';
 
 import { api } from '../api/client';
 import { Button } from '../components/Button';

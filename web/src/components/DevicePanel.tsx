@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import type { Device } from '@examplehealth/health-core'
+import type { Device } from '@wearables/health-core'
 import { springTransition, TapButton } from './motion'
 import { BADGE_TONES, providerDisplayName, relativeTime } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
-// Providers offered in the ExampleHealth connect menu (product spec) plus the
+// Providers offered in the connect menu (product spec) plus the
 // sandbox demo shortcut. WHOOP/Garmin require real accounts (no sandbox
 // demo data); Apple Watch requires the native SDK and is mobile-only.
 const PROVIDERS = [

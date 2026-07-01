@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "ExampleHealth Wearables API",
+    "name": "Wearables Data Platform API",
     "description": "Wearable integration API: connect devices via Aggregator, ingest biometrics, query timeline data.\n\nSet the `baseUrl` variable (local: http://localhost:8000, or the deployed URL). Run requests top-to-bottom: Create User stores `userId` automatically.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },

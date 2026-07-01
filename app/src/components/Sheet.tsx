@@ -11,7 +11,7 @@ import Animated, {
 import { colors, fonts } from '../theme/tokens';
 
 /**
- * Visual primitives for the ExampleHealth bottom-sheet language: every connect,
+ * Visual primitives for the app bottom-sheet language: every connect,
  * sync and confirm surface in the design is a white (or light grey) panel
  * with 29pt corners, a small grab handle, a mono caption, a 24pt Medium
  * title and a muted 16pt body. Screens compose these pieces; the modal

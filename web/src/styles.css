@@ -1,6 +1,6 @@
 @import 'tailwindcss';
 
-/* Brand face: PP Neue Montreal (served from ExampleHealth' own asset CDN). */
+/* Brand face: PP Neue Montreal (served from the app's own asset CDN). */
 @font-face {
   font-family: 'PP Neue Montreal';
   src: url('/fonts/PPNeueMontreal-Book.otf') format('opentype');

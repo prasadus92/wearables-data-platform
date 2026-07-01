@@ -1,4 +1,4 @@
-# Public entry point: ALB with TLS on the api.examplehealth.example.com hostname.
+# Public entry point: ALB with TLS on the api.wearables.example.com hostname.
 # Aggregator delivers webhooks here; the web/mobile apps call the same host.
 
 resource "aws_security_group" "alb" {

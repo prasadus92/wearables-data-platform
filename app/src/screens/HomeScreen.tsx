@@ -42,7 +42,7 @@ import {
   metricSupported,
   weekDelta,
   type Timeseries,
-} from '@examplehealth/health-core';
+} from '@wearables/health-core';
 
 import { api } from '../api/client';
 import { Banner } from '../components/Banner';
@@ -635,7 +635,7 @@ export function HomeScreen() {
   const reduced = useReducedMotion();
   const { height: windowHeight } = useWindowDimensions();
   const scrollY = useSharedValue(0);
-  // Quiet entrance for the ExampleHealth wordmark at the foot: it fades in and
+  // Quiet entrance for the Wearables wordmark at the foot: it fades in and
   // settles upward once the end of the page scrolls into view. One-shot,
   // and instant when the OS asks for reduced motion.
   const logoIn = useSharedValue(0);
@@ -1326,7 +1326,7 @@ export function HomeScreen() {
                   style={{ color: pal.text }}
                   className="mt-6 text-[20px] font-sans-medium"
                 >
-                  ExampleHealth
+                  Wearables
                 </Text>
               </Animated.View>
             </View>

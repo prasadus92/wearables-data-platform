@@ -4,9 +4,9 @@ Working notes for AI agents in this repo. Humans: start with README.md.
 
 ## What this is
 
-Wearable data platform for the ExampleHealth app on Aggregator: FastAPI
+Wearable data platform for the platform on Aggregator: FastAPI
 ingestion/API backend, React web dashboard, Expo mobile app, Terraform AWS infra.
-Live at https://api.examplehealth.example.com. Architecture: docs/architecture.md. Auth model:
+Live at https://api.wearables.example.com. Architecture: docs/architecture.md. Auth model:
 docs/authentication.md. Insight layer: docs/insights.md.
 
 ## Commands
@@ -79,9 +79,9 @@ docs/authentication.md. Insight layer: docs/insights.md.
 ## Layout
 
 backend/app: api -> services -> models layering; parsing pure in services/ingestion.py.
-packages/health-core: shared workspace package (@examplehealth/health-core) with metric
+packages/health-core: shared workspace package (@wearables/health-core) with metric
 metadata, pure insight math, and API contract types mirroring backend/app/schemas.py;
 plain TS source, no build step; root package.json declares the npm workspaces.
-web/src: shadcn/ui + Tailwind v4 + motion; insights/metrics come from @examplehealth/health-core.
-app/src: Expo + NativeWind + victory-native Skia charts; shares @examplehealth/health-core with
+web/src: shadcn/ui + Tailwind v4 + motion; insights/metrics come from @wearables/health-core.
+app/src: Expo + NativeWind + victory-native Skia charts; shares @wearables/health-core with
 web. infra/terraform: full AWS stack. postman/: API collection.

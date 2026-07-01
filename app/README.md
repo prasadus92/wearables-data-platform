@@ -1,6 +1,6 @@
-# ExampleHealth Mobile App
+# Wearables Mobile App
 
-Expo (React Native + TypeScript) client for the ExampleHealth wearables platform.
+Expo (React Native + TypeScript) client for the wearables data platform.
 It connects wearables (Oura, WHOOP, Garmin, Fitbit) through Aggregator's hosted
 OAuth flow and charts biomarker timelines served by the backend API.
 
@@ -11,7 +11,7 @@ The app reads its API credentials from the environment at config time
 
 ```
 API_AUTH_TOKEN=<the backend API_AUTH_TOKEN>
-# Optional, defaults to https://api.examplehealth.example.com
+# Optional, defaults to https://api.wearables.example.com
 # API_BASE_URL=http://localhost:8000
 ```
 
@@ -34,7 +34,7 @@ Notes:
 - Pull-to-refresh on the home screen triggers a backend sync
   (`POST /v1/users/{id}/sync`) before refetching data.
 - The OAuth connect flow opens Aggregator's hosted link page via
-  `expo-web-browser` and returns through the `examplehealth://` scheme
+  `expo-web-browser` and returns through the `wearables://` scheme
   (Expo Go uses its own `exp://` scheme automatically).
 - In sandbox mode, Oura and Fitbit offer a "Use demo data" shortcut that
   seeds 30 days of synthetic data without a real device.

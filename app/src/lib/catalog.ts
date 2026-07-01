@@ -2,7 +2,7 @@ import {
   METRIC_META,
   type Metric,
   type Resolution,
-} from '@examplehealth/health-core';
+} from '@wearables/health-core';
 
 export interface ProviderInfo {
   slug: string;

@@ -24,7 +24,7 @@ variable "domain_zone" {
 variable "api_domain" {
   description = "Public hostname for the API (webhooks + app traffic)"
   type        = string
-  default     = "api.examplehealth.example.com"
+  default     = "api.wearables.example.com"
 }
 
 variable "aggregator_api_key" {

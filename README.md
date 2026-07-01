@@ -1,8 +1,8 @@
-# ExampleHealth Wearables Platform
+# Wearables Data Platform
 
-Wearable data integration for the ExampleHealth app, built on [Aggregator](https://docs.aggregator.com) as the wearable data provider. Users connect WHOOP / Oura / Garmin / Fitbit / Apple Watch; the platform ingests biometrics (heart rate, HRV, SpO2, respiratory rate, blood pressure) via signed Aggregator webhooks, normalizes them into one time series model, and serves web and mobile timeline charts that update live over SSE.
+Wearable data integration for the platform, built on [Aggregator](https://docs.aggregator.com) as the wearable data provider. Users connect WHOOP / Oura / Garmin / Fitbit / Apple Watch; the platform ingests biometrics (heart rate, HRV, SpO2, respiratory rate, blood pressure) via signed Aggregator webhooks, normalizes them into one time series model, and serves web and mobile timeline charts that update live over SSE.
 
-Live: dashboard at https://app.examplehealth.example.com, API docs at https://api.examplehealth.example.com/docs.
+Live: dashboard at https://app.wearables.example.com, API docs at https://api.wearables.example.com/docs.
 
 What is in the box beyond ingestion and charts:
 
@@ -18,7 +18,7 @@ What is in the box beyond ingestion and charts:
 |---|---|
 | `backend/` | FastAPI service: Aggregator webhook ingestion, user/device management, timeseries query API |
 | `web/` | Web dashboard: connect-device flow, device list, timeline charts |
-| `app/` | Expo (React Native) mobile app mirroring the ExampleHealth Figma flows |
+| `app/` | Expo (React Native) mobile app mirroring the product design flows |
 | `packages/health-core` | Shared TypeScript package: metric metadata, provider capability map, insight math, API contract types |
 | `docs/` | Architecture (Mermaid + draw.io), auth model, scaling strategy, insight layer |
 | `scripts/` | Aggregator link URLs, demo seeding, Apple Watch pairing codes |

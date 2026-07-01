@@ -1,6 +1,6 @@
 import { Modal, Pressable, Text, View } from 'react-native';
 
-import type { MetricMeta } from '@examplehealth/health-core';
+import type { MetricMeta } from '@wearables/health-core';
 
 import { fonts } from '../theme/tokens';
 

@@ -4,7 +4,7 @@
 #
 # Usage:
 #   ./scripts/seed-sample.sh                          # local backend
-#   API=https://api.examplehealth.example.com ./scripts/seed-sample.sh   # deployed
+#   API=https://api.wearables.example.com ./scripts/seed-sample.sh   # deployed
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

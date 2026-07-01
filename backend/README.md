@@ -1,6 +1,6 @@
 # Backend: Wearables Ingestion & Timeseries API
 
-FastAPI service that connects ExampleHealth users to their wearables through [Aggregator](https://docs.aggregator.com) and serves their biometrics for timeline charts.
+FastAPI service that connects platform users to their wearables through [Aggregator](https://docs.aggregator.com) and serves their biometrics for timeline charts.
 
 ## How it works
 

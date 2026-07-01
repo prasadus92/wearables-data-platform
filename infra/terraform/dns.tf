@@ -1,4 +1,4 @@
-# TLS certificate and DNS for api.examplehealth.example.com.
+# TLS certificate and DNS for api.wearables.example.com.
 
 data "aws_route53_zone" "main" {
   name = var.domain_zone

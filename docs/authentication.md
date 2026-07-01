@@ -9,7 +9,7 @@ A static token configured as `API_AUTH_TOKEN`, accepted on every `/v1` route as
 `X-API-Key: <token>`, `Authorization: Bearer <token>`, or `?api_key=<token>` (the SSE
 stream uses the query form because EventSource cannot send headers).
 
-- Full access to all users' data. This is the credential for Postman, the ExampleHealth
+- Full access to all users' data. This is the credential for Postman, the platform
   backend if it integrated with this service, CI smoke tests, and demos.
 - Compared in constant time. Stored in SSM SecureString, injected into ECS.
 - An empty configured token disables auth entirely; permitted only in local

@@ -4,12 +4,12 @@ import { ConfigContext, ExpoConfig } from 'expo/config';
 // Never commit real tokens; see README for setup.
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: 'ExampleHealth',
+  name: 'Wearables',
   slug: config.slug ?? 'app',
-  scheme: 'examplehealth',
+  scheme: 'wearables',
   extra: {
     ...config.extra,
-    apiBaseUrl: process.env.API_BASE_URL ?? 'https://api.examplehealth.example.com',
+    apiBaseUrl: process.env.API_BASE_URL ?? 'https://api.wearables.example.com',
     apiKey: process.env.API_AUTH_TOKEN ?? '',
   },
 });

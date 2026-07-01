@@ -3,7 +3,7 @@ import { AlertCircle } from 'lucide-react'
 import { motion, MotionConfig } from 'motion/react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Navigate, Outlet, Route, Routes, useNavigate } from 'react-router-dom'
-import type { Device, AggregatorEnv, User } from '@examplehealth/health-core'
+import type { Device, AggregatorEnv, User } from '@wearables/health-core'
 import { api, setGuestToken, streamUrl } from './api'
 import { useClerkBridge } from './components/AuthBridge'
 import { springTransition, TapButton } from './components/motion'
@@ -315,7 +315,7 @@ function AppShell() {
           transition={{ delay: 0.15 }}
           className="flex items-center gap-3"
         >
-          <img src="/examplehealth-logo.svg" alt="ExampleHealth" className="h-5 w-auto dark:invert" />
+          <img src="/logo.svg" alt="Wearables Data Platform" className="h-5 w-auto dark:invert" />
           <span className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
             {signedIn ? 'Signing you in' : 'Loading'}
           </span>
@@ -347,7 +347,7 @@ function AppShell() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
           >
-            <img src="/examplehealth-logo.svg" alt="ExampleHealth" className="h-6 w-auto dark:invert" />
+            <img src="/logo.svg" alt="Wearables Data Platform" className="h-6 w-auto dark:invert" />
             <span className="font-mono text-xs font-medium tracking-[0.25em] text-muted-foreground uppercase">
               Wearables
             </span>
@@ -445,7 +445,7 @@ function AppShell() {
                 whileTap={{ scale: 0.97 }}
                 transition={springTransition}
               >
-                <img src="/examplehealth-logo.svg" alt="ExampleHealth" className="h-4 w-auto dark:invert" />
+                <img src="/logo.svg" alt="Wearables Data Platform" className="h-4 w-auto dark:invert" />
                 <span className="text-xl leading-none font-semibold tracking-tight">
                   Wearables
                 </span>

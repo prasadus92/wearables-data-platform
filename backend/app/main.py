@@ -30,9 +30,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="ExampleHealth Wearables API",
+    title="Wearables Data Platform API",
     description=(
-        "Wearable data integration for the ExampleHealth app. Users connect WHOOP/Oura/"
+        "Wearable data integration for the platform. Users connect WHOOP/Oura/"
         "Garmin/Apple Watch via Aggregator; biometrics are ingested via webhooks and "
         "served here for timeline charts.\n\n"
         "Authentication: all `/v1` routes accept the service API token, a Clerk "

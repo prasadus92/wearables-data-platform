@@ -11,7 +11,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ReducedMotionConfig, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import type { Device, AggregatorEnv } from '@examplehealth/health-core';
+import type { Device, AggregatorEnv } from '@wearables/health-core';
 
 import { api, ApiError, setTokenProvider } from './src/api/client';
 import { Button } from './src/components/Button';

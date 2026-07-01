@@ -1,7 +1,7 @@
 // Thin typed client for the backend API.
 // In dev, Vite proxies /v1 to localhost:8000; in production builds the base
 // URL comes from VITE_API_URL.
-// Response and request contract types live in @examplehealth/health-core, shared
+// Response and request contract types live in @wearables/health-core, shared
 // with the mobile app; only the request plumbing is web-specific.
 
 import type {
@@ -12,7 +12,7 @@ import type {
   Resolution,
   Timeseries,
   User,
-} from '@examplehealth/health-core'
+} from '@wearables/health-core'
 
 const BASE = import.meta.env.VITE_API_URL ?? ''
 const API_KEY = import.meta.env.VITE_API_KEY ?? ''

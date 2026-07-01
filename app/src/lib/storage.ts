@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { AggregatorEnv } from '@examplehealth/health-core';
+import type { AggregatorEnv } from '@wearables/health-core';
 
 import type { AppearancePref } from '../theme/tokens';
 

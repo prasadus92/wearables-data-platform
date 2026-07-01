@@ -1,4 +1,4 @@
-import type { Device, AggregatorEnv } from '@examplehealth/health-core';
+import type { Device, AggregatorEnv } from '@wearables/health-core';
 import { createContext, useContext } from 'react';
 
 import type { AppearancePref, ResolvedTheme } from '../theme/tokens';

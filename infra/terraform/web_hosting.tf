@@ -81,7 +81,7 @@ resource "aws_cloudfront_distribution" "web" {
     }
   }
 
-  aliases = ["app.examplehealth.example.com"]
+  aliases = ["app.wearables.example.com"]
 
   viewer_certificate {
     acm_certificate_arn      = aws_acm_certificate_validation.web.certificate_arn
@@ -134,7 +134,7 @@ output "web_distribution_id" {
 # Stable hostname for the public dashboard.
 resource "aws_acm_certificate" "web" {
   provider          = aws.us_east_1
-  domain_name       = "app.examplehealth.example.com"
+  domain_name       = "app.wearables.example.com"
   validation_method = "DNS"
 
   lifecycle {
@@ -166,7 +166,7 @@ resource "aws_acm_certificate_validation" "web" {
 
 resource "aws_route53_record" "web" {
   zone_id = data.aws_route53_zone.main.zone_id
-  name    = "app.examplehealth.example.com"
+  name    = "app.wearables.example.com"
   type    = "A"
 
   alias {

@@ -110,7 +110,7 @@ EU region matches Aggregator EU data residency, which matters for health data un
 ```mermaid
 flowchart LR
     R53[Route53
-    api.examplehealth.example.com] --> ALB[ALB + ACM TLS]
+    api.wearables.example.com] --> ALB[ALB + ACM TLS]
     ALB --> API1[ECS Fargate: api x2]
     API1 --> RDS[(RDS Postgres 16)]
     API1 --> EC[(ElastiCache Redis)]

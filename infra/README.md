@@ -22,7 +22,7 @@ APPLY=1 AWS_PROFILE=default ./infra/deploy.sh  # terraform apply first
   deployment of the `api` and `worker` ECS services, and waits for them to
   stabilize. This is the non-terraform half of `infra/deploy.sh`.
 - **web**: builds the SPA (`npm ci && npm run build`) with
-  `VITE_API_URL=https://api.examplehealth.example.com` and no `VITE_API_KEY`, so the
+  `VITE_API_URL=https://api.wearables.example.com` and no `VITE_API_KEY`, so the
   public bundle never contains the service key (browser sessions authenticate
   with Clerk JWTs). The build is synced to the web S3 bucket and the
   CloudFront distribution is invalidated.

@@ -9,7 +9,7 @@ import {
   useSearchParams,
 } from 'react-router-dom'
 import type { DashboardContext } from '../App'
-import { METRIC_META, type Metric, type Resolution } from '@examplehealth/health-core'
+import { METRIC_META, type Metric, type Resolution } from '@wearables/health-core'
 import { api } from '../api'
 import { springTransition } from '../components/motion'
 import { TimelineChart } from '../components/TimelineChart'

@@ -20,7 +20,7 @@ import { colors, fonts } from '../theme/tokens';
  * Post-success syncing story (pages 2 to 4 of the connect flow; the success
  * sheet is page 1). Each page is skippable via its own button or by tapping
  * the dimmed area above the sheet. The biomarker list and count come from
- * the shared metric metadata in @examplehealth/health-core via the catalog.
+ * the shared metric metadata in @wearables/health-core via the catalog.
  */
 
 /** White biomarker pill row, as on the "We are syncing" page. */

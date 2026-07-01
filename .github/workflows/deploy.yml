@@ -80,7 +80,7 @@ jobs:
       # session tokens instead.
       - name: Build
         env:
-          VITE_API_URL: https://api.examplehealth.example.com
+          VITE_API_URL: https://api.wearables.example.com
           VITE_CLERK_PUBLISHABLE_KEY: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
         run: npm run build --workspace web
 

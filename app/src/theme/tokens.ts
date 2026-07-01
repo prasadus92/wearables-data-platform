@@ -19,7 +19,7 @@ export const colors = {
   card: '#FFFFFF',
   line: '#E8E6E1',
   inkSoft: '#2C2C2E',
-  // ExampleHealth Figma palette: sheet surfaces, status accents and chrome.
+  // UI palette: sheet surfaces, status accents and chrome.
   grey: '#F1F1F1',
   mist: '#F4F3F3',
   mute: '#8F8F8F',

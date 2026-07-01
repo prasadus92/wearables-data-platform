@@ -5,7 +5,7 @@ import type {
   Resolution,
   Timeseries,
   User,
-} from '@examplehealth/health-core';
+} from '@wearables/health-core';
 import Constants from 'expo-constants';
 
 import type { ApplePairingCode, LinkOut } from './types';
@@ -16,7 +16,7 @@ interface AppExtra {
 }
 
 const extra: AppExtra = (Constants.expoConfig?.extra as AppExtra) ?? {};
-const BASE_URL = extra.apiBaseUrl ?? 'https://api.examplehealth.example.com';
+const BASE_URL = extra.apiBaseUrl ?? 'https://api.wearables.example.com';
 const API_KEY = extra.apiKey ?? '';
 
 // When a signed-in account session exists, App registers a provider that

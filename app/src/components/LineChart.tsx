@@ -45,7 +45,7 @@ import type {
   Baseline,
   ClinicalBand,
   TimeseriesPoint,
-} from '@examplehealth/health-core';
+} from '@wearables/health-core';
 
 import { dayLabel, hourLabel } from '../lib/format';
 import { tapLight } from '../lib/haptics';

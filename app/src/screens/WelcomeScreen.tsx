@@ -179,7 +179,7 @@ export function WelcomeScreen() {
                 style={{ fontFamily: fonts.mono }}
                 className="text-[11px] uppercase tracking-[3px] text-[#8E8C88]"
               >
-                ExampleHealth
+                Wearables
               </Text>
               <Text className="mt-2 text-[34px] font-sans-medium leading-[40px] text-card">
                 Your body,{'\n'}in real time
